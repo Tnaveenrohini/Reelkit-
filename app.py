@@ -1,8 +1,6 @@
-"""ReelKit backend sized for Vercel (needs only fastapi, yt-dlp, httpx).
-Heavy AI runs on hosted APIs: Groq (Whisper) and Replicate (Demucs)."""
-import os, re
+"""ReelKit backend for Vercel: downloader + caption copier (fastapi, yt-dlp, httpx)."""
+import os, re, shutil, subprocess
 from pathlib import Path
-from urllib.parse import quote, urlparse
 
 import httpx
 import yt_dlp
@@ -11,7 +9,6 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 IG_URL = re.compile(r"^https?://(www\.)?instagram\.com/(p|reel|reels|tv|stories)/", re.I)
-R = "https://api.replicate.com/v1"
 COOKIES = None
 if os.getenv("IG_COOKIES_TEXT"):  # paste a Netscape cookies.txt into this env var
     COOKIES = "/tmp/ig_cookies.txt"
@@ -24,12 +21,6 @@ r_ = APIRouter()  # mounted at /api and at / so it works however Vercel passes t
 
 class Req(BaseModel):
     url: str
-
-
-def need(name):
-    if not os.getenv(name):
-        raise HTTPException(503, f"{name} is not set on the server. Add it in your hosting environment variables.")
-    return os.environ[name]
 
 
 def clean(url):
@@ -83,6 +74,16 @@ def stream(src, headers=None, filename=None):
     return StreamingResponse(gen(), media_type=r.headers.get("content-type", "application/octet-stream"), headers=h)
 
 
+def ffmpeg_path():
+    """imageio-ffmpeg ships a static ffmpeg binary; copy it to /tmp so it is executable on Vercel."""
+    import imageio_ffmpeg
+    dst = "/tmp/ffmpeg"
+    if not os.path.exists(dst):
+        shutil.copy(imageio_ffmpeg.get_ffmpeg_exe(), dst)
+        os.chmod(dst, 0o755)
+    return dst
+
+
 # ---------- downloader + caption ----------
 @r_.post("/info")
 def info(b: Req):
@@ -99,84 +100,40 @@ def info(b: Req):
     }
 
 
+@r_.get("/mp3")
+def mp3(url: str, index: int = 0):
+    src, hdrs, vid = media(clean(url), index)
+    if not vid:
+        raise HTTPException(400, "This item is a photo, so there is no audio to extract.")
+    cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error"]
+    if hdrs:
+        cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
+    cmd += ["-i", src, "-vn", "-map", "0:a:0", "-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3", "pipe:1"]
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    first = p.stdout.read(65536)
+    if not first:
+        err = p.stderr.read().decode(errors="ignore")[-200:]
+        p.wait()
+        raise HTTPException(422, "Couldn't extract audio. This video may have no sound. " + err)
+
+    def gen():
+        try:
+            yield first
+            while True:
+                chunk = p.stdout.read(65536)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            p.kill(); p.wait()
+    return StreamingResponse(gen(), media_type="audio/mpeg",
+                             headers={"Content-Disposition": 'attachment; filename="reelkit.mp3"'})
+
+
 @r_.get("/download")
 def download(url: str, index: int = 0):
     src, hdrs, vid = media(clean(url), index)
     return stream(src, hdrs, f"reelkit.{'mp4' if vid else 'jpg'}")
-
-
-# ---------- Video-to-Script (Groq Whisper) ----------
-@r_.post("/script")
-def script(b: Req):
-    key = need("GROQ_API_KEY")
-    src, hdrs, vid = media(clean(b.url))
-    if not vid:
-        raise HTTPException(400, "This post has no video to transcribe.")
-    with httpx.Client(timeout=120, follow_redirects=True) as c:
-        data = c.get(src, headers=hdrs).content
-        if len(data) > 24 * 1024 * 1024:
-            raise HTTPException(413, "This video is over 24 MB, the free transcription limit.")
-        r = c.post("https://api.groq.com/openai/v1/audio/transcriptions",
-                   headers={"Authorization": f"Bearer {key}"}, files={"file": ("reel.mp4", data, "video/mp4")},
-                   data={"model": os.getenv("GROQ_MODEL", "whisper-large-v3-turbo"), "response_format": "verbose_json"})
-    if r.status_code >= 400:
-        raise HTTPException(502, "Transcription failed: " + r.text[:200])
-    j = r.json()
-    segs = [{"start": round(s["start"], 2), "end": round(s["end"], 2), "text": s["text"].strip()}
-            for s in j.get("segments", [])]
-    return {"language": j.get("language", "unknown"), "segments": segs, "text": (j.get("text") or "").strip()}
-
-
-# ---------- AI BGM & Vocal Splitter (Replicate Demucs) ----------
-@r_.post("/split/start")
-def split_start(b: Req):
-    h = {"Authorization": f"Bearer {need('REPLICATE_API_TOKEN')}"}
-    src, _, vid = media(clean(b.url))
-    if not vid:
-        raise HTTPException(400, "This post has no video to split.")
-    with httpx.Client(timeout=30) as c:
-        m = c.get(f"{R}/models/ryan5453/demucs", headers=h)
-        if m.status_code >= 400:
-            raise HTTPException(502, "Replicate error: " + m.text[:200])
-        v = m.json()["latest_version"]
-        props = v["openapi_schema"]["components"]["schemas"]["Input"]["properties"]
-        inp = {"audio": src}
-        for k, val in (("stem", "vocals"), ("isolate_stem", "vocals"), ("output_format", "mp3"), ("format", "mp3")):
-            if k in props:
-                inp[k] = val
-        r = c.post(f"{R}/predictions", headers=h, json={"version": v["id"], "input": inp})
-    if r.status_code >= 400:
-        raise HTTPException(502, "Replicate error: " + r.text[:200])
-    return {"id": r.json()["id"]}
-
-
-@r_.get("/split/{pid}")
-def split_poll(pid: str):
-    if not re.fullmatch(r"[a-z0-9]+", pid):
-        raise HTTPException(404)
-    h = {"Authorization": f"Bearer {need('REPLICATE_API_TOKEN')}"}
-    r = httpx.get(f"{R}/predictions/{pid}", headers=h, timeout=30).json()
-    st = r.get("status")
-    if st == "succeeded":
-        out = r.get("output") or {}
-        if isinstance(out, dict) and "stems" in out:
-            out = {s["name"]: s["audio"] for s in out["stems"]}
-        voc, bgm = out.get("vocals"), out.get("no_vocals") or out.get("other")
-        if not voc or not bgm:
-            raise HTTPException(502, "Unexpected output from the separation model.")
-        f = lambda u: "/api/file?u=" + quote(u, safe="")
-        return {"status": "done", "result": {"vocals": f(voc), "bgm": f(bgm)}}
-    if st in ("failed", "canceled"):
-        return {"status": "error", "error": str(r.get("error") or st)[:200]}
-    return {"status": "running", "step": "Separating vocals from music"}
-
-
-@r_.get("/file")
-def file(u: str, dl: int = 0):
-    p = urlparse(u)
-    if p.scheme != "https" or not (p.hostname or "").endswith("replicate.delivery"):
-        raise HTTPException(400, "Not allowed.")
-    return stream(u, filename="reelkit-" + Path(p.path).name if dl else None)
 
 
 @app.get("/", include_in_schema=False)
@@ -186,8 +143,7 @@ def home():
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 2, "groq_key": bool(os.getenv("GROQ_API_KEY")),
-            "replicate_token": bool(os.getenv("REPLICATE_API_TOKEN")), "ig_cookies": bool(COOKIES)}
+    return {"ok": True, "version": 3, "ig_cookies": bool(COOKIES)}
 
 
 app.include_router(r_, prefix="/api")

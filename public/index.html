@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ReelKit – Instagram Video Downloader</title>
-<meta name="description" content="ReelKit downloads Instagram videos, Reels, photos, Stories and carousels, and adds AI tools: vocal splitter, video-to-script and caption copier.">
+<meta name="description" content="ReelKit downloads Instagram videos, Reels, photos, Stories and carousels, converts videos to MP3, and copies captions and hashtags.">
 <meta property="og:image" content="/logo.png">
 <link rel="icon" href="/icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -63,7 +63,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
   <div class="top"><a class="brand" href="#video"><img src="/icon.png" alt="">ReelKit</a></div>
   <nav id="nav">
     <a href="#video">Video</a><a href="#photo">Photo</a><a href="#reels">Reels</a><a href="#story">Story</a><a href="#carousel">Carousel</a>
-    <a class="ai" href="#splitter">Vocal Splitter</a><a class="ai" href="#script">Video to Script</a><a class="ai" href="#caption">Caption Copier</a>
+    <a class="ai" href="#mp3">Video to MP3</a><a class="ai" href="#caption">Caption Copier</a>
   </nav>
 </div></header>
 
@@ -79,25 +79,22 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
     <div class="steps">
       <div><h3>Copy the URL</h3><p>Open Instagram, tap the share menu on a post, Reel, Story or carousel, and copy its link.</p></div>
       <div><h3>Paste the link</h3><p>Come back to ReelKit, paste the link into the field and press the button.</p></div>
-      <div><h3>Save the result</h3><p>Download the file, or copy the caption, script or separated audio.</p></div>
+      <div><h3>Save the result</h3><p>Download the file, or copy the caption or save the audio as MP3.</p></div>
     </div></section>
 
   <section><h2>Everything in one kit</h2>
     <div class="feat">
       <div><h3>Video, Reels and IGTV</h3><p>Save MP4 files without watermarks in the original quality.</p></div>
       <div><h3>Photos and carousels</h3><p>Pick any slide of an album and download it on its own.</p></div>
-      <div><h3>AI BGM &amp; Vocal Splitter</h3><p>Splits a Reel into a voice track and a music-only track using Demucs.</p></div>
-      <div><h3>Video-to-Script</h3><p>Transcribes speech with Whisper and gives you timestamps you can copy.</p></div>
-      <div><h3>Caption &amp; Hashtag Copier</h3><p>Copies the caption, hashtags or caption without hashtags in one tap.</p></div>
+                  <div><h3>Video to MP3</h3><p>Pulls the sound out of a Reel and saves it as a 192 kbps MP3.</p></div>
+                  <div><h3>Caption &amp; Hashtag Copier</h3><p>Copies the caption, hashtags or caption without hashtags in one tap.</p></div>
       <div><h3>No login</h3><p>No account and no Instagram password. Files are deleted from the server after use.</p></div>
     </div></section>
 
   <section><h2>Frequently asked questions</h2>
     <details><summary>Is downloading from Instagram legal?</summary><p>Saving public posts for personal use is generally fine, but the copyright belongs to the creator. Keep files private unless you have permission to reuse them.</p></details>
     <details><summary>Can I download from private accounts?</summary><p>No. Only public posts work. If you can’t see the post while logged out, ReelKit can’t fetch it either.</p></details>
-    <details><summary>Which languages does Video-to-Script understand?</summary><p>Whisper detects the spoken language automatically and supports about 100 of them.</p></details>
-    <details><summary>Why is the vocal splitter slow?</summary><p>Separation is a heavy AI task. A 30-second Reel usually takes one to two minutes to process on the cloud GPU.</p></details>
-    <details><summary>Are my links stored?</summary><p>No. Temporary files are removed after download or within an hour.</p></details>
+            <details><summary>Are my links stored?</summary><p>No. Temporary files are removed after download or within an hour.</p></details>
   </section>
 </main>
 <footer><div class="wrap">© 2026 ReelKit. Not affiliated with Instagram or Meta.</div></footer>
@@ -107,10 +104,10 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 const API=(window.API_BASE||'').replace(/\/$/,'');
 const $=s=>document.querySelector(s);
 const T={download:['Instagram Downloader','Save Instagram videos, Reels, photos, Stories and carousels.','Download'],
- split:['AI BGM & Vocal Splitter','Separate the voice from the background music of any Reel.','Split audio'],
- script:['Video-to-Script (AI)','Turn the speech in any Reel into a timestamped script.','Get script'],
+
+ mp3:['Video to MP3 Converter','Extract the audio of any Reel and save it as an MP3 file.','Convert to MP3'],
  caption:['Caption & Hashtag Copier','Copy the caption, hashtags and mentions from any post.','Get caption']};
-const M={video:'download',photo:'download',reels:'download',story:'download',carousel:'download',splitter:'split',script:'script',caption:'caption'};
+const M={video:'download',photo:'download',reels:'download',story:'download',carousel:'download',mp3:'mp3',caption:'caption'};
 let cur='download';
 function route(){const s=M[location.hash.slice(1)]?location.hash.slice(1):'video';cur=M[s];
  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.hash==='#'+s));
@@ -131,12 +128,7 @@ $('#clear').onclick=()=>{$('#u').value='';out();$('#u').focus()};
 $('#f').onsubmit=async e=>{e.preventDefault();const url=$('#u').value.trim();if(!url)return msg('Paste an Instagram link first.',true);
  $('#go').disabled=true;const mode=cur;
  try{
-  if(mode==='download'||mode==='caption'){msg('Reading the post',false,true);const d=await api('/api/info',{url});mode==='download'?showDl(d,url):showCap(d)}
-  else if(mode==='script'){msg('Transcribing speech. This can take up to a minute',false,true);showScript(await api('/api/script',{url}))}
-  else{const {id}=await api('/api/split/start',{url});
-   for(;;){const j=await api('/api/split/'+id);if(j.status==='error')throw new Error(j.error);
-    if(j.status==='done'){showSplit(j.result);break}
-    msg(j.step,false,true);await new Promise(r=>setTimeout(r,3000))}}
+  {msg('Reading the post',false,true);const d=await api('/api/info',{url});({download:showDl,mp3:showMp3,caption:showCap})[mode](d,url)}
  }catch(x){msg(x.message,true)}
  $('#go').disabled=false};
 
@@ -146,6 +138,14 @@ function showDl(d,url){out(h('div',{class:'card'},
   h('div',{class:'row'},d.items.map((it,i)=>h('a',{class:'btn',href:`${API}/api/download?url=${encodeURIComponent(url)}&index=${i}`},
    `Download ${it.type}${d.items.length>1?' '+(i+1):''}`))))))}
 
+function showMp3(d,url){const vids=d.items.map((it,i)=>[it,i]).filter(([it])=>it.type==='video');
+ if(!vids.length)return msg('This post has no video, so there is no audio to extract.',true);
+ out(h('div',{class:'card'},d.thumb&&h('img',{class:'th',src:d.thumb,alt:'',referrerpolicy:'no-referrer'}),
+  h('div',{class:'meta'},h('b',{},'@'+(d.uploader||'instagram')),h('p',{},(d.caption||'').slice(0,160)),
+   h('div',{class:'row'},vids.map(([,i])=>h('a',{class:'btn',href:`${API}/api/mp3?url=${encodeURIComponent(url)}&index=${i}`},
+    vids.length>1?`Download MP3 ${i+1}`:'Download MP3'))),
+   h('p',{},'Conversion starts when you tap the button and can take a few seconds.'))))}
+
 function showCap(d){const bare=d.caption.replace(/#\w+/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
  out(h('div',{class:'card',style:'display:block'},
   d.caption?h('textarea',{readonly:'',value:d.caption},d.caption):h('p',{},'This post has no caption.'),
@@ -153,17 +153,6 @@ function showCap(d){const bare=d.caption.replace(/#\w+/g,'').replace(/[ \t]+\n/g
   h('div',{class:'row'},copyBtn('Copy caption',d.caption),copyBtn('Copy hashtags',d.hashtags.join(' ')),
    copyBtn('Copy without hashtags',bare),d.mentions.length?copyBtn('Copy mentions',d.mentions.join(' ')):null)))}
 
-const ts=s=>new Date(s*1000).toISOString().slice(14,19);
-function showScript(r){if(!r.segments.length)return msg('No speech found in this video.',true);
- const plain=r.segments.map(s=>s.text).join('\n'),timed=r.segments.map(s=>`[${ts(s.start)}] ${s.text}`).join('\n');
- const dl=h('button',{type:'button',onclick:()=>{const a=h('a',{href:URL.createObjectURL(new Blob([timed])),download:'reelkit-script.txt'});a.click()}},'Download .txt');
- out(h('div',{class:'card',style:'display:block'},h('p',{style:'margin-bottom:10px'},'Detected language: '+r.language),
-  r.segments.map(s=>h('div',{class:'seg'},h('time',{},ts(s.start)),h('span',{},s.text))),
-  h('div',{class:'row',style:'margin-top:14px'},copyBtn('Copy script',plain),copyBtn('Copy with timestamps',timed),dl)))}
-
-function showSplit(r){const t=(n,u,f)=>h('div',{class:'card',style:'display:block'},h('h3',{},n),h('audio',{controls:'',src:API+u}),
-  h('a',{class:'btn',href:API+u+'&dl=1',download:f,style:'margin-top:10px'},'Download MP3'));
- out(t('Vocals',r.vocals,'reelkit-vocals.mp3'),t('Background music (BGM)',r.bgm,'reelkit-bgm.mp3'))}
 </script>
 </body>
 </html>

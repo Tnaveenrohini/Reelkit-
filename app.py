@@ -1,11 +1,12 @@
 """ReelKit backend for Vercel: downloader + caption copier (fastapi, yt-dlp, httpx)."""
-import os, re, shutil, subprocess
+import os, re, shutil, subprocess, uuid
 from pathlib import Path
 
 import httpx
 import yt_dlp
 from fastapi import APIRouter, FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
 IG_URL = re.compile(r"^https?://(www\.)?instagram\.com/(p|reel|reels|tv|stories)/", re.I)
@@ -94,9 +95,10 @@ def info(b: Req):
         "uploader": d.get("uploader") or d.get("channel"),
         "thumb": d.get("thumbnail") or (its[0].get("thumbnail") if its else None),
         "caption": caption,
+        "duration": d.get("duration") or (its[0].get("duration") if its else None),
         "hashtags": list(dict.fromkeys(re.findall(r"#\w+", caption))),
         "mentions": list(dict.fromkeys(re.findall(r"@[\w.]+", caption))),
-        "items": [{"type": "video" if is_video(e) else "photo"} for e in its],
+        "items": [{"type": "video" if is_video(e) else "photo", "duration": e.get("duration")} for e in its],
     }
 
 
@@ -128,6 +130,40 @@ def mp3(url: str, index: int = 0):
             p.kill(); p.wait()
     return StreamingResponse(gen(), media_type="audio/mpeg",
                              headers={"Content-Disposition": 'attachment; filename="reelkit.mp3"'})
+
+
+@r_.get("/ringtone")
+def ringtone(url: str, index: int = 0, start: float = 0, length: float = 30, fade: int = 1,
+             fmt: str = "mp3", dl: int = 0):
+    src, hdrs, vid = media(clean(url), index)
+    if not vid:
+        raise HTTPException(400, "This item is a photo, so there is no audio to use.")
+    start, length = max(0.0, min(start, 21600.0)), max(3.0, min(length, 30.0))
+    m4r = fmt == "m4r"
+    ext = "m4r" if m4r else "mp3"
+    out = f"/tmp/rt-{uuid.uuid4().hex}.{ext}"
+    af = "afade=t=in:st=0:d=0.3" + (f",afade=t=out:st={max(length - 2, 0):.2f}:d=2" if fade else "")
+    enc = (["-c:a", "aac", "-b:a", "192k", "-f", "ipod"] if m4r else ["-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3"])
+    head = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
+    if hdrs:
+        head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
+    ss = ["-ss", f"{start:.2f}"]
+    tail = ["-t", f"{length:.2f}", "-vn", "-map", "0:a:0", "-af", af] + enc + [out]
+    try:
+        # fast path: seek before opening; if the server can't seek, retry by reading from the start
+        r = subprocess.run(head + ss + ["-i", src] + tail, capture_output=True, timeout=100)
+        if r.returncode:
+            r = subprocess.run(head + ["-i", src] + ss + tail, capture_output=True, timeout=100)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "Making the ringtone took too long. Try a shorter clip.")
+    if r.returncode or not os.path.exists(out) or os.path.getsize(out) < 1024:
+        if os.path.exists(out):
+            os.remove(out)
+        raise HTTPException(422, "Couldn't make the ringtone. The clip may start after the video ends, or it has no sound. "
+                                 + r.stderr.decode(errors="ignore")[-150:])
+    return FileResponse(out, media_type="audio/mp4" if m4r else "audio/mpeg", filename=f"reelkit-ringtone.{ext}",
+                        content_disposition_type="attachment" if dl else "inline",
+                        background=BackgroundTask(os.remove, out))
 
 
 @r_.get("/download")

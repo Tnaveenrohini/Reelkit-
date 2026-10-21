@@ -7,11 +7,13 @@
 <meta name="description" content="ReelKit downloads Instagram videos, Reels, photos, Stories and carousels, converts videos to MP3, and copies captions and hashtags.">
 <meta property="og:image" content="/logo.png">
 <link rel="icon" href="/icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#111216">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#111216;--card:#1a1c22;--line:#2b2e38;--gold:#f7b52c;--amber:#e88a0c;--text:#f3f2ee;--mute:#9a9ca6;--r:14px}
-*{box-sizing:border-box}
+*{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 Sora,system-ui,sans-serif}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
@@ -60,10 +62,10 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 </head>
 <body>
 <header><div class="wrap">
-  <div class="top"><a class="brand" href="#video"><img src="/icon.png" alt="">ReelKit</a></div>
+  <div class="top"><a class="brand" href="#video"><img src="/icon.png" alt="">ReelKit</a><button id="inst" hidden style="margin-left:auto">Install app</button></div>
   <nav id="nav">
     <a href="#video">Video</a><a href="#photo">Photo</a><a href="#reels">Reels</a><a href="#story">Story</a><a href="#carousel">Carousel</a>
-    <a class="ai" href="#mp3">Video to MP3</a><a class="ai" href="#caption">Caption Copier</a>
+    <a class="ai" href="#mp3">Video to MP3</a><a class="ai" href="#ringtone">Ringtone</a><a class="ai" href="#caption">Caption Copier</a>
   </nav>
 </div></header>
 
@@ -86,6 +88,8 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
     <div class="feat">
       <div><h3>Video, Reels and IGTV</h3><p>Save MP4 files without watermarks in the original quality.</p></div>
       <div><h3>Photos and carousels</h3><p>Pick any slide of an album and download it on its own.</p></div>
+                  <div><h3>Share to ReelKit</h3><p>Install ReelKit on your phone, then use Instagram’s Share button to send a Reel straight to it.</p></div>
+                  <div><h3>Reel to Ringtone</h3><p>Choose a 30-second section, add a fade-out and save it as an Android MP3 or iPhone M4R.</p></div>
                   <div><h3>Video to MP3</h3><p>Pulls the sound out of a Reel and saves it as a 192 kbps MP3.</p></div>
                   <div><h3>Caption &amp; Hashtag Copier</h3><p>Copies the caption, hashtags or caption without hashtags in one tap.</p></div>
       <div><h3>No login</h3><p>No account and no Instagram password. Files are deleted from the server after use.</p></div>
@@ -105,9 +109,10 @@ const API=(window.API_BASE||'').replace(/\/$/,'');
 const $=s=>document.querySelector(s);
 const T={download:['Instagram Downloader','Save Instagram videos, Reels, photos, Stories and carousels.','Download'],
 
+ ring:['Reel to Ringtone','Pick up to 30 seconds of a Reel’s sound and save it as a ringtone.','Load Reel'],
  mp3:['Video to MP3 Converter','Extract the audio of any Reel and save it as an MP3 file.','Convert to MP3'],
  caption:['Caption & Hashtag Copier','Copy the caption, hashtags and mentions from any post.','Get caption']};
-const M={video:'download',photo:'download',reels:'download',story:'download',carousel:'download',mp3:'mp3',caption:'caption'};
+const M={video:'download',photo:'download',reels:'download',story:'download',carousel:'download',mp3:'mp3',ringtone:'ring',caption:'caption'};
 let cur='download';
 function route(){const s=M[location.hash.slice(1)]?location.hash.slice(1):'video';cur=M[s];
  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.hash==='#'+s));
@@ -122,13 +127,19 @@ const copyBtn=(label,text)=>h('button',{type:'button',onclick:e=>cp(typeof text=
 async function api(path,body){const r=await fetch(API+path,{method:body?'POST':'GET',headers:{'Content-Type':'application/json'},body:body&&JSON.stringify(body)});
  const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(r.status===404?`Server route not found (${path}). Redeploy the latest ReelKit files, then reload this page.`:(j.detail||'Something went wrong. Try again.'));return j}
 
+const igLink=t=>(String(t||'').match(/https?:\/\/(?:www\.)?instagram\.com\/(?:p|reel|reels|tv|stories)\/[^\s"'<>]+/i)||[])[0];
+{const q=new URLSearchParams(location.search),l=igLink(q.get('url'))||igLink(q.get('text'))||igLink(q.get('title'));
+ if(l){$('#u').value=l;history.replaceState(null,'',location.pathname+location.hash);setTimeout(()=>$('#f').requestSubmit(),0)}}
+let dp;addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;$('#inst').hidden=false});
+$('#inst').onclick=async()=>{dp.prompt();await dp.userChoice;$('#inst').hidden=true};
+if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 $('#paste').onclick=async()=>{try{$('#u').value=await navigator.clipboard.readText()}catch{msg('Allow clipboard access, or paste with Ctrl+V.',true)}};
 $('#clear').onclick=()=>{$('#u').value='';out();$('#u').focus()};
 
 $('#f').onsubmit=async e=>{e.preventDefault();const url=$('#u').value.trim();if(!url)return msg('Paste an Instagram link first.',true);
  $('#go').disabled=true;const mode=cur;
  try{
-  {msg('Reading the post',false,true);const d=await api('/api/info',{url});({download:showDl,mp3:showMp3,caption:showCap})[mode](d,url)}
+  {msg('Reading the post',false,true);const d=await api('/api/info',{url});({download:showDl,mp3:showMp3,ring:showRing,caption:showCap})[mode](d,url)}
  }catch(x){msg(x.message,true)}
  $('#go').disabled=false};
 
@@ -145,6 +156,22 @@ function showMp3(d,url){const vids=d.items.map((it,i)=>[it,i]).filter(([it])=>it
    h('div',{class:'row'},vids.map(([,i])=>h('a',{class:'btn',href:`${API}/api/mp3?url=${encodeURIComponent(url)}&index=${i}`},
     vids.length>1?`Download MP3 ${i+1}`:'Download MP3'))),
    h('p',{},'Conversion starts when you tap the button and can take a few seconds.'))))}
+
+function showRing(d,url){const v=d.items.findIndex(i=>i.type==='video');if(v<0)return msg('This post has no video, so there is no audio to use.',true);
+ const dur=Math.floor(d.items[v].duration||d.duration||60),tt=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+ const st=h('input',{type:'range',min:0,max:Math.max(dur-3,0),value:0,step:1,style:'width:100%;flex:none'}),sl=h('b',{},'0:00'),
+  ln=h('select',{},[10,15,20,30].map(n=>h('option',{value:n,selected:n===30?'':null},n+' seconds'))),
+  fm=h('select',{},h('option',{value:'mp3'},'Android (MP3)'),h('option',{value:'m4r'},'iPhone (M4R)')),
+  fd=h('input',{type:'checkbox',checked:''}),res=h('div',{style:'margin-top:14px;width:100%'});
+ st.oninput=()=>sl.textContent=tt(+st.value);
+ const make=()=>{const len=Math.max(3,Math.min(+ln.value,dur-st.value)),q=`${API}/api/ringtone?url=${encodeURIComponent(url)}&index=${v}&start=${st.value}&length=${len}&fade=${fd.checked?1:0}&fmt=${fm.value}`;
+  const au=h('audio',{controls:'',src:q}),note=h('p',{},'Making your ringtone…');au.onerror=()=>{note.textContent='Couldn’t make the ringtone. Try an earlier start time.';note.style.color='#ff8a7a'};
+  au.oncanplay=()=>note.textContent='Ready. Android: Settings, Sound, Phone ringtone. iPhone: add the M4R file with GarageBand or Finder.';
+  res.replaceChildren(au,h('div',{class:'row',style:'margin-top:10px'},h('a',{class:'btn',href:q+'&dl=1'},'Download ringtone')),note)};
+ out(h('div',{class:'card',style:'display:block'},h('p',{style:'margin-bottom:12px'},'Video length '+tt(dur)+'. Choose where the ringtone starts.'),
+  h('div',{class:'row',style:'align-items:center'},h('span',{},'Start'),sl),st,
+  h('div',{class:'row',style:'margin-top:12px;align-items:center'},ln,fm,h('label',{},fd,' Fade out')),
+  h('div',{class:'row',style:'margin-top:14px'},h('button',{type:'button',class:'go',onclick:make},'Make ringtone')),res))}
 
 function showCap(d){const bare=d.caption.replace(/#\w+/g,'').replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
  out(h('div',{class:'card',style:'display:block'},

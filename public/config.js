@@ -1,3 +1,4 @@
-// Set this to your backend's public HTTPS address when the page is hosted on Vercel.
-// Leave it empty ("") when the backend serves the page itself.
+// Backend URL when the page is hosted separately (leave empty on Vercel).
 window.API_BASE = "";
+// Shown on Contact, Privacy, Terms and DMCA pages. Example: "hello@yourdomain.com"
+window.CONTACT_EMAIL = "";

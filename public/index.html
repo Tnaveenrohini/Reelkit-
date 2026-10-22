@@ -8,25 +8,58 @@
 <meta property="og:image" content="/logo.png">
 <link rel="icon" href="/icon.png">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#111216">
+<meta name="theme-color" content="#0a0910">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#111216;--card:#1a1c22;--line:#2b2e38;--gold:#f7b52c;--amber:#e88a0c;--text:#f3f2ee;--mute:#9a9ca6;--r:14px}
+:root{--bg:#0a0910;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.1);--gold:#ffc23d;--amber:#ff8a1f;--rose:#ff5d8f;--text:#f6f3ec;--mute:#a9a5b6;--r:16px}
 *{box-sizing:border-box}[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 Sora,system-ui,sans-serif}
 a{color:inherit}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .wrap{max-width:860px;margin:0 auto;padding:0 20px}
-header{border-bottom:1px solid var(--line)}
-.top{display:flex;align-items:center;gap:14px;padding:12px 0}
-.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;text-decoration:none}
-.brand img{width:38px;height:38px;border-radius:10px}
-nav{display:flex;gap:6px;overflow-x:auto;padding:0 0 12px;scrollbar-width:none}
-nav a{white-space:nowrap;text-decoration:none;color:var(--mute);padding:6px 14px;border-radius:99px;font-size:14px;border:1px solid transparent}
-nav a:hover{color:var(--text)}
-nav a.on{color:#1a1204;background:linear-gradient(135deg,var(--gold),var(--amber));font-weight:600}
-nav a.ai{border-color:var(--line)}
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+.orb{position:absolute;width:70vmax;height:70vmax;border-radius:50%;animation:drift 22s ease-in-out infinite alternate}
+.o1{left:-25vmax;top:-30vmax;background:radial-gradient(circle,rgba(255,194,61,.30),transparent 62%)}
+.o2{right:-30vmax;bottom:-30vmax;background:radial-gradient(circle,rgba(255,138,31,.26),transparent 62%);animation-duration:28s}
+.o3{left:20vw;top:35vh;width:50vmax;height:50vmax;background:radial-gradient(circle,rgba(255,93,143,.14),transparent 62%);animation-duration:34s}
+@keyframes drift{to{transform:translate(8vmax,6vmax) scale(1.12)}}
+.tri{position:absolute;bottom:-80px;left:var(--x);width:var(--s);height:var(--s);opacity:0;animation:rise var(--d) linear var(--dl) infinite;filter:drop-shadow(0 0 12px rgba(255,160,30,.7))}
+@keyframes rise{8%{opacity:.5}90%{opacity:.5}to{transform:translateY(-115vh) rotate(28deg);opacity:0}}
+.big{position:absolute;right:-12vmax;top:14vh;width:60vmax;max-width:640px;opacity:.07;animation:breathe 7s ease-in-out infinite;filter:drop-shadow(0 0 40px rgba(255,160,30,.9))}
+@keyframes breathe{50%{opacity:.16;transform:scale(1.05)}}
+main,footer{position:relative;z-index:1}
+.bar{position:sticky;top:0;z-index:30;background:rgba(10,9,16,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+.nav-wrap{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px;text-decoration:none;letter-spacing:-.01em}
+.brand img{width:40px;height:40px;border-radius:11px;animation:glow 3.4s ease-in-out infinite}
+@keyframes glow{50%{box-shadow:0 0 22px rgba(255,170,30,.65)}}
+nav{display:flex;flex-wrap:wrap;gap:2px;padding:4px;border:1px solid var(--line);border-radius:99px;background:rgba(255,255,255,.04)}
+.dd{position:relative}
+.nv{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:99px;border:0;background:transparent;color:var(--mute);font:600 13.5px Sora,sans-serif;text-decoration:none;white-space:nowrap;cursor:pointer;transition:color .2s,background .2s,box-shadow .2s}
+.nv:hover{color:var(--text);background:rgba(255,255,255,.08);filter:none}
+.nv.on{color:#1a1204;background:linear-gradient(135deg,var(--gold),var(--amber));box-shadow:0 4px 20px rgba(255,140,20,.38)}
+.i{width:17px;height:17px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.chev{width:14px;height:14px;transition:transform .2s}[aria-expanded=true] .chev{transform:rotate(180deg)}
+.menu{position:absolute;left:0;top:calc(100% + 10px);width:262px;padding:8px;border-radius:18px;background:#14121f;border:1px solid rgba(255,194,61,.3);box-shadow:0 24px 60px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.03) inset}
+.menu:not([hidden]){animation:pop .2s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.97)}}
+.menu a{display:grid;grid-template-columns:34px 1fr;column-gap:12px;align-items:center;padding:9px 10px;border-radius:12px;text-decoration:none;color:var(--text);font-weight:600;font-size:14px;line-height:1.25;transition:background .15s}
+.menu a .i{grid-row:span 2;width:34px;height:34px;padding:8px;border-radius:10px;background:rgba(255,194,61,.12);color:var(--gold)}
+.menu a small{color:var(--mute);font-weight:400;font-size:12px}
+.menu a:hover{background:rgba(255,255,255,.07)}
+.menu a.on{background:linear-gradient(135deg,rgba(255,194,61,.2),rgba(255,93,143,.12))}
+.menu a.on .i{background:linear-gradient(135deg,var(--gold),var(--amber));color:#1a1204}
+h1{background:linear-gradient(180deg,#fff 30%,#ffd98a);-webkit-background-clip:text;background-clip:text;color:transparent}
+form{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:border-color .2s,box-shadow .2s}
+form:focus-within{border-color:rgba(255,194,61,.6);box-shadow:0 0 0 4px rgba(255,194,61,.12)}
+button.go,.btn{background-size:200% 100%;animation:sheen 6s ease-in-out infinite}
+@keyframes sheen{50%{background-position:100% 0}}
+.feat div,.steps div{transition:transform .2s,border-color .2s}.feat div:hover,.steps div:hover{transform:translateY(-3px);border-color:rgba(255,194,61,.4)}
+.bd{display:inline-block;min-width:34px;text-align:center;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:800;margin-right:6px}
+.bd.ok{background:rgba(80,200,120,.18);color:#7be0a0}.bd.no{background:rgba(255,93,143,.18);color:#ff8fb0}.bd.inf{background:rgba(255,194,61,.16);color:var(--gold)}
+@media (max-width:640px){.nav-wrap{justify-content:center}nav{justify-content:center;border-radius:24px}.nv{padding:8px 11px;font-size:13px}.menu{left:-4px}}
+@media (prefers-reduced-motion:reduce){.orb,.big,.brand img,button.go,.btn{animation:none}.tri{animation:none;opacity:.12;bottom:auto;top:calc(var(--x) * 1.1)}.menu:not([hidden]){animation:none}}
 .hero{text-align:center;padding:48px 0 28px}
 h1{font-size:clamp(30px,6vw,46px);line-height:1.15;margin:0 0 10px;font-weight:800}
 .hero p{color:var(--mute);margin:0 auto 26px;max-width:520px}
@@ -37,7 +70,7 @@ input[type=checkbox]{flex:none;width:18px;height:18px;padding:0;accent-color:var
 input[type=range]{padding:0;accent-color:var(--gold)}
 .opt{display:block;margin-top:10px;font-size:14px;color:var(--mute);text-align:left}
 .chk p{margin:6px 0;font-size:14px}
-button,.btn{font:600 15px Sora,sans-serif;border:0;border-radius:10px;padding:10px 18px;cursor:pointer;text-decoration:none;display:inline-block;color:var(--text);background:#2a2d37}
+button,.btn{font:600 15px Sora,sans-serif;border:0;border-radius:10px;padding:10px 18px;cursor:pointer;text-decoration:none;display:inline-block;color:var(--text);background:rgba(255,255,255,.08)}
 button:hover,.btn:hover{filter:brightness(1.15)}
 button.go,.btn{color:#1a1204;background:linear-gradient(135deg,var(--gold),var(--amber))}
 button:disabled{opacity:.55;cursor:wait}
@@ -51,8 +84,8 @@ button:disabled{opacity:.55;cursor:wait}
 .card .meta{flex:1 1 240px;display:flex;flex-direction:column;gap:8px;align-items:flex-start}
 .card p{margin:0;color:var(--mute);font-size:14px;word-break:break-word}
 .row{display:flex;gap:8px;flex-wrap:wrap}
-textarea{width:100%;min-height:150px;background:#101116;color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:14px/1.6 Sora,sans-serif;resize:vertical}
-.chips{display:flex;gap:6px;flex-wrap:wrap}.chips span{background:#2a2d37;border-radius:99px;padding:2px 12px;font-size:13px;color:var(--gold)}
+textarea{width:100%;min-height:150px;background:rgba(0,0,0,.35);color:var(--text);border:1px solid var(--line);border-radius:10px;padding:12px;font:14px/1.6 Sora,sans-serif;resize:vertical}
+.chips{display:flex;gap:6px;flex-wrap:wrap}.chips span{background:rgba(255,255,255,.08);border-radius:99px;padding:2px 12px;font-size:13px;color:var(--gold)}
 .seg{display:flex;gap:12px;font-size:14px;padding:4px 0}.seg time{color:var(--gold);flex:none;width:44px}
 audio{width:100%}
 section{padding:36px 0;border-top:1px solid var(--line)}
@@ -65,11 +98,15 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 </style>
 </head>
 <body>
-<header><div class="wrap">
-  <div class="top"><a class="brand" href="#video"><img src="/icon.png" alt="">ReelKit</a><button id="inst" hidden style="margin-left:auto">Install app</button></div>
-  <nav id="nav">
-    <a href="#video">Video</a><a href="#photo">Photo</a><a href="#reels">Reels</a><a href="#story">Story</a><a href="#carousel">Carousel</a>
-    <a class="ai" href="#mp3">Video to MP3</a><a class="ai" href="#ringtone">Ringtone</a><a class="ai" href="#caption">Caption Copier</a>
+<div class="bg" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
+<svg class="big" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:6%;--s:26px;--d:19s;--dl:0s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:17%;--s:40px;--d:26s;--dl:-8s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:30%;--s:22px;--d:17s;--dl:-3s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:46%;--s:34px;--d:24s;--dl:-14s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:61%;--s:24px;--d:20s;--dl:-6s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:74%;--s:44px;--d:28s;--dl:-19s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:88%;--s:28px;--d:21s;--dl:-11s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#ff8a1f"/></linearGradient></defs><symbol id="i-ig" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".7" fill="currentColor"/></symbol><symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="M10 9.5v5l4.5-2.5z"/></symbol><symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></symbol><symbol id="i-reels" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="4.5"/><path d="M4 8.5h16M9.5 3l2.5 5.5M15.5 3l2.5 5.5"/><path d="M10.5 13v4l3.5-2z"/></symbol><symbol id="i-story" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="3.4 2.1"/><circle cx="12" cy="12" r="4.5"/></symbol><symbol id="i-carousel" viewBox="0 0 24 24"><rect x="8" y="5" width="12" height="14" rx="3"/><path d="M5 8v8M2.5 10v4"/></symbol><symbol id="i-mp3" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol><symbol id="i-ring" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10.5 4L8.5 20M15.5 4l-2 16"/></symbol><symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol></svg>
+<header class="bar"><div class="wrap nav-wrap">
+  <a class="brand" href="#video"><img src="/icon.png" alt="">ReelKit</a>
+  <nav id="nav" aria-label="Main">
+    <div class="dd"><button type="button" id="igbtn" class="nv" aria-haspopup="true" aria-expanded="false" aria-controls="igmenu"><svg class="i"><use href="#i-ig"/></svg>Instagram<svg class="i chev"><use href="#i-chev"/></svg></button>
+      <div class="menu" id="igmenu" role="menu" hidden><a role="menuitem" href="#video"><svg class="i"><use href="#i-video"/></svg><span>Video</span><small>Save any video post</small></a><a role="menuitem" href="#photo"><svg class="i"><use href="#i-photo"/></svg><span>Photo</span><small>Save a single image</small></a><a role="menuitem" href="#reels"><svg class="i"><use href="#i-reels"/></svg><span>Reels</span><small>Reels in full quality</small></a><a role="menuitem" href="#story"><svg class="i"><use href="#i-story"/></svg><span>Story</span><small>Save a public Story</small></a><a role="menuitem" href="#carousel"><svg class="i"><use href="#i-carousel"/></svg><span>Carousel</span><small>Pick any slide of an album</small></a></div></div>
+    <a class="nv" href="#mp3"><svg class="i"><use href="#i-mp3"/></svg>Video to MP3</a><a class="nv" href="#ringtone"><svg class="i"><use href="#i-ring"/></svg>Ringtone</a><a class="nv" href="#caption"><svg class="i"><use href="#i-cap"/></svg>Caption Copier</a>
   </nav>
 </div></header>
 
@@ -114,7 +151,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
             <details><summary>Are my links stored?</summary><p>No. Temporary files are removed after download or within an hour.</p></details>
   </section>
 </main>
-<footer><div class="wrap">© 2026 ReelKit. Not affiliated with Instagram or Meta.</div></footer>
+<footer><div class="wrap"><p><button id="inst" type="button" class="go">Install ReelKit app</button></p><p id="instmsg" class="note" style="margin:0 0 14px"></p>© 2026 ReelKit. Not affiliated with Instagram or Meta.</div></footer>
 
 <script src="config.js"></script>
 <script>
@@ -127,8 +164,13 @@ const T={download:['Instagram Downloader','Save Instagram videos, Reels, photos,
  caption:['Caption & Hashtag Copier','Copy the caption, hashtags and mentions from any post.','Get caption']};
 const M={video:'download',photo:'download',reels:'download',story:'download',carousel:'download',mp3:'mp3',ringtone:'ring',caption:'caption'};
 let cur='download';
+const dd=$('#igmenu'),ib=$('#igbtn'),IG=['video','photo','reels','story','carousel'];
+const setMenu=o=>{dd.hidden=!o;ib.setAttribute('aria-expanded',o)};
+ib.onclick=e=>{e.stopPropagation();setMenu(dd.hidden)};
+document.addEventListener('click',e=>{if(!dd.contains(e.target))setMenu(false)});
+addEventListener('keydown',e=>{if(e.key==='Escape'){setMenu(false);ib.focus()}});
 function route(){const s=M[location.hash.slice(1)]?location.hash.slice(1):'video';cur=M[s];
- document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.hash==='#'+s));
+ document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.hash==='#'+s));ib.classList.toggle('on',IG.includes(s));setMenu(false);
  [$('#h').textContent,$('#p').textContent,$('#go').textContent]=T[cur];$('#out').replaceChildren();document.title=T[cur][0]+' – ReelKit'}
 addEventListener('hashchange',route);route();
 
@@ -144,7 +186,10 @@ const igLink=t=>(String(t||'').match(/https?:\/\/(?:www\.)?instagram\.com\/(?:p|
 {const q=new URLSearchParams(location.search),l=igLink(q.get('url'))||igLink(q.get('text'))||igLink(q.get('title'));
  if(l){$('#u').value=l;history.replaceState(null,'',location.pathname+location.hash);setTimeout(()=>$('#f').requestSubmit(),0)}}
 let dp;addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;$('#inst').hidden=false});
-$('#inst').onclick=async()=>{dp.prompt();await dp.userChoice;$('#inst').hidden=true};
+$('#inst').onclick=async()=>{if(dp){dp.prompt();await dp.userChoice;dp=null}
+ else $('#instmsg').textContent='Open Chrome’s three-dot menu and tap “Install app”. If you only see “Add to Home screen”, tap “Check my setup” above.'};
+if(window.matchMedia&&matchMedia('(display-mode: standalone)').matches)$('#inst').hidden=true;
+addEventListener('appinstalled',()=>{$('#inst').hidden=true;$('#instmsg').textContent='ReelKit is installed.'});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
 
 const store={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
@@ -155,7 +200,7 @@ $('#auto').checked=store.get('rk_auto')==='1';
 $('#auto').onchange=e=>{store.set('rk_auto',e.target.checked?'1':'0');if(e.target.checked)tryClip()};
 addEventListener('focus',()=>{if(store.get('rk_auto')==='1')tryClip()});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&store.get('rk_auto')==='1')tryClip()});
-$('#chk').onclick=async()=>{const rows=[],add=(ok,t)=>rows.push(h('p',{},(ok?'✅ ':'❌ ')+t)),info=t=>rows.push(h('p',{},'ℹ️ '+t));
+$('#chk').onclick=async()=>{const rows=[],add=(ok,t)=>rows.push(h('p',{},h('span',{class:'bd '+(ok?'ok':'no')},ok?'OK':'Fix'),t)),info=t=>rows.push(h('p',{},h('span',{class:'bd inf'},'Info'),t));
  add(location.protocol==='https:','Site uses HTTPS');
  try{const r=await fetch('/manifest.json',{cache:'no-store'}),j=await r.json(),ic=j.icons||[];
   add(r.ok,'Manifest file found');add(!!(j.share_target&&j.share_target.action),'Manifest has the share target');

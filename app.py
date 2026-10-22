@@ -91,6 +91,7 @@ def info(b: Req):
     d = fetch_info(clean(b.url))
     its = items_of(d)
     caption = d.get("description") or (its[0].get("description") if its else "") or ""
+    g = lambda k: d.get(k) if d.get(k) is not None else (its[0].get(k) if its else None)
     return {
         "uploader": d.get("uploader") or d.get("channel"),
         "thumb": d.get("thumbnail") or (its[0].get("thumbnail") if its else None),
@@ -98,7 +99,10 @@ def info(b: Req):
         "duration": d.get("duration") or (its[0].get("duration") if its else None),
         "hashtags": list(dict.fromkeys(re.findall(r"#\w+", caption))),
         "mentions": list(dict.fromkeys(re.findall(r"@[\w.]+", caption))),
-        "items": [{"type": "video" if is_video(e) else "photo", "duration": e.get("duration")} for e in its],
+        "date": g("upload_date"), "views": g("view_count"), "likes": g("like_count"), "comments": g("comment_count"),
+        "music": " - ".join(x for x in (g("track"), g("artist")) if x) or None,
+        "items": [{"type": "video" if is_video(e) else "photo", "width": e.get("width"), "height": e.get("height"),
+                   "duration": e.get("duration"), "size": e.get("filesize") or e.get("filesize_approx")} for e in its],
     }
 
 
@@ -162,6 +166,35 @@ def ringtone(url: str, index: int = 0, start: float = 0, length: float = 30, fad
         raise HTTPException(422, "Couldn't make the ringtone. The clip may start after the video ends, or it has no sound. "
                                  + r.stderr.decode(errors="ignore")[-150:])
     return FileResponse(out, media_type="audio/mp4" if m4r else "audio/mpeg", filename=f"reelkit-ringtone.{ext}",
+                        content_disposition_type="attachment" if dl else "inline",
+                        background=BackgroundTask(os.remove, out))
+
+
+@r_.get("/clip")
+def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int = 0):
+    src, hdrs, vid = media(clean(url), index)
+    if not vid:
+        raise HTTPException(400, "This item is a photo, so there is nothing to trim.")
+    start, length = max(0.0, min(start, 21600.0)), max(2.0, min(length, 30.0))
+    out = f"/tmp/clip-{uuid.uuid4().hex}.mp4"
+    head = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
+    if hdrs:
+        head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
+    ss = ["-ss", f"{start:.2f}"]
+    tail = ["-t", f"{length:.2f}", "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast",
+            "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out]
+    try:
+        r = subprocess.run(head + ss + ["-i", src] + tail, capture_output=True, timeout=130)
+        if r.returncode:
+            r = subprocess.run(head + ["-i", src] + ss + tail, capture_output=True, timeout=130)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "Cutting the clip took too long. Try a shorter clip.")
+    if r.returncode or not os.path.exists(out) or os.path.getsize(out) < 1024:
+        if os.path.exists(out):
+            os.remove(out)
+        raise HTTPException(422, "Couldn't cut the clip. The start may be after the video ends. "
+                                 + r.stderr.decode(errors="ignore")[-150:])
+    return FileResponse(out, media_type="video/mp4", filename="reelkit-clip.mp4",
                         content_disposition_type="attachment" if dl else "inline",
                         background=BackgroundTask(os.remove, out))
 

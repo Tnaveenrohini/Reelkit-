@@ -4,7 +4,7 @@ from pathlib import Path
 
 import httpx
 import yt_dlp
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
@@ -62,9 +62,12 @@ def media(url, index=0):
     return src, e.get("http_headers") or {}, vid
 
 
-def stream(src, headers=None, filename=None):
+def stream(src, headers=None, filename=None, range_=None):
+    hd = dict(headers or {})
+    if range_:
+        hd["Range"] = range_
     c = httpx.Client(timeout=60, follow_redirects=True)
-    r = c.send(c.build_request("GET", src, headers=headers or {}), stream=True)
+    r = c.send(c.build_request("GET", src, headers=hd), stream=True)
 
     def gen():
         try:
@@ -72,7 +75,13 @@ def stream(src, headers=None, filename=None):
         finally:
             r.close(); c.close()
     h = {"Content-Disposition": f'attachment; filename="{filename}"'} if filename else {}
-    return StreamingResponse(gen(), media_type=r.headers.get("content-type", "application/octet-stream"), headers=h)
+    h["Accept-Ranges"] = "bytes"
+    if r.status_code == 206 and r.headers.get("content-range"):
+        h["Content-Range"] = r.headers["content-range"]
+    if r.headers.get("content-length") and not r.headers.get("content-encoding"):
+        h["Content-Length"] = r.headers["content-length"]
+    return StreamingResponse(gen(), status_code=206 if r.status_code == 206 else 200,
+                             media_type=r.headers.get("content-type", "application/octet-stream"), headers=h)
 
 
 def ffmpeg_path():
@@ -200,9 +209,10 @@ def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int
 
 
 @r_.get("/download")
-def download(url: str, index: int = 0):
+def download(request: Request, url: str, index: int = 0, inline: int = 0):
     src, hdrs, vid = media(clean(url), index)
-    return stream(src, hdrs, f"reelkit.{'mp4' if vid else 'jpg'}")
+    name = None if inline else f"reelkit.{'mp4' if vid else 'jpg'}"
+    return stream(src, hdrs, name, request.headers.get("range"))
 
 
 @app.get("/", include_in_schema=False)

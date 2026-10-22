@@ -18,17 +18,20 @@ body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 Sora,syst
 a{color:inherit}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .wrap{max-width:860px;margin:0 auto;padding:0 20px}
-.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
-.orb{position:absolute;width:70vmax;height:70vmax;border-radius:50%;animation:drift 22s ease-in-out infinite alternate}
-.o1{left:-25vmax;top:-30vmax;background:radial-gradient(circle,rgba(255,30,90,.44),transparent 62%)}
-.o2{right:-30vmax;bottom:-30vmax;background:radial-gradient(circle,rgba(40,110,255,.46),transparent 62%);animation-duration:28s}
-.o3{left:25vw;top:30vh;width:55vmax;height:55vmax;background:radial-gradient(circle,rgba(0,255,150,.26),transparent 62%);animation-duration:34s}
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#07060c}
+.orb{position:absolute;width:62vmax;height:62vmax;border-radius:50%;animation:drift 26s ease-in-out infinite alternate}
+.o1{left:-22vmax;top:-26vmax;background:radial-gradient(circle,rgba(255,194,61,.42),transparent 62%)}
+.o2{right:-26vmax;bottom:-24vmax;background:radial-gradient(circle,rgba(255,120,30,.36),transparent 62%);animation-duration:32s}
+.o3{left:30vw;top:30vh;width:44vmax;height:44vmax;background:radial-gradient(circle,rgba(255,80,140,.24),transparent 62%);animation-duration:38s}
+.o4{right:-10vmax;top:-12vmax;width:48vmax;height:48vmax;background:radial-gradient(circle,rgba(110,90,255,.22),transparent 62%);animation-duration:30s}
 @keyframes drift{to{transform:translate(8vmax,6vmax) scale(1.12)}}
-.tri{position:absolute;bottom:-80px;left:var(--x);width:var(--s);height:var(--s);opacity:0;animation:rise var(--d) linear var(--dl) infinite,hue 9s linear infinite}
-@keyframes rise{8%{opacity:.6}90%{opacity:.6}to{transform:translateY(-115vh) rotate(28deg);opacity:0}}
-@keyframes hue{from{filter:hue-rotate(0deg) drop-shadow(0 0 12px rgba(255,255,255,.55))}to{filter:hue-rotate(360deg) drop-shadow(0 0 12px rgba(255,255,255,.55))}}
-.big{position:absolute;right:-12vmax;top:14vh;width:60vmax;max-width:640px;opacity:.09;animation:breathe 7s ease-in-out infinite,hue 12s linear infinite}
-@keyframes breathe{50%{opacity:.16;transform:scale(1.05)}}
+.blob{position:absolute;width:var(--s);height:var(--s);left:var(--x);top:var(--y);border-radius:42% 58% 55% 45%/50% 40% 60% 50%;background:radial-gradient(circle at 28% 22%,rgba(255,255,255,.5),rgba(255,255,255,.08) 38%,rgba(255,255,255,.03) 70%);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 2px 1px rgba(255,255,255,.55),inset 0 -14px 30px rgba(255,200,120,.12),0 30px 60px rgba(0,0,0,.35);animation:morph 13s ease-in-out infinite alternate,bob var(--d) ease-in-out infinite alternate}
+.blob::before{content:"";position:absolute;inset:0;border-radius:inherit;backdrop-filter:blur(10px) saturate(1.8);-webkit-backdrop-filter:blur(10px) saturate(1.8)}
+.b1{--s:150px;--x:8vw;--y:24vh;--d:17s}.b2{--s:90px;--x:78vw;--y:12vh;--d:12s}.b3{--s:200px;--x:68vw;--y:62vh;--d:21s}.b4{--s:70px;--x:14vw;--y:74vh;--d:15s}
+@keyframes morph{50%{border-radius:58% 42% 40% 60%/42% 58% 42% 58%}to{border-radius:46% 54% 62% 38%/58% 44% 56% 42%}}
+@keyframes bob{to{transform:translate(26px,-34px) rotate(8deg)}}
+.gtri{position:absolute;right:-12vmax;top:12vh;width:420px;height:420px;transform:scale(1.4);clip-path:path('M 96 58 L 338 186 Q 366 200 338 214 L 96 342 Q 66 358 66 326 L 66 74 Q 66 44 96 58 Z');background:linear-gradient(135deg,rgba(255,255,255,.24),rgba(255,255,255,.04) 55%,rgba(255,200,120,.14));backdrop-filter:blur(8px) saturate(1.7);-webkit-backdrop-filter:blur(8px) saturate(1.7);animation:gb 9s ease-in-out infinite}
+@keyframes gb{50%{transform:scale(1.48) rotate(2deg)}}
 main,footer{position:relative;z-index:1}
 .bar{position:sticky;top:0;z-index:30;background:rgba(10,9,16,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
 .nav-wrap{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
@@ -61,7 +64,7 @@ button.go,.btn{background-size:200% 100%;animation:sheen 6s ease-in-out infinite
 .bd{display:inline-block;min-width:34px;text-align:center;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:800;margin-right:6px}
 .bd.ok{background:rgba(80,200,120,.18);color:#7be0a0}.bd.no{background:rgba(255,93,143,.18);color:#ff8fb0}.bd.inf{background:rgba(255,194,61,.16);color:var(--gold)}
 @media (max-width:640px){.nav-wrap{justify-content:center}nav{justify-content:center;border-radius:24px}.nv{padding:8px 11px;font-size:13px}.menu{left:-4px}}
-@media (prefers-reduced-motion:reduce){.orb,.big,.brand img,button.go,.btn{animation:none}.tri{animation:none;opacity:.12;bottom:auto;top:calc(var(--x) * 1.1)}.menu:not([hidden]){animation:none}}
+@media (prefers-reduced-motion:reduce){.orb,.blob,.gtri,.brand img,button.go,.btn{animation:none}.menu:not([hidden]){animation:none}}
 .hero{text-align:center;padding:48px 0 28px}
 h1{font-size:clamp(30px,6vw,46px);line-height:1.15;margin:0 0 10px;font-weight:800}
 .hero p{color:var(--mute);margin:0 auto 26px;max-width:520px}
@@ -98,27 +101,44 @@ h3{margin:0 0 6px;font-size:17px}.steps p,.feat p{margin:0;color:var(--mute);fon
 details{border-bottom:1px solid var(--line);padding:14px 0}summary{cursor:pointer;font-weight:600}details p{color:var(--mute);margin:8px 0 0}
 footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-size:14px;text-align:center}
 
-:root{--rgb:linear-gradient(90deg,#ff0040,#ffb300,#00ff88,#00cfff,#7a4dff,#ff00c8,#ff0040,#ffb300,#00ff88,#00cfff,#7a4dff,#ff00c8,#ff0040)}
-.orb{mix-blend-mode:screen}
-@keyframes strip2{to{background-position:100% 0}}
-@keyframes stripf{to{background-position:0 0,100% 0}}
-.led{position:fixed;left:0;right:0;bottom:0;height:3px;z-index:25;pointer-events:none;background:var(--rgb);background-size:200% 100%;animation:strip2 6s linear infinite;box-shadow:0 0 26px 5px rgba(0,207,255,.32),0 0 44px 9px rgba(255,0,200,.24)}
-.bar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--rgb);background-size:200% 100%;animation:strip2 6s linear infinite}
-form{border:1.5px solid transparent;background:linear-gradient(#0e0c17,#0e0c17) padding-box,var(--rgb) border-box;background-size:100% 100%,200% 100%;animation:stripf 7s linear infinite;box-shadow:0 0 34px -8px rgba(0,207,255,.45),0 0 46px -12px rgba(255,0,200,.4)}
-form:focus-within{border-color:transparent;box-shadow:0 0 40px -4px rgba(0,207,255,.55),0 0 54px -8px rgba(255,0,200,.5)}
-.pv{position:relative;width:150px;height:190px;border-radius:14px;overflow:hidden;background:#000;flex:none;box-shadow:0 0 0 1.5px rgba(255,255,255,.12),0 0 26px -6px rgba(0,207,255,.5)}
+.pv{position:relative;width:150px;height:190px;border-radius:18px;overflow:hidden;background:#000;flex:none;border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.5),0 14px 34px rgba(0,0,0,.45)}
 .pv img{width:100%;height:100%;object-fit:cover;display:block}
 .pv.on{width:min(100%,300px);height:auto}.pv video{display:block;width:100%;max-height:68vh;background:#000}
-.pbtn{position:absolute;inset:0;margin:auto;width:58px;height:58px;padding:0;border-radius:50%;display:grid;place-items:center;color:#fff;background:rgba(10,9,16,.55);border:1.5px solid transparent;background-image:linear-gradient(rgba(10,9,16,.6),rgba(10,9,16,.6)),var(--rgb);background-origin:border-box;background-clip:padding-box,border-box;background-size:100% 100%,200% 100%;animation:stripf 5s linear infinite;box-shadow:0 0 24px rgba(0,207,255,.55),0 0 34px rgba(255,0,200,.4)}
+.pbtn{position:absolute;inset:0;margin:auto;width:60px;height:60px;padding:0;border-radius:50%;display:grid;place-items:center;color:#fff;background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.5),rgba(255,255,255,.12) 45%,rgba(255,255,255,.06));border:1px solid rgba(255,255,255,.55);backdrop-filter:blur(14px) saturate(1.9);-webkit-backdrop-filter:blur(14px) saturate(1.9);box-shadow:inset 0 2px 1px rgba(255,255,255,.75),inset 0 -8px 16px rgba(255,190,90,.18),0 12px 32px rgba(0,0,0,.45);animation:pbp 3.2s ease-in-out infinite}
+@keyframes pbp{50%{transform:scale(1.07)}}
 .pbtn .i{width:26px;height:26px;fill:currentColor;stroke:none;margin-left:3px}
-@media (prefers-reduced-motion:reduce){.led,.bar::after,form,.pbtn{animation:none}}
+@media (prefers-reduced-motion:reduce){.pbtn{animation:none}}
+
+/* ---------- Liquid Glass ---------- */
+.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap{background:transparent;isolation:isolate;border:1px solid rgba(255,255,255,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.07),inset 1px 0 0 rgba(255,255,255,.2),inset -1px 0 0 rgba(255,255,255,.08),0 14px 44px rgba(0,0,0,.34);backdrop-filter:none;-webkit-backdrop-filter:none}
+nav,form,.card,.steps div,.feat div,.page,details,footer .wrap{position:relative}
+.bar::before,nav::before,.menu::before,form::before,.card::before,.steps div::before,.feat div::before,.page::before,details::before,footer .wrap::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.27),transparent 46%),linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 50%,rgba(255,255,255,.09));backdrop-filter:blur(22px) saturate(1.9) brightness(1.08);-webkit-backdrop-filter:blur(22px) saturate(1.9) brightness(1.08)}
+.menu::before{background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.2),transparent 46%),linear-gradient(135deg,rgba(30,24,48,.62),rgba(18,14,30,.5));backdrop-filter:blur(30px) saturate(2) brightness(1.05);-webkit-backdrop-filter:blur(30px) saturate(2) brightness(1.05)}
+.bar{border-width:0 0 1px;border-radius:0;box-shadow:inset 0 -1px 0 rgba(255,255,255,.1),0 8px 30px rgba(0,0,0,.3)}
+.menu{border-color:rgba(255,255,255,.22)}
+.menu a .i{background:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
+button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.nv{border:0;box-shadow:none;background:transparent}.nv:hover{background:rgba(255,255,255,.1)}
+button.go,.btn,.nv.on,.menu a.on .i{position:relative;overflow:hidden;border:1px solid rgba(255,235,180,.55);background:linear-gradient(135deg,rgba(255,214,102,.96),rgba(255,140,30,.92));box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -7px 14px rgba(255,110,0,.32),0 8px 26px rgba(255,140,20,.36)}
+button.go::after,.btn::after,.nv.on::after{content:"";position:absolute;left:10%;right:10%;top:2px;height:46%;border-radius:99px;background:linear-gradient(rgba(255,255,255,.6),rgba(255,255,255,0));pointer-events:none}
+.nv.on .i,.nv.on{color:#1a1204}
+input,textarea,select{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);border-radius:12px;color:var(--text);font:inherit}
+input{border:0;background:transparent}
+form{border-radius:22px}
+.flinks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;margin:14px 0}
+.flinks a{color:var(--mute);text-decoration:none;font-size:14px;font-weight:600;padding:4px 2px}.flinks a:hover{color:var(--gold)}
+footer .wrap{border-radius:26px;padding:22px 18px;margin-bottom:22px}footer{border-top:0}
+.page{border-radius:26px;padding:28px 26px;margin:34px 0;text-align:left}
+.page h2{font-size:clamp(26px,5vw,36px);margin:0 0 6px}.page h3{margin:22px 0 4px;color:var(--gold)}
+.page p,.page li{color:#d5d1de;font-size:15px}.page ul{padding-left:20px}.page a{color:var(--gold)}
+.page .upd{color:var(--mute);font-size:13px;margin:0 0 14px}
+.page details{margin:10px 0;border-radius:16px;padding:12px 16px}.page summary{font-weight:700}
+.page select,.page textarea{width:100%;padding:12px;margin:8px 0}
 </style>
 </head>
 <body>
-<div class="bg" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div>
-<svg class="big" viewBox="0 0 24 24"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:6%;--s:26px;--d:19s;--dl:0s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:17%;--s:40px;--d:26s;--dl:-8s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:30%;--s:22px;--d:17s;--dl:-3s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:46%;--s:34px;--d:24s;--dl:-14s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:61%;--s:24px;--d:20s;--dl:-6s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:74%;--s:44px;--d:28s;--dl:-19s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg><svg class="tri" viewBox="0 0 24 24" style="--x:88%;--s:28px;--d:21s;--dl:-11s"><path d="M7 4.5v15l12-7.5z" fill="url(#g)" stroke="url(#g)" stroke-width="2.4" stroke-linejoin="round"/></svg></div>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff3b6b"/><stop offset=".35" stop-color="#ffd23b"/><stop offset=".68" stop-color="#2dffa0"/><stop offset="1" stop-color="#3b8bff"/></linearGradient></defs><symbol id="i-ig" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".7" fill="currentColor"/></symbol><symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="M10 9.5v5l4.5-2.5z"/></symbol><symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></symbol><symbol id="i-reels" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="4.5"/><path d="M4 8.5h16M9.5 3l2.5 5.5M15.5 3l2.5 5.5"/><path d="M10.5 13v4l3.5-2z"/></symbol><symbol id="i-story" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="3.4 2.1"/><circle cx="12" cy="12" r="4.5"/></symbol><symbol id="i-carousel" viewBox="0 0 24 24"><rect x="8" y="5" width="12" height="14" rx="3"/><path d="M5 8v8M2.5 10v4"/></symbol><symbol id="i-mp3" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol><symbol id="i-ring" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10.5 4L8.5 20M15.5 4l-2 16"/></symbol><symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.2v13.6a.8.8 0 001.2.7l11-6.8a.8.8 0 000-1.4l-11-6.8A.8.8 0 008 5.2z"/></symbol><symbol id="i-tools" viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.4"/><circle cx="8" cy="17" r="2.4"/></symbol><symbol id="i-clip" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/></symbol></svg>
-<div class="led" aria-hidden="true"></div>
+<div class="bg" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div class="orb o4"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div><div class="gtri"></div></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#ff8a1f"/></linearGradient></defs><symbol id="i-ig" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".7" fill="currentColor"/></symbol><symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="M10 9.5v5l4.5-2.5z"/></symbol><symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></symbol><symbol id="i-reels" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="4.5"/><path d="M4 8.5h16M9.5 3l2.5 5.5M15.5 3l2.5 5.5"/><path d="M10.5 13v4l3.5-2z"/></symbol><symbol id="i-story" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="3.4 2.1"/><circle cx="12" cy="12" r="4.5"/></symbol><symbol id="i-carousel" viewBox="0 0 24 24"><rect x="8" y="5" width="12" height="14" rx="3"/><path d="M5 8v8M2.5 10v4"/></symbol><symbol id="i-mp3" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol><symbol id="i-ring" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10.5 4L8.5 20M15.5 4l-2 16"/></symbol><symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.2v13.6a.8.8 0 001.2.7l11-6.8a.8.8 0 000-1.4l-11-6.8A.8.8 0 008 5.2z"/></symbol><symbol id="i-tools" viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.4"/><circle cx="8" cy="17" r="2.4"/></symbol><symbol id="i-clip" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/></symbol></svg>
 <header class="bar"><div class="wrap nav-wrap">
   <a class="brand" href="#video"><img src="/icon.png" alt="">ReelKit</a>
   <nav id="nav" aria-label="Main">
@@ -130,7 +150,7 @@ form:focus-within{border-color:transparent;box-shadow:0 0 40px -4px rgba(0,207,2
 </div></header>
 
 <main class="wrap">
-  <div class="hero">
+  <div class="hero tool">
     <h1 id="h"></h1><p id="p"></p>
     <form id="f"><input id="u" type="url" placeholder="Paste an Instagram link" aria-label="Instagram link" autocomplete="off">
       <button type="button" id="paste">Paste</button><button type="button" id="clear">Clear</button><button class="go" id="go"></button></form>
@@ -138,14 +158,14 @@ form:focus-within{border-color:transparent;box-shadow:0 0 40px -4px rgba(0,207,2
     <div id="out" aria-live="polite"></div>
   </div>
 
-  <section><h2>How to download from Instagram</h2>
+  <section class="tool"><h2>How to download from Instagram</h2>
     <div class="steps">
       <div><h3>Copy the URL</h3><p>Open Instagram, tap the share menu on a post, Reel, Story or carousel, and copy its link.</p></div>
       <div><h3>Paste the link</h3><p>Come back to ReelKit, paste the link into the field and press the button.</p></div>
       <div><h3>Save the result</h3><p>Download the file, or copy the caption or save the audio as MP3.</p></div>
     </div></section>
 
-  <section><h2>Everything in one kit</h2>
+  <section class="tool"><h2>Everything in one kit</h2>
     <div class="feat">
       <div><h3>Video, Reels and IGTV</h3><p>Save MP4 files without watermarks in the original quality.</p></div>
       <div><h3>Photos and carousels</h3><p>Pick any slide of an album and download it on its own.</p></div>
@@ -158,7 +178,7 @@ form:focus-within{border-color:transparent;box-shadow:0 0 40px -4px rgba(0,207,2
       <div><h3>No login</h3><p>No account and no Instagram password. Files are deleted from the server after use.</p></div>
     </div></section>
 
-  <section id="sharehelp"><h2>Share to ReelKit: setup</h2>
+  <section id="sharehelp" class="tool"><h2>Share to ReelKit: setup</h2>
     <div class="steps">
       <div><h3>1. Install the app</h3><p>In Chrome tap the ⋮ menu, then <b>Install app</b>. “Add to Home screen” is not enough. If you added it earlier, remove that icon and install again.</p></div>
       <div><h3>2. Share a Reel</h3><p>In Instagram open a Reel, tap Share, choose <b>Share to…</b>, then pick ReelKit. Look under More if you don’t see it.</p></div>
@@ -166,13 +186,9 @@ form:focus-within{border-color:transparent;box-shadow:0 0 40px -4px rgba(0,207,2
     </div>
     <p><button type="button" id="chk">Check my setup</button></p><div id="chkout" class="chk"></div></section>
 
-  <section><h2>Frequently asked questions</h2>
-    <details><summary>Is downloading from Instagram legal?</summary><p>Saving public posts for personal use is generally fine, but the copyright belongs to the creator. Keep files private unless you have permission to reuse them.</p></details>
-    <details><summary>Can I download from private accounts?</summary><p>No. Only public posts work. If you can’t see the post while logged out, ReelKit can’t fetch it either.</p></details>
-            <details><summary>Are my links stored?</summary><p>No. Temporary files are removed after download or within an hour.</p></details>
-  </section>
+  <div id="pages"><article class="page" data-page="about" hidden><h2>About ReelKit</h2><p class="upd">Free, no account needed</p><p>ReelKit is a toolkit for saving and reusing public Instagram content. Paste the link of a public post, Reel, Story, photo or carousel and ReelKit fetches it for you.</p><p>Beyond downloads, ReelKit turns a Reel’s sound into an MP3, makes ringtones for Android and iPhone, trims clips, and copies captions and hashtags with a small hashtag toolkit.</p><h3>How it works</h3><p>When you submit a link, our server reads the public post and streams the file to your device. There are no accounts. Temporary files are deleted as soon as your request finishes.</p><h3>Independent service</h3><p>ReelKit is not affiliated with, endorsed by or connected to Instagram or Meta. Please save only content you own or have permission to use.</p></article><article class="page" data-page="contact" hidden><h2>Contact</h2><p class="upd">Questions, bug reports, feedback and copyright notices</p><p>Choose a topic, write your message and tap the button. It opens your email app with the message ready to send to <a class="cemail" href="#contact">our contact email</a>.</p><select id="ctopic" aria-label="Topic"><option>General question</option><option>Bug report</option><option>Feature request</option><option>Copyright / DMCA</option></select><textarea id="cmsg" placeholder="Your message. Please include the link that had a problem."></textarea><p><button type="button" class="go" id="csend">Write email</button></p><p class="note" id="cnote" style="text-align:left"></p><p>Copyright owners: please read the DMCA / Copyright page first.</p></article><article class="page" data-page="faq" hidden><h2>Frequently asked questions</h2><details><summary>Is ReelKit free?</summary><p>Yes. You don’t need an account or any login.</p></details><details><summary>Is downloading from Instagram legal?</summary><p>Saving public posts for personal use is generally fine, but the copyright belongs to the creator. Keep files private unless you have permission to reuse them.</p></details><details><summary>Can I download from private accounts?</summary><p>No. Only public posts work. If you can’t see the post while logged out, ReelKit can’t fetch it either.</p></details><details><summary>Why do I see “Couldn’t read this link”?</summary><p>The post may be private, deleted or not a supported link type, or Instagram may be limiting requests for a moment. Check the link opens in a private browser tab, then try again.</p></details><details><summary>Which links work?</summary><p>Public Instagram links for posts (/p/), Reels (/reel/), IGTV (/tv/) and Stories.</p></details><details><summary>What quality do I get?</summary><p>Videos download in the best MP4 quality Instagram provides. MP3 files are 192 kbps. Clips are re-encoded as H.264 MP4.</p></details><details><summary>How many hashtags can I use?</summary><p>Instagram currently allows up to 5 hashtags per post. The hashtag toolkit warns you if you go over.</p></details><details><summary>How do I install ReelKit as an app?</summary><p>In Chrome, open the three-dot menu and tap Install app, or use the Install button at the bottom of the page.</p></details><details><summary>Are my links stored?</summary><p>No. See the Privacy Policy for details.</p></details></article><article class="page" data-page="privacy" hidden><h2>Privacy Policy</h2><p class="upd">Last updated: 22 October 2026</p><h3>What we handle</h3><p>ReelKit has no accounts. When you submit an Instagram link, it is sent to our server so we can read the public post and return the file, audio, clip or caption you asked for.</p><h3>Temporary files</h3><p>Videos are streamed to you. Clips and ringtones are briefly created on the server and deleted when your request finishes. We do not keep copies of the content you process.</p><h3>On your device</h3><p>ReelKit does not set cookies. It saves your saved hashtag sets and the auto-detect setting in your browser’s local storage. This data stays on your device and you can clear it in your browser settings. If you turn on auto-detect, the page reads your clipboard only to look for an Instagram link.</p><h3>Third parties</h3><ul><li>Our hosting provider (Vercel) processes requests and may keep standard server logs such as IP address and browser type.</li><li>Fonts load from Google Fonts, which receives your IP address.</li><li>Content is fetched from Instagram’s servers on your behalf.</li></ul><p>We currently show no ads and use no analytics.</p><h3>Children</h3><p>ReelKit is not directed at children under 13.</p><h3>Changes and contact</h3><p>We may update this policy and will change the date above. Questions: <a class="cemail" href="#contact">our contact email</a>.</p></article><article class="page" data-page="terms" hidden><h2>Terms of Service</h2><p class="upd">Last updated: 22 October 2026</p><p>By using ReelKit you agree to these terms.</p><h3>Your responsibility</h3><p>You may use ReelKit only for content you own or have permission to save and use. You are responsible for respecting copyright, privacy and the terms of the platforms you use.</p><h3>Not allowed</h3><ul><li>Trying to access private content or bypass any access control.</li><li>Using ReelKit to infringe copyright, harass others or break the law.</li><li>Overloading, scraping or attacking the service.</li></ul><h3>No affiliation</h3><p>ReelKit is independent and is not affiliated with Instagram or Meta. Instagram is a trademark of its owner.</p><h3>Service and availability</h3><p>ReelKit is provided free, “as is” and “as available”, without warranties. It may stop working when Instagram changes, and we may change, limit or end the service, or block links, at any time.</p><h3>Liability</h3><p>To the fullest extent allowed by law, ReelKit and its operator are not liable for any loss arising from your use of the service or from content you save.</p><h3>Changes and contact</h3><p>We may update these terms and will change the date above. Questions: <a class="cemail" href="#contact">our contact email</a>.</p></article><article class="page" data-page="dmca" hidden><h2>DMCA / Copyright</h2><p class="upd">Last updated: 22 October 2026</p><p>ReelKit respects intellectual property. ReelKit does not host or store Instagram content. It fetches public posts only when a user asks, and the original remains on Instagram. To have a post removed from Instagram itself, report it to Instagram.</p><h3>Send a notice</h3><p>If you believe ReelKit is being used to copy your work without permission, email <a class="cemail" href="#contact">our contact email</a> with:</p><ul><li>Your name, address, phone number and email.</li><li>A description of the copyrighted work.</li><li>The exact link (URL) of the Instagram post.</li><li>A statement that you have a good-faith belief the use is not authorised by you, your agent or the law.</li><li>A statement, under penalty of perjury, that the notice is accurate and that you are the owner or authorised to act for the owner.</li><li>Your physical or electronic signature.</li></ul><p>Incomplete notices may not be actioned. After a valid notice we can block the link from being processed by ReelKit.</p><h3>Counter-notice</h3><p>If you think a link was blocked by mistake, write to us with your contact details, the link, and a statement that you believe in good faith it was blocked in error.</p><h3>Repeat misuse</h3><p>We may block links or users who repeatedly infringe copyright.</p></article></div>
 </main>
-<footer><div class="wrap"><p><button id="inst" type="button" class="go">Install ReelKit app</button></p><p id="instmsg" class="note" style="margin:0 0 14px"></p>© 2026 ReelKit. Not affiliated with Instagram or Meta.</div></footer>
+<footer><div class="wrap"><p><button id="inst" type="button" class="go">Install ReelKit app</button></p><p id="instmsg" class="note" style="margin:0 0 10px"></p><div class="flinks"><a href="#about">About ReelKit</a><a href="#contact">Contact</a><a href="#faq">FAQ</a><a href="#privacy">Privacy Policy</a><a href="#terms">Terms of Service</a><a href="#dmca">DMCA / Copyright</a></div><p class="note" style="margin:0">© 2026 ReelKit. Not affiliated with Instagram or Meta.</p></div></footer>
 
 <script src="config.js"></script>
 <script>
@@ -201,7 +217,11 @@ const closeAll=()=>document.querySelectorAll('.menu').forEach(m=>{m.hidden=true;
 document.querySelectorAll('.dd>button').forEach(b=>b.onclick=e=>{e.stopPropagation();const m=b.nextElementSibling,o=m.hidden;closeAll();m.hidden=!o;b.setAttribute('aria-expanded',o)});
 document.addEventListener('click',e=>{if(!e.target.closest('.menu'))closeAll()});
 addEventListener('keydown',e=>{if(e.key==='Escape')closeAll()});
-function route(){const s=M[location.hash.slice(1)]?location.hash.slice(1):'video';cur=M[s];
+const PG=['about','contact','faq','privacy','terms','dmca'];
+function route(){const raw=location.hash.slice(1),isPg=PG.includes(raw);
+ document.querySelectorAll('.tool').forEach(e=>e.hidden=isPg);document.querySelectorAll('.page').forEach(e=>e.hidden=e.dataset.page!==raw);
+ if(isPg){document.querySelectorAll('#nav a,.dd>button').forEach(a=>a.classList.remove('on'));closeAll();document.title=$('.page:not([hidden]) h2').textContent+' – ReelKit';scrollTo(0,0);return}
+ const s=M[location.hash.slice(1)]?location.hash.slice(1):'video';cur=M[s];
  document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.hash==='#'+s));document.querySelectorAll('.dd>button').forEach(b=>b.classList.toggle('on',GR[b.id].includes(s)));closeAll();
  [$('#h').textContent,$('#p').textContent,$('#go').textContent]=T[cur];$('#out').replaceChildren();if(cur==='caption')out(h('div',{class:'card',style:'display:block'},toolkit([])));document.title=T[cur][0]+' – ReelKit'}
 addEventListener('hashchange',route);
@@ -328,6 +348,12 @@ function showCap(d){const bare=d.caption.replace(/#\w+/g,'').replace(/[ \t]+\n/g
   h('div',{class:'row'},copyBtn('Copy caption',d.caption),copyBtn('Copy hashtags',d.hashtags.join(' ')),
    copyBtn('Copy without hashtags',bare),d.mentions.length?copyBtn('Copy mentions',d.mentions.join(' ')):null),toolkit(d.hashtags)))}
 
+{const em=(window.CONTACT_EMAIL||'').trim();
+ document.querySelectorAll('.cemail').forEach(e=>{if(em){e.textContent=em;e.href='mailto:'+em}else{e.textContent='the contact email (not set yet)'}});
+ $('#csend').onclick=()=>{if(!em){$('#cnote').textContent='The site owner has not set a contact email yet.';return}
+  location.href='mailto:'+em+'?subject='+encodeURIComponent('ReelKit: '+$('#ctopic').value)+'&body='+encodeURIComponent($('#cmsg').value)}}
+addEventListener('pointermove',e=>{const t=e.target.closest&&e.target.closest('.card,.feat div,.steps div,.page,form,nav,.menu,details');if(!t)return;const r=t.getBoundingClientRect();
+ t.style.setProperty('--mx',((e.clientX-r.left)/r.width*100).toFixed(1)+'%');t.style.setProperty('--my',((e.clientY-r.top)/r.height*100).toFixed(1)+'%')},{passive:true});
 route();
 </script>
 </body>

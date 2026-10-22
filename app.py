@@ -15,6 +15,7 @@ if os.getenv("IG_COOKIES_TEXT"):  # paste a Netscape cookies.txt into this env v
     COOKIES = "/tmp/ig_cookies.txt"
     Path(COOKIES).write_text(os.environ["IG_COOKIES_TEXT"])
 
+BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # e.g. a reel code or URL part
 app = FastAPI(title="ReelKit")
 PUBLIC = Path(__file__).parent / "public"
 r_ = APIRouter()  # mounted at /api and at / so it works however Vercel passes the path
@@ -26,6 +27,8 @@ class Req(BaseModel):
 
 def clean(url):
     url = url.strip().split("?")[0]
+    if any(b in url.lower() for b in BLOCKED):
+        raise HTTPException(451, "This link is not available for legal reasons.")
     if not IG_URL.match(url):
         raise HTTPException(400, "Paste a valid Instagram post, Reel, IGTV or Story link.")
     return url

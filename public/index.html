@@ -33,6 +33,10 @@ h1{font-size:clamp(30px,6vw,46px);line-height:1.15;margin:0 0 10px;font-weight:8
 form{display:flex;gap:8px;background:var(--card);border:1px solid var(--line);padding:8px;border-radius:var(--r);flex-wrap:wrap}
 input{flex:1 1 220px;min-width:0;background:transparent;border:0;color:var(--text);font:inherit;padding:10px 12px}
 input:focus{outline:none}
+input[type=checkbox]{flex:none;width:18px;height:18px;padding:0;accent-color:var(--gold);vertical-align:-3px}
+input[type=range]{padding:0;accent-color:var(--gold)}
+.opt{display:block;margin-top:10px;font-size:14px;color:var(--mute);text-align:left}
+.chk p{margin:6px 0;font-size:14px}
 button,.btn{font:600 15px Sora,sans-serif;border:0;border-radius:10px;padding:10px 18px;cursor:pointer;text-decoration:none;display:inline-block;color:var(--text);background:#2a2d37}
 button:hover,.btn:hover{filter:brightness(1.15)}
 button.go,.btn{color:#1a1204;background:linear-gradient(135deg,var(--gold),var(--amber))}
@@ -74,6 +78,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
     <h1 id="h"></h1><p id="p"></p>
     <form id="f"><input id="u" type="url" placeholder="Paste an Instagram link" aria-label="Instagram link" autocomplete="off">
       <button type="button" id="paste">Paste</button><button type="button" id="clear">Clear</button><button class="go" id="go"></button></form>
+    <label class="opt"><input id="auto" type="checkbox"> Auto-detect an Instagram link I copied when I open ReelKit</label>
     <div id="out" aria-live="polite"></div>
   </div>
 
@@ -94,6 +99,14 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
                   <div><h3>Caption &amp; Hashtag Copier</h3><p>Copies the caption, hashtags or caption without hashtags in one tap.</p></div>
       <div><h3>No login</h3><p>No account and no Instagram password. Files are deleted from the server after use.</p></div>
     </div></section>
+
+  <section id="sharehelp"><h2>Share to ReelKit: setup</h2>
+    <div class="steps">
+      <div><h3>1. Install the app</h3><p>In Chrome tap the ⋮ menu, then <b>Install app</b>. “Add to Home screen” is not enough. If you added it earlier, remove that icon and install again.</p></div>
+      <div><h3>2. Share a Reel</h3><p>In Instagram open a Reel, tap Share, choose <b>Share to…</b>, then pick ReelKit. Look under More if you don’t see it.</p></div>
+      <div><h3>3. Still missing?</h3><p>Tick auto-detect at the top, copy the Reel link in Instagram, then open ReelKit.</p></div>
+    </div>
+    <p><button type="button" id="chk">Check my setup</button></p><div id="chkout" class="chk"></div></section>
 
   <section><h2>Frequently asked questions</h2>
     <details><summary>Is downloading from Instagram legal?</summary><p>Saving public posts for personal use is generally fine, but the copyright belongs to the creator. Keep files private unless you have permission to reuse them.</p></details>
@@ -133,6 +146,29 @@ const igLink=t=>(String(t||'').match(/https?:\/\/(?:www\.)?instagram\.com\/(?:p|
 let dp;addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;$('#inst').hidden=false});
 $('#inst').onclick=async()=>{dp.prompt();await dp.userChoice;$('#inst').hidden=true};
 if('serviceWorker' in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
+
+const store={get:k=>{try{return localStorage.getItem(k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch{}}};
+let lastAuto='';
+async function tryClip(){try{const l=igLink(await navigator.clipboard.readText());
+ if(l&&l!==lastAuto&&l!==$('#u').value){lastAuto=l;$('#u').value=l;$('#f').requestSubmit()}}catch{}}
+$('#auto').checked=store.get('rk_auto')==='1';
+$('#auto').onchange=e=>{store.set('rk_auto',e.target.checked?'1':'0');if(e.target.checked)tryClip()};
+addEventListener('focus',()=>{if(store.get('rk_auto')==='1')tryClip()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&store.get('rk_auto')==='1')tryClip()});
+$('#chk').onclick=async()=>{const rows=[],add=(ok,t)=>rows.push(h('p',{},(ok?'✅ ':'❌ ')+t)),info=t=>rows.push(h('p',{},'ℹ️ '+t));
+ add(location.protocol==='https:','Site uses HTTPS');
+ try{const r=await fetch('/manifest.json',{cache:'no-store'}),j=await r.json(),ic=j.icons||[];
+  add(r.ok,'Manifest file found');add(!!(j.share_target&&j.share_target.action),'Manifest has the share target');
+  add(ic.some(i=>i.sizes==='192x192')&&ic.some(i=>i.sizes==='512x512'),'192 px and 512 px icons listed')}
+ catch{add(false,'manifest.json is missing. Upload public/manifest.json and redeploy.')}
+ try{const g=await fetch('/sw.js',{cache:'no-store'});add(g.ok,'sw.js file found')}catch{add(false,'sw.js is missing. Upload public/sw.js and redeploy.')}
+ let reg=null;try{reg=await navigator.serviceWorker.getRegistration()}catch{}
+ add(!!reg,'Service worker is registered');
+ const sa=matchMedia('(display-mode: standalone)').matches;
+ if(sa)info('You are inside the installed app. Sharing from Instagram should open this app.');
+ else if(dp)info('Ready to install. Tap “Install app” at the top of the page, then try sharing again.');
+ else info('Install prompt not available here. Either the app is already installed (open it from your home screen), or it was added only as a shortcut. Remove that icon, then install again from Chrome’s ⋮ menu using “Install app”.');
+ $('#chkout').replaceChildren(...rows)};
 $('#paste').onclick=async()=>{try{$('#u').value=await navigator.clipboard.readText()}catch{msg('Allow clipboard access, or paste with Ctrl+V.',true)}};
 $('#clear').onclick=()=>{$('#u').value='';out();$('#u').focus()};
 

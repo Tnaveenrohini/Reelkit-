@@ -211,6 +211,70 @@ def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int
                         background=BackgroundTask(os.remove, out))
 
 
+def _ff(src, hdrs, ss, args, out, timeout=140):
+    head = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
+    if hdrs:
+        head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
+    sk = ["-ss", f"{ss:.2f}"] if ss else []
+    try:
+        r = subprocess.run(head + sk + ["-i", src] + args + [out], capture_output=True, timeout=timeout)
+        if r.returncode and ss:  # server can't seek: read from the start instead
+            r = subprocess.run(head + ["-i", src] + sk + args + [out], capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        if os.path.exists(out):
+            os.remove(out)
+        raise HTTPException(504, "This took too long for the free server. Try a shorter clip.")
+    return r
+
+
+def _send(r, out, mime, name, dl, what):
+    if r.returncode or not os.path.exists(out) or os.path.getsize(out) < 500:
+        if os.path.exists(out):
+            os.remove(out)
+        raise HTTPException(422, f"Couldn't make the {what}. " + r.stderr.decode(errors="ignore")[-150:])
+    return FileResponse(out, media_type=mime, filename=name, content_disposition_type="attachment" if dl else "inline",
+                        background=BackgroundTask(os.remove, out))
+
+
+@r_.get("/gif")
+def gif(url: str, index: int = 0, start: float = 0, length: float = 4, width: int = 480, fmt: str = "gif", dl: int = 0):
+    src, hdrs, vid = media(clean(url), index)
+    if not vid:
+        raise HTTPException(400, "This item is a photo, so there is nothing to animate.")
+    start, length = max(0.0, min(start, 21600.0)), max(1.0, min(length, 6.0))
+    width = width if width in (240, 320, 480) else 320
+    webp = fmt == "webp"
+    out = f"/tmp/g-{uuid.uuid4().hex}.{'webp' if webp else 'gif'}"
+    if webp:
+        args = ["-t", f"{length:.2f}", "-an", "-vf", f"fps=15,scale={width}:-2:flags=lanczos", "-c:v", "libwebp", "-loop", "0", "-q:v", "65"]
+    else:
+        args = ["-t", f"{length:.2f}", "-an", "-loop", "0", "-vf",
+                f"fps=12,scale={width}:-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"]
+    r = _ff(src, hdrs, start, args, out)
+    return _send(r, out, "image/webp" if webp else "image/gif", f"reelkit.{'webp' if webp else 'gif'}", dl, "animation")
+
+
+@r_.get("/shrink")
+def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: int = 0):
+    src, hdrs, vid = media(clean(url), index)
+    if not vid:
+        raise HTTPException(400, "This item is a photo, so there is nothing to shrink.")
+    if dur > 180:
+        raise HTTPException(413, "This video is longer than 3 minutes. The free server can only shrink shorter videos.")
+    target, dur = max(2.0, min(target, 64.0)), max(1.0, dur)
+    out = f"/tmp/s-{uuid.uuid4().hex}.mp4"
+    v = int(target * 8192 * 0.92 / dur) - 96  # video kbit/s that fits the size limit
+    for _ in range(2):
+        v = max(v, 150)
+        args = ["-vf", "scale='min(720,iw)':-2", "-c:v", "libx264", "-preset", "veryfast", "-b:v", f"{v}k", "-maxrate", f"{int(v * 1.15)}k",
+                "-bufsize", f"{v * 2}k", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart"]
+        r = _ff(src, hdrs, 0, args, out, 150)
+        if r.returncode or not os.path.exists(out) or os.path.getsize(out) <= target * 1048576 * 1.03:
+            break
+        v = int(v * 0.8)  # still too big: try once more at a lower bitrate
+    return _send(r, out, "video/mp4", "reelkit-small.mp4", dl, "smaller video")
+
+
 @r_.get("/download")
 def download(request: Request, url: str, index: int = 0, inline: int = 0):
     src, hdrs, vid = media(clean(url), index)

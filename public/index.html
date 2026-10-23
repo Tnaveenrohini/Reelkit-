@@ -8,7 +8,7 @@
 <meta property="og:image" content="/logo.png">
 <link rel="icon" href="/icon.png">
 <link rel="manifest" href="/manifest.json">
-<meta name="theme-color" content="#0a0910">
+<meta name="theme-color" content="#05060a">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -18,20 +18,7 @@ body{margin:0;background:var(--bg);color:var(--text);font:400 16px/1.6 Sora,syst
 a{color:inherit}
 :focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .wrap{max-width:860px;margin:0 auto;padding:0 20px}
-.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#07060c}
-.orb{position:absolute;width:62vmax;height:62vmax;border-radius:50%;animation:drift 26s ease-in-out infinite alternate}
-.o1{left:-22vmax;top:-26vmax;background:radial-gradient(circle,rgba(255,194,61,.42),transparent 62%)}
-.o2{right:-26vmax;bottom:-24vmax;background:radial-gradient(circle,rgba(255,120,30,.36),transparent 62%);animation-duration:32s}
-.o3{left:30vw;top:30vh;width:44vmax;height:44vmax;background:radial-gradient(circle,rgba(255,80,140,.24),transparent 62%);animation-duration:38s}
-.o4{right:-10vmax;top:-12vmax;width:48vmax;height:48vmax;background:radial-gradient(circle,rgba(110,90,255,.22),transparent 62%);animation-duration:30s}
-@keyframes drift{to{transform:translate(8vmax,6vmax) scale(1.12)}}
-.blob{position:absolute;width:var(--s);height:var(--s);left:var(--x);top:var(--y);border-radius:42% 58% 55% 45%/50% 40% 60% 50%;background:radial-gradient(circle at 28% 22%,rgba(255,255,255,.5),rgba(255,255,255,.08) 38%,rgba(255,255,255,.03) 70%);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 2px 1px rgba(255,255,255,.55),inset 0 -14px 30px rgba(255,200,120,.12),0 30px 60px rgba(0,0,0,.35);animation:morph 13s ease-in-out infinite alternate,bob var(--d) ease-in-out infinite alternate}
-.blob::before{content:"";position:absolute;inset:0;border-radius:inherit;backdrop-filter:blur(10px) saturate(1.8);-webkit-backdrop-filter:blur(10px) saturate(1.8)}
-.b1{--s:150px;--x:8vw;--y:24vh;--d:17s}.b2{--s:90px;--x:78vw;--y:12vh;--d:12s}.b3{--s:200px;--x:68vw;--y:62vh;--d:21s}.b4{--s:70px;--x:14vw;--y:74vh;--d:15s}
-@keyframes morph{50%{border-radius:58% 42% 40% 60%/42% 58% 42% 58%}to{border-radius:46% 54% 62% 38%/58% 44% 56% 42%}}
-@keyframes bob{to{transform:translate(26px,-34px) rotate(8deg)}}
-.gtri{position:absolute;right:-12vmax;top:12vh;width:420px;height:420px;transform:scale(1.4);clip-path:path('M 96 58 L 338 186 Q 366 200 338 214 L 96 342 Q 66 358 66 326 L 66 74 Q 66 44 96 58 Z');background:linear-gradient(135deg,rgba(255,255,255,.24),rgba(255,255,255,.04) 55%,rgba(255,200,120,.14));backdrop-filter:blur(8px) saturate(1.7);-webkit-backdrop-filter:blur(8px) saturate(1.7);animation:gb 9s ease-in-out infinite}
-@keyframes gb{50%{transform:scale(1.48) rotate(2deg)}}
+.bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;background:#05060a}
 main,footer{position:relative;z-index:1}
 .bar{position:sticky;top:0;z-index:30;background:rgba(10,9,16,.72);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
 .nav-wrap{display:flex;align-items:center;justify-content:space-between;gap:10px 16px;flex-wrap:wrap;padding-top:10px;padding-bottom:10px}
@@ -53,18 +40,17 @@ nav{display:flex;flex-wrap:wrap;gap:2px;padding:4px;border:1px solid var(--line)
 .menu a .i{grid-row:span 2;width:34px;height:34px;padding:8px;border-radius:10px;background:rgba(255,194,61,.12);color:var(--gold)}
 .menu a small{color:var(--mute);font-weight:400;font-size:12px}
 .menu a:hover{background:rgba(255,255,255,.07)}
-.menu a.on{background:linear-gradient(135deg,rgba(255,194,61,.2),rgba(255,93,143,.12))}
+.menu a.on{background:linear-gradient(135deg,rgba(255,194,61,.2),rgba(245,184,61,.08))}
 .menu a.on .i{background:linear-gradient(135deg,var(--gold),var(--amber));color:#1a1204}
-h1{background:linear-gradient(180deg,#fff 30%,#ffd98a);-webkit-background-clip:text;background-clip:text;color:transparent}
 form{backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);transition:border-color .2s,box-shadow .2s}
 form:focus-within{border-color:rgba(255,194,61,.6);box-shadow:0 0 0 4px rgba(255,194,61,.12)}
 button.go,.btn{background-size:200% 100%;animation:sheen 6s ease-in-out infinite}
 @keyframes sheen{50%{background-position:100% 0}}
 .feat div,.steps div{transition:transform .2s,border-color .2s}.feat div:hover,.steps div:hover{transform:translateY(-3px);border-color:rgba(255,194,61,.4)}
 .bd{display:inline-block;min-width:34px;text-align:center;padding:1px 8px;border-radius:99px;font-size:11px;font-weight:800;margin-right:6px}
-.bd.ok{background:rgba(80,200,120,.18);color:#7be0a0}.bd.no{background:rgba(255,93,143,.18);color:#ff8fb0}.bd.inf{background:rgba(255,194,61,.16);color:var(--gold)}
+.bd.ok{background:rgba(80,200,120,.18);color:#7be0a0}.bd.no{background:rgba(255,120,110,.16);color:#ffa59b}.bd.inf{background:rgba(255,194,61,.16);color:var(--gold)}
 @media (max-width:640px){.nav-wrap{justify-content:center}nav{justify-content:center;border-radius:24px}.nv{padding:8px 11px;font-size:13px}.menu{left:-4px}}
-@media (prefers-reduced-motion:reduce){.orb,.blob,.gtri,.brand img,button.go,.btn{animation:none}.menu:not([hidden]){animation:none}}
+@media (prefers-reduced-motion:reduce){.brand img,button.go,.btn{animation:none}.menu:not([hidden]){animation:none}}
 .hero{text-align:center;padding:48px 0 28px}
 h1{font-size:clamp(30px,6vw,46px);line-height:1.15;margin:0 0 10px;font-weight:800}
 .hero p{color:var(--mute);margin:0 auto 26px;max-width:520px}
@@ -109,35 +95,11 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 .pbtn .i{width:26px;height:26px;fill:currentColor;stroke:none;margin-left:3px}
 @media (prefers-reduced-motion:reduce){.pbtn{animation:none}}
 
-/* ---------- Liquid Glass ---------- */
-.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap{background:transparent;isolation:isolate;border:1px solid rgba(255,255,255,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.07),inset 1px 0 0 rgba(255,255,255,.2),inset -1px 0 0 rgba(255,255,255,.08),0 14px 44px rgba(0,0,0,.34);backdrop-filter:none;-webkit-backdrop-filter:none}
-nav,form,.card,.steps div,.feat div,.page,details,footer .wrap{position:relative}
-.bar::before,nav::before,.menu::before,form::before,.card::before,.steps div::before,.feat div::before,.page::before,details::before,footer .wrap::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.27),transparent 46%),linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 50%,rgba(255,255,255,.09));backdrop-filter:blur(22px) saturate(1.9) brightness(1.08);-webkit-backdrop-filter:blur(22px) saturate(1.9) brightness(1.08)}
-.menu::before{background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.2),transparent 46%),linear-gradient(135deg,rgba(30,24,48,.62),rgba(18,14,30,.5));backdrop-filter:blur(30px) saturate(2) brightness(1.05);-webkit-backdrop-filter:blur(30px) saturate(2) brightness(1.05)}
-.bar{border-width:0 0 1px;border-radius:0;box-shadow:inset 0 -1px 0 rgba(255,255,255,.1),0 8px 30px rgba(0,0,0,.3)}
-.menu{border-color:rgba(255,255,255,.22)}
-.menu a .i{background:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
-button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
-.nv{border:0;box-shadow:none;background:transparent}.nv:hover{background:rgba(255,255,255,.1)}
-button.go,.btn,.nv.on,.menu a.on .i{position:relative;overflow:hidden;border:1px solid rgba(255,235,180,.55);background:linear-gradient(135deg,rgba(255,214,102,.96),rgba(255,140,30,.92));box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -7px 14px rgba(255,110,0,.32),0 8px 26px rgba(255,140,20,.36)}
-button.go::after,.btn::after,.nv.on::after{content:"";position:absolute;left:10%;right:10%;top:2px;height:46%;border-radius:99px;background:linear-gradient(rgba(255,255,255,.6),rgba(255,255,255,0));pointer-events:none}
-.nv.on .i,.nv.on{color:#1a1204}
-input,textarea,select{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);border-radius:12px;color:var(--text);font:inherit}
-input{border:0;background:transparent}
-form{border-radius:22px}
-.flinks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;margin:14px 0}
-.flinks a{color:var(--mute);text-decoration:none;font-size:14px;font-weight:600;padding:4px 2px}.flinks a:hover{color:var(--gold)}
-footer .wrap{border-radius:26px;padding:22px 18px;margin-bottom:22px}footer{border-top:0}
-.page{border-radius:26px;padding:28px 26px;margin:34px 0;text-align:left}
-.page h2{font-size:clamp(26px,5vw,36px);margin:0 0 6px}.page h3{margin:22px 0 4px;color:var(--gold)}
-.page p,.page li{color:#d5d1de;font-size:15px}.page ul{padding-left:20px}.page a{color:var(--gold)}
-.page .upd{color:var(--mute);font-size:13px;margin:0 0 14px}
-.page details{margin:10px 0;border-radius:16px;padding:12px 16px}.page summary{font-weight:700}
-.page select,.page textarea{width:100%;padding:12px;margin:8px 0}
 </style>
+<link rel="stylesheet" href="glass.css">
 </head>
 <body>
-<div class="bg" aria-hidden="true"><div class="orb o1"></div><div class="orb o2"></div><div class="orb o3"></div><div class="orb o4"></div><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div><div class="gtri"></div></div>
+<div class="bg" aria-hidden="true"><div id="dsh"></div></div>
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe08a"/><stop offset="1" stop-color="#ff8a1f"/></linearGradient></defs><symbol id="i-ig" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r=".7" fill="currentColor"/></symbol><symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3.5"/><path d="M10 9.5v5l4.5-2.5z"/></symbol><symbol id="i-photo" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 18l5-5 4 4 3-3 4 4"/></symbol><symbol id="i-reels" viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="4.5"/><path d="M4 8.5h16M9.5 3l2.5 5.5M15.5 3l2.5 5.5"/><path d="M10.5 13v4l3.5-2z"/></symbol><symbol id="i-story" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="3.4 2.1"/><circle cx="12" cy="12" r="4.5"/></symbol><symbol id="i-carousel" viewBox="0 0 24 24"><rect x="8" y="5" width="12" height="14" rx="3"/><path d="M5 8v8M2.5 10v4"/></symbol><symbol id="i-mp3" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="16.5" cy="16" r="2.5"/></symbol><symbol id="i-ring" viewBox="0 0 24 24"><path d="M6 16v-5a6 6 0 0112 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 004 0"/></symbol><symbol id="i-cap" viewBox="0 0 24 24"><path d="M5 9h14M5 15h14M10.5 4L8.5 20M15.5 4l-2 16"/></symbol><symbol id="i-chev" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol><symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.2v13.6a.8.8 0 001.2.7l11-6.8a.8.8 0 000-1.4l-11-6.8A.8.8 0 008 5.2z"/></symbol><symbol id="i-tools" viewBox="0 0 24 24"><path d="M4 7h9M19 7h1M4 17h1M11 17h9"/><circle cx="16" cy="7" r="2.4"/><circle cx="8" cy="17" r="2.4"/></symbol><symbol id="i-clip" viewBox="0 0 24 24"><circle cx="6" cy="7" r="2.5"/><circle cx="6" cy="17" r="2.5"/><path d="M8 8.5L20 18M8 15.5L20 6"/></symbol></svg>
 <header class="bar"><div class="wrap nav-wrap">
   <a class="brand" href="#video"><img src="/icon.png" alt="">ReelKit</a>
@@ -191,6 +153,7 @@ footer .wrap{border-radius:26px;padding:22px 18px;margin-bottom:22px}footer{bord
 <footer><div class="wrap"><p><button id="inst" type="button" class="go">Install ReelKit app</button></p><p id="instmsg" class="note" style="margin:0 0 10px"></p><div class="flinks"><a href="#about">About ReelKit</a><a href="#contact">Contact</a><a href="#faq">FAQ</a><a href="#privacy">Privacy Policy</a><a href="#terms">Terms of Service</a><a href="#dmca">DMCA / Copyright</a></div><p class="note" style="margin:0">© 2026 ReelKit. Not affiliated with Instagram or Meta.</p></div></footer>
 
 <script src="config.js"></script>
+<script src="dashavatara.js" defer></script>
 <script>
 const API=(window.API_BASE||'').replace(/\/$/,'');
 const $=s=>document.querySelector(s);
@@ -314,9 +277,9 @@ function showRing(d,url){const v=d.items.findIndex(i=>i.type==='video');if(v<0)r
   h('div',{class:'row',style:'margin-top:14px'},h('button',{type:'button',class:'go',onclick:make},'Make ringtone')),res))}
 
 function toolkit(initial){
- const ta=h('textarea',{style:'min-height:84px',placeholder:'Paste or type hashtags'},initial.join(' ')),cnt=h('b',{}),warn=h('p',{style:'color:#ff8fb0;margin:6px 0 0'}),list=h('div',{});
+ const ta=h('textarea',{style:'min-height:84px',placeholder:'Paste or type hashtags'},initial.join(' ')),cnt=h('b',{}),warn=h('p',{style:'color:#ffa59b;margin:6px 0 0'}),list=h('div',{});
  const cur=()=>tagsOf(ta.value),sets=()=>{try{return JSON.parse(store.get('rk_sets')||'[]')}catch{return[]}};
- const upd=()=>{const all=(ta.value.match(HT)||[]).length,u=cur().length;cnt.textContent=`${u} of ${LIM} hashtags`;cnt.style.color=u>LIM?'#ff8fb0':'var(--gold)';
+ const upd=()=>{const all=(ta.value.match(HT)||[]).length,u=cur().length;cnt.textContent=`${u} of ${LIM} hashtags`;cnt.style.color=u>LIM?'#ffa59b':'var(--gold)';
   warn.textContent=all>u?`${all-u} duplicate${all-u>1?'s':''} found. Tap Remove duplicates.`:u>LIM?`Instagram allows up to ${LIM} hashtags per post. Remove ${u-LIM}.`:''};
  const draw=()=>{const a=sets();list.replaceChildren(...(a.length?a.map((x,i)=>h('div',{class:'row',style:'align-items:center;margin:8px 0'},h('b',{},x.name),h('span',{class:'note'},x.tags.length+' tags'),
    h('button',{type:'button',onclick:()=>{ta.value=x.tags.join(' ');upd()}},'Use'),h('button',{type:'button',onclick:e=>cp(x.tags.join(' '),e.target)},'Copy'),

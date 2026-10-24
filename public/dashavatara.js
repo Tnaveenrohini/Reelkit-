@@ -1,8 +1,8 @@
-/* ReelKit DashavataraBackground
+/* Waverise DashavataraBackground
  * Layers: AuraLayer, ChakraLayer, ParticleLayer, AvatarController. Animation is CSS-driven (transform/opacity only);
  * JS only swaps the active avatar on a timer. Artwork is independent of the code:
  * drop WebP files into /assets/dashavatara/ and set useImages:true. Until then a gold line emblem is drawn.
- * Override any option before this script runs: window.REELKIT_DASHAVATARA_CONFIG = { duration: 7000, ... } */
+ * Override any option before this script runs: window.WAVERISE_DASHAVATARA_CONFIG = { duration: 7000, ... } */
 (function () {
   const A = '/assets/dashavatara/';
   const DEFAULTS = {
@@ -18,7 +18,7 @@
     avatars: ['Matsya', 'Kurma', 'Varaha', 'Narasimha', 'Vamana', 'Parashurama', 'Rama', 'Krishna', 'Buddha', 'Kalki']
       .map(n => ({ name: n, image: A + n.toLowerCase() + '.webp', duration: 6000 }))
   };
-  const cfg = Object.assign({}, DEFAULTS, window.REELKIT_DASHAVATARA_CONFIG || {});
+  const cfg = Object.assign({}, DEFAULTS, window.WAVERISE_DASHAVATARA_CONFIG || {});
   const mk = (t, c) => { const e = document.createElement(t); e.className = c; return e; };
   const rays = (n, a, b, c = 100) => Array.from({ length: n }, (_, i) => {
     const t = i / n * 6.2832, x = Math.cos(t), y = Math.sin(t), f = v => v.toFixed(1);
@@ -124,5 +124,5 @@
   }
 
   const root = document.getElementById('dsh');
-  if (root) window.ReelKitDashavatara = new DashavataraBackground(root, cfg);
+  if (root) window.WaveriseDashavatara = new DashavataraBackground(root, cfg);
 })();

@@ -1,4 +1,4 @@
-"""ReelKit backend for Vercel: downloader + caption copier (fastapi, yt-dlp, httpx)."""
+"""Waverise backend for Vercel: downloader + caption copier (fastapi, yt-dlp, httpx)."""
 import os, re, shutil, subprocess, uuid
 from pathlib import Path
 
@@ -16,7 +16,7 @@ if os.getenv("IG_COOKIES_TEXT"):  # paste a Netscape cookies.txt into this env v
     Path(COOKIES).write_text(os.environ["IG_COOKIES_TEXT"])
 
 BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # e.g. a reel code or URL part
-app = FastAPI(title="ReelKit")
+app = FastAPI(title="Waverise")
 PUBLIC = Path(__file__).parent / "public"
 r_ = APIRouter()  # mounted at /api and at / so it works however Vercel passes the path
 
@@ -145,7 +145,7 @@ def mp3(url: str, index: int = 0):
         finally:
             p.kill(); p.wait()
     return StreamingResponse(gen(), media_type="audio/mpeg",
-                             headers={"Content-Disposition": 'attachment; filename="reelkit.mp3"'})
+                             headers={"Content-Disposition": 'attachment; filename="waverise.mp3"'})
 
 
 @r_.get("/ringtone")
@@ -177,7 +177,7 @@ def ringtone(url: str, index: int = 0, start: float = 0, length: float = 30, fad
             os.remove(out)
         raise HTTPException(422, "Couldn't make the ringtone. The clip may start after the video ends, or it has no sound. "
                                  + r.stderr.decode(errors="ignore")[-150:])
-    return FileResponse(out, media_type="audio/mp4" if m4r else "audio/mpeg", filename=f"reelkit-ringtone.{ext}",
+    return FileResponse(out, media_type="audio/mp4" if m4r else "audio/mpeg", filename=f"waverise-ringtone.{ext}",
                         content_disposition_type="attachment" if dl else "inline",
                         background=BackgroundTask(os.remove, out))
 
@@ -206,7 +206,7 @@ def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int
             os.remove(out)
         raise HTTPException(422, "Couldn't cut the clip. The start may be after the video ends. "
                                  + r.stderr.decode(errors="ignore")[-150:])
-    return FileResponse(out, media_type="video/mp4", filename="reelkit-clip.mp4",
+    return FileResponse(out, media_type="video/mp4", filename="waverise-clip.mp4",
                         content_disposition_type="attachment" if dl else "inline",
                         background=BackgroundTask(os.remove, out))
 
@@ -251,7 +251,7 @@ def gif(url: str, index: int = 0, start: float = 0, length: float = 4, width: in
         args = ["-t", f"{length:.2f}", "-an", "-loop", "0", "-vf",
                 f"fps=12,scale={width}:-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"]
     r = _ff(src, hdrs, start, args, out)
-    return _send(r, out, "image/webp" if webp else "image/gif", f"reelkit.{'webp' if webp else 'gif'}", dl, "animation")
+    return _send(r, out, "image/webp" if webp else "image/gif", f"waverise.{'webp' if webp else 'gif'}", dl, "animation")
 
 
 @r_.get("/shrink")
@@ -272,13 +272,13 @@ def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: in
         if r.returncode or not os.path.exists(out) or os.path.getsize(out) <= target * 1048576 * 1.03:
             break
         v = int(v * 0.8)  # still too big: try once more at a lower bitrate
-    return _send(r, out, "video/mp4", "reelkit-small.mp4", dl, "smaller video")
+    return _send(r, out, "video/mp4", "waverise-small.mp4", dl, "smaller video")
 
 
 @r_.get("/download")
 def download(request: Request, url: str, index: int = 0, inline: int = 0):
     src, hdrs, vid = media(clean(url), index)
-    name = None if inline else f"reelkit.{'mp4' if vid else 'jpg'}"
+    name = None if inline else f"waverise.{'mp4' if vid else 'jpg'}"
     return stream(src, hdrs, name, request.headers.get("range"))
 
 

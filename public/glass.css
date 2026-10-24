@@ -8,25 +8,25 @@ nav,form,.card,.steps div,.feat div,.page,details,footer .wrap{position:relative
 .menu a .i{background:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
 button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
 .nv{border:0;box-shadow:none;background:transparent}.nv:hover{background:rgba(255,255,255,.1)}
-button.go,.btn,.nv.on,.menu a.on .i{position:relative;overflow:hidden;border:1px solid rgba(255,235,180,.55);background:linear-gradient(135deg,rgba(255,214,102,.96),rgba(255,140,30,.92));box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -7px 14px rgba(255,110,0,.32),0 8px 26px rgba(255,140,20,.36)}
+button.go,.btn,.nv.on,.menu a.on .i{position:relative;overflow:hidden;border:1px solid rgba(190,225,255,.55);background:linear-gradient(135deg,rgba(255,214,102,.96),rgba(255,140,30,.92));box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -7px 14px rgba(0,60,170,.32),0 8px 26px rgba(20,90,220,.36)}
 button.go::after,.btn::after,.nv.on::after{content:"";position:absolute;left:10%;right:10%;top:2px;height:46%;border-radius:99px;background:linear-gradient(rgba(255,255,255,.6),rgba(255,255,255,0));pointer-events:none}
-.nv.on .i,.nv.on{color:#1a1204}
+.nv.on .i,.nv.on{color:#ffffff}
 input,textarea,select{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);border-radius:12px;color:var(--text);font:inherit}
 input{border:0;background:transparent}
 form{border-radius:22px}
 .flinks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;margin:14px 0}
-.flinks a{color:var(--mute);text-decoration:none;font-size:14px;font-weight:600;padding:4px 2px}.flinks a:hover{color:var(--gold)}
+.flinks a{color:var(--mute);text-decoration:none;font-size:14px;font-weight:600;padding:4px 2px}.flinks a:hover{color:var(--ac)}
 footer .wrap{border-radius:26px;padding:22px 18px;margin-bottom:22px}footer{border-top:0}
 .page{border-radius:26px;padding:28px 26px;margin:34px 0;text-align:left}
-.page h2{font-size:clamp(26px,5vw,36px);margin:0 0 6px}.page h3{margin:22px 0 4px;color:var(--gold)}
-.page p,.page li{color:#d5d1de;font-size:15px}.page ul{padding-left:20px}.page a{color:var(--gold)}
+.page h2{font-size:clamp(26px,5vw,36px);margin:0 0 6px}.page h3{margin:22px 0 4px;color:var(--ac)}
+.page p,.page li{color:#d5d1de;font-size:15px}.page ul{padding-left:20px}.page a{color:var(--ac)}
 .page .upd{color:var(--mute);font-size:13px;margin:0 0 14px}
 .page details{margin:10px 0;border-radius:16px;padding:12px 16px}.page summary{font-weight:700}
 .page select,.page textarea{width:100%;padding:12px;margin:8px 0}
 
-/* ============ ReelKit design system: Liquid Glass + Dashavatara (no RGB) ============ */
-:root{--bg:#05060a;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.12);--gold:#f5b83d;--gold2:#ffd76a;--amber:#ffd76a;--text:#fff;--mute:rgba(255,255,255,.65);--bl:24px;--r:22px}
-body{background:#05060a;color:#fff}
+/* ============ Waverise design system: Liquid Glass + Dashavatara (no RGB) ============ */
+:root{--bg:#03050c;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.12);--ac:#2f8bff;--ac2:#6fc3ff;--gold:#ffb84a;--text:#fff;--mute:rgba(255,255,255,.65);--bl:24px;--r:22px}
+body{background:#03050c;color:#fff}
 h1{background:none;-webkit-text-fill-color:#fff;color:#fff;text-shadow:0 2px 28px rgba(0,0,0,.5)}
 /* GlassCard / GlassNav / GlassInput / GlassButton: reusable classes share the same rules as the existing elements */
 .glass-card,.glass-nav,.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap{border-color:rgba(255,255,255,.12)}
@@ -34,34 +34,34 @@ h1{background:none;-webkit-text-fill-color:#fff;color:#fff;text-shadow:0 2px 28p
 .steps div::before,.feat div::before{backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.1),transparent 46%),linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
 .steps div,.feat div{box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 8px 24px rgba(0,0,0,.28)}
 .menu::before{background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.12),transparent 46%),linear-gradient(135deg,rgba(24,26,40,.7),rgba(10,12,20,.6))}
-.menu a.on{background:linear-gradient(135deg,rgba(255,215,106,.18),rgba(245,184,61,.07))}
+.menu a.on{background:linear-gradient(135deg,rgba(90,180,255,.18),rgba(47,139,255,.07))}
 /* floating glass header */
 .bar{top:10px;width:min(calc(100% - 20px),880px);margin:10px auto 0;border:1px solid rgba(255,255,255,.12);border-radius:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 16px 40px rgba(0,0,0,.45)}
 nav{box-shadow:inset 0 1px 0 rgba(255,255,255,.2);border-color:rgba(255,255,255,.1)}
-.nv.on{color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.45);background:linear-gradient(135deg,rgba(255,215,106,.55),rgba(245,184,61,.3));border:1px solid rgba(255,225,150,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -6px 12px rgba(245,184,61,.14),0 6px 22px rgba(245,184,61,.22)}
+.nv.on{color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.45);background:linear-gradient(135deg,rgba(90,180,255,.55),rgba(47,139,255,.3));border:1px solid rgba(150,205,255,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -6px 12px rgba(47,139,255,.14),0 6px 22px rgba(47,139,255,.22)}
 .nv.on .i{color:#fff}
-.menu a.on .i{color:#fff;border:1px solid rgba(255,225,150,.55);background:linear-gradient(135deg,rgba(255,215,106,.5),rgba(245,184,61,.28));box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+.menu a.on .i{color:#fff;border:1px solid rgba(150,205,255,.55);background:linear-gradient(135deg,rgba(90,180,255,.5),rgba(47,139,255,.28));box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
 /* main downloader panel */
-form{overflow:hidden;border-radius:24px;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),inset 0 0 60px rgba(245,184,61,.05),0 18px 50px rgba(0,0,0,.4)}
-form:focus-within{border-color:rgba(255,215,106,.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 0 0 3px rgba(245,184,61,.1),0 18px 50px rgba(0,0,0,.4)}
+form{overflow:hidden;border-radius:24px;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),inset 0 0 60px rgba(47,139,255,.05),0 18px 50px rgba(0,0,0,.4)}
+form:focus-within{border-color:rgba(90,180,255,.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 0 0 3px rgba(47,139,255,.1),0 18px 50px rgba(0,0,0,.4)}
 form::after{content:"";position:absolute;top:0;bottom:0;left:0;width:26%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.09),transparent);transform:translateX(-160%) skewX(-18deg);animation:sweep 6s ease-in-out infinite;pointer-events:none}
 @keyframes sweep{0%{transform:translateX(-160%) skewX(-18deg)}55%,100%{transform:translateX(560%) skewX(-18deg)}}
 #u{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 2px 10px rgba(0,0,0,.35);transition:border-color .25s,box-shadow .25s}
-#u:focus{outline:none;border-color:rgba(255,215,106,.55);box-shadow:inset 0 2px 10px rgba(0,0,0,.35),0 0 0 3px rgba(245,184,61,.14),0 0 22px rgba(245,184,61,.16)}
+#u:focus{outline:none;border-color:rgba(90,180,255,.55);box-shadow:inset 0 2px 10px rgba(0,0,0,.35),0 0 0 3px rgba(47,139,255,.14),0 0 22px rgba(47,139,255,.16)}
 /* GlassButton */
 button{transition:transform .25s,filter .25s,background .25s}
 #clear{background:rgba(0,0,0,.28);color:var(--mute)}#clear:hover{color:#fff}
 button:hover,.btn:hover{transform:translateY(-1px) scale(1.015);filter:brightness(1.08)}
 .nv:hover,.pbtn:hover{transform:none}
-button.go,.btn{color:#1b1306;animation:none;background:linear-gradient(135deg,rgba(255,226,140,.96),rgba(245,184,61,.9));border:1px solid rgba(255,240,200,.6);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -6px 12px rgba(190,120,0,.22),0 8px 28px rgba(245,184,61,.26)}
+button.go,.btn{color:#ffffff;animation:none;background:linear-gradient(135deg,rgba(140,205,255,.96),rgba(47,139,255,.9));border:1px solid rgba(200,228,255,.6);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -6px 12px rgba(0,50,150,.22),0 8px 28px rgba(47,139,255,.26)}
 button.go::before,.btn::before{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);transform:translateX(-130%) skewX(-18deg);transition:transform .8s ease;pointer-events:none}
 button.go:hover::before,.btn:hover::before{transform:translateX(330%) skewX(-18deg)}
 /* GlassInput: checkbox */
 input[type=checkbox]{-webkit-appearance:none;appearance:none;display:inline-grid;place-content:center;width:20px;height:20px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.3);cursor:pointer;transition:background .2s,border-color .2s}
-input[type=checkbox]::after{content:"";width:5px;height:10px;border:solid #1b1306;border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);transition:transform .18s;margin-top:-2px}
-input[type=checkbox]:checked{background:linear-gradient(135deg,#ffd76a,#f5b83d);border-color:rgba(255,235,180,.7)}
+input[type=checkbox]::after{content:"";width:5px;height:10px;border:solid #ffffff;border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);transition:transform .18s;margin-top:-2px}
+input[type=checkbox]:checked{background:linear-gradient(135deg,#6fc3ff,#2f8bff);border-color:rgba(190,225,255,.7)}
 input[type=checkbox]:checked::after{transform:rotate(45deg) scale(1)}
-input[type=checkbox]:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+input[type=checkbox]:focus-visible{outline:2px solid var(--ac2);outline-offset:2px}
 .opt{color:var(--mute)}
 /* Dashavatara background */
 #dsh{position:absolute;inset:0;--op:.5;--sc:1;--tr:1600ms;--aura:.3;--cho:.07;--ax:68%;--ay:46%;--as:min(58vw,720px)}
@@ -88,29 +88,38 @@ html:not([lang=en]) .menu small{display:none}
 .ctl{display:flex;gap:8px;align-items:center}
 #lang{padding:8px 12px;border-radius:99px;font-weight:600;font-size:13px;color:var(--text);cursor:pointer;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);max-width:120px}
 #lang option{background:#10121a;color:#fff}
-.ic{width:38px;height:38px;padding:0;border-radius:50%;display:grid;place-items:center;color:var(--gold2)}
+.ic{width:38px;height:38px;padding:0;border-radius:50%;display:grid;place-items:center;color:var(--ac2)}
 @media (max-width:640px){.nav-wrap{justify-content:space-between}.brand{order:1}.ctl{order:2}nav{order:3;width:100%;justify-content:center}}
-[data-theme=light]{color-scheme:light;--text:#1b1710;--mute:rgba(27,23,16,.62);--line:rgba(0,0,0,.1);--gold:#d89a14}
-[data-theme=light] body,[data-theme=light] .bg{background:#f7f3ea;color:#1b1710}
+[data-theme=light]{color-scheme:light;--text:#0d1730;--mute:rgba(13,23,48,.62);--line:rgba(0,0,0,.1);--ac:#1f6fe0}
+[data-theme=light] body,[data-theme=light] .bg{background:#eef4fc;color:#0d1730}
 [data-theme=light] .dsh-wash{background:radial-gradient(ellipse 70% 60% at 72% 40%,rgba(255,214,120,.5),transparent 65%),radial-gradient(ellipse 60% 50% at 6% 96%,rgba(214,200,240,.45),transparent 60%),linear-gradient(180deg,#faf6ee,#f3eee3)}
-[data-theme=light] h1{-webkit-text-fill-color:#1b1710;color:#1b1710;text-shadow:none}
-[data-theme=light] :is(.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap){border-color:rgba(0,0,0,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 10px 30px rgba(70,50,0,.12)}
+[data-theme=light] h1{-webkit-text-fill-color:#0d1730;color:#0d1730;text-shadow:none}
+[data-theme=light] :is(.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap){border-color:rgba(0,0,0,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 10px 30px rgba(20,50,110,.12)}
 [data-theme=light] :is(.bar,nav,form,.card,.steps div,.feat div,.page,details,footer .wrap)::before{background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(255,255,255,.42))}
 [data-theme=light] .menu::before{background:rgba(255,255,255,.92)}
-[data-theme=light] .menu a,[data-theme=light] .brand,[data-theme=light] .nv:hover,[data-theme=light] summary{color:#1b1710}
-[data-theme=light] .nv,[data-theme=light] .flinks a,[data-theme=light] .opt,[data-theme=light] .note,[data-theme=light] .menu a small{color:rgba(27,23,16,.62)}
-[data-theme=light] .nv.on,[data-theme=light] .nv.on .i{color:#2a1d00;text-shadow:none}
-[data-theme=light] .menu a.on .i{color:#2a1d00}
-[data-theme=light] .page p,[data-theme=light] .page li,[data-theme=light] .steps p,[data-theme=light] .feat p,[data-theme=light] .hero p,[data-theme=light] details p{color:#3a342a}
-[data-theme=light] .page h3{color:#a96f00}[data-theme=light] .page a,[data-theme=light] .flinks a:hover{color:#a96f00}
-[data-theme=light] button:not(.go):not(.nv):not(.pbtn){background:rgba(255,255,255,.75);color:#1b1710;border-color:rgba(0,0,0,.12);box-shadow:inset 0 1px 0 #fff}
-[data-theme=light] #u,[data-theme=light] textarea,[data-theme=light] select{background:rgba(255,255,255,.8);border-color:rgba(0,0,0,.14);color:#1b1710;box-shadow:inset 0 1px 3px rgba(0,0,0,.08)}
-[data-theme=light] #u::placeholder{color:rgba(27,23,16,.45)}
+[data-theme=light] .menu a,[data-theme=light] .brand,[data-theme=light] .nv:hover,[data-theme=light] summary{color:#0d1730}
+[data-theme=light] .nv,[data-theme=light] .flinks a,[data-theme=light] .opt,[data-theme=light] .note,[data-theme=light] .menu a small{color:rgba(13,23,48,.62)}
+[data-theme=light] .nv.on,[data-theme=light] .nv.on .i{color:#0b2a66;text-shadow:none}
+[data-theme=light] .menu a.on .i{color:#0b2a66}
+[data-theme=light] .page p,[data-theme=light] .page li,[data-theme=light] .steps p,[data-theme=light] .feat p,[data-theme=light] .hero p,[data-theme=light] details p{color:#2b3550}
+[data-theme=light] .page h3{color:#1b5fd1}[data-theme=light] .page a,[data-theme=light] .flinks a:hover{color:#1b5fd1}
+[data-theme=light] button:not(.go):not(.nv):not(.pbtn){background:rgba(255,255,255,.75);color:#0d1730;border-color:rgba(0,0,0,.12);box-shadow:inset 0 1px 0 #fff}
+[data-theme=light] #u,[data-theme=light] textarea,[data-theme=light] select{background:rgba(255,255,255,.8);border-color:rgba(0,0,0,.14);color:#0d1730;box-shadow:inset 0 1px 3px rgba(0,0,0,.08)}
+[data-theme=light] #u::placeholder{color:rgba(13,23,48,.45)}
 [data-theme=light] #lang{background:rgba(255,255,255,.75);border-color:rgba(0,0,0,.12)}
-[data-theme=light] #lang option{background:#fff;color:#1b1710}
+[data-theme=light] #lang option{background:#fff;color:#0d1730}
 [data-theme=light] input[type=checkbox]{border-color:rgba(0,0,0,.3);background:rgba(255,255,255,.8)}
-[data-theme=light] .chips span{background:rgba(0,0,0,.06);color:#8a5a00}
+[data-theme=light] .chips span{background:rgba(0,0,0,.06);color:#1b5fd1}
 [data-theme=light] .dsh-av svg,[data-theme=light] .dsh-ch svg{stroke:#b87d0a}
 [data-theme=light] .dsh-av.on{opacity:calc(var(--op) * .8)}
 [data-theme=light] .dsh-p{background:#d89a14;box-shadow:none}
-[data-theme=light] #clear{background:rgba(255,255,255,.75);color:#5a5246}
+[data-theme=light] #clear{background:rgba(255,255,255,.75);color:#44506b}
+
+/* ===== Waverise theme: blue glass with warm gold glow (from the logo) ===== */
+:root{--bg:#03050c;--ac:#2f8bff;--ac2:#6fc3ff;--gold:#ffb84a}
+.dsh-wash{background:radial-gradient(ellipse 60% 50% at 16% 10%,rgba(30,90,220,.30),transparent 65%),radial-gradient(ellipse 70% 60% at 74% 42%,rgba(12,36,104,.5),transparent 65%),radial-gradient(ellipse 55% 45% at 94% 94%,rgba(255,170,60,.11),transparent 60%),linear-gradient(180deg,#03050c,#050a17 45%,#08101f)}
+button.go,.btn{color:#fff;text-shadow:0 1px 6px rgba(0,30,90,.4);background:linear-gradient(135deg,rgba(84,176,255,.97),rgba(30,100,235,.95));border-color:rgba(170,215,255,.55);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -6px 12px rgba(0,50,150,.3),0 8px 28px rgba(47,139,255,.35),6px 10px 26px rgba(255,170,60,.12)}
+.brand img{animation:glow 4s ease-in-out infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(60,150,255,.65)}50%{box-shadow:0 0 22px rgba(255,170,60,.5)}}
+[data-theme=light] .dsh-wash{background:radial-gradient(ellipse 70% 60% at 72% 40%,rgba(120,180,255,.4),transparent 65%),radial-gradient(ellipse 60% 50% at 6% 96%,rgba(190,215,255,.5),transparent 60%),linear-gradient(180deg,#f4f8ff,#e8f0fb)}
+[data-theme=light] button.go,[data-theme=light] .btn{color:#fff}

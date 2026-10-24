@@ -1,12 +1,12 @@
 {
- "name": "ReelKit",
- "short_name": "ReelKit",
+ "name": "Waverise",
+ "short_name": "Waverise",
  "description": "Instagram video downloader, MP3 converter and ringtone maker.",
  "start_url": "/",
  "scope": "/",
  "display": "standalone",
- "background_color": "#111216",
- "theme_color": "#111216",
+ "background_color": "#03050c",
+ "theme_color": "#03050c",
  "icons": [
   {
    "src": "/icon-192.png",

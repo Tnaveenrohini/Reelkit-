@@ -10,10 +10,44 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
 IG_URL = re.compile(r"^https?://(www\.)?instagram\.com/(p|reel|reels|tv|stories)/", re.I)
+def _norm_cookies(t):
+    """Accept cookies pasted into an env var even if tabs became spaces or newlines were escaped."""
+    t = t.replace("\\n", "\n").replace("\r", "")
+    rows = ["# Netscape HTTP Cookie File"]
+    for ln in t.split("\n"):
+        ln = ln.strip()
+        if not ln or (ln.startswith("#") and not ln.startswith("#HttpOnly_")):
+            continue
+        parts = ln.split("\t") if ln.count("\t") >= 6 else ln.split(None, 6)
+        if len(parts) == 7:
+            rows.append("\t".join(x.strip() for x in parts))
+    return "\n".join(rows) + "\n"
+
+
+def _session_cookies():
+    """Easiest option: only the sessionid value (IG_SESSIONID), optionally IG_DS_USER_ID and IG_CSRFTOKEN."""
+    pairs = [("sessionid", os.environ["IG_SESSIONID"].strip())]
+    for name, var in (("ds_user_id", "IG_DS_USER_ID"), ("csrftoken", "IG_CSRFTOKEN")):
+        if os.getenv(var):
+            pairs.append((name, os.environ[var].strip()))
+    return "# Netscape HTTP Cookie File\n" + "".join(f".instagram.com\tTRUE\t/\tTRUE\t2000000000\t{k}\t{v}\n" for k, v in pairs)
+
+
 COOKIES = None
-if os.getenv("IG_COOKIES_TEXT"):  # paste a Netscape cookies.txt into this env var
-    COOKIES = "/tmp/ig_cookies.txt"
-    Path(COOKIES).write_text(os.environ["IG_COOKIES_TEXT"])
+try:
+    _raw = None
+    if os.getenv("IG_COOKIES_B64"):
+        import base64
+        _raw = _norm_cookies(base64.b64decode(os.environ["IG_COOKIES_B64"]).decode("utf-8", "ignore"))
+    elif os.getenv("IG_COOKIES_TEXT"):
+        _raw = _norm_cookies(os.environ["IG_COOKIES_TEXT"])
+    elif os.getenv("IG_SESSIONID"):
+        _raw = _session_cookies()
+    if _raw and _raw.count("\t") >= 6:
+        COOKIES = "/tmp/ig_cookies.txt"
+        Path(COOKIES).write_text(_raw)
+except Exception as _e:  # a bad cookie value must never stop the site from starting
+    print("[waverise] could not load Instagram cookies:", _e)
 
 BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # e.g. a reel code or URL part
 app = FastAPI(title="Waverise")
@@ -34,6 +68,22 @@ def clean(url):
     return url
 
 
+def explain(err, url):
+    """Plain-language reason for visitors (no yt-dlp text, no environment variable names)."""
+    m, story = str(err).lower(), "/stories/" in url.lower()
+    if any(k in m for k in ("login", "log in", "authentication", "cookies", "empty media response", "accessible in your browser")):
+        if COOKIES:
+            return "Instagram did not accept the saved login for this request. The site owner may need to refresh it, or the link may be private."
+        if story:
+            return "Stories need an Instagram login, and this server doesn't have one yet. Reels, posts and carousels work without it."
+        return "Instagram is asking for a login for this link. Try a public Reel or post, or try again in a few minutes."
+    if "429" in m or "too many" in m or "rate" in m:
+        return "Instagram is limiting requests right now. Wait a few minutes and try again."
+    if any(k in m for k in ("private", "not available", "unavailable", "404", "removed", "does not exist")):
+        return "This post is private, deleted or no longer available."
+    return "Couldn't read this link. Check that it opens in a private browser tab, then try again."
+
+
 def fetch_info(url):
     o = {"quiet": True, "no_warnings": True, "cachedir": False, "format": "best[ext=mp4]/best",
          "ignore_no_formats_error": True}
@@ -43,8 +93,8 @@ def fetch_info(url):
         with yt_dlp.YoutubeDL(o) as y:
             return y.extract_info(url, download=False)
     except Exception as e:
-        raise HTTPException(422, "Couldn't read this link. The post may be private or deleted, or Instagram is "
-                                 "blocking this server (set IG_COOKIES_TEXT). " + str(e)[-160:])
+        print(f"[waverise] could not read {url}: {e}")  # full detail stays in the server log
+        raise HTTPException(422, explain(e, url))
 
 
 def items_of(d):
@@ -289,7 +339,12 @@ def home():
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 3, "ig_cookies": bool(COOKIES)}
+    has_session = False
+    try:
+        has_session = bool(COOKIES) and "\tsessionid\t" in Path(COOKIES).read_text()
+    except Exception:
+        pass
+    return {"ok": True, "version": 4, "ig_cookies": bool(COOKIES), "ig_session": has_session}
 
 
 app.include_router(r_, prefix="/api")

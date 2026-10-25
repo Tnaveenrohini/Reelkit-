@@ -1,4 +1,4 @@
-/* Waverise DashavataraBackground
+/* WaveRise DashavataraBackground
  * Layers: AuraLayer, ChakraLayer, ParticleLayer, AvatarController. Animation is CSS-driven (transform/opacity only);
  * JS only swaps the active avatar on a timer. Artwork is independent of the code:
  * drop WebP files into /assets/dashavatara/ and set useImages:true. Until then a gold line emblem is drawn.
@@ -124,5 +124,5 @@
   }
 
   const root = document.getElementById('dsh');
-  if (root) window.WaveriseDashavatara = new DashavataraBackground(root, cfg);
+  if (root) window.WaveRiseDashavatara = new DashavataraBackground(root, cfg);
 })();

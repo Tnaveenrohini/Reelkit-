@@ -1,6 +1,6 @@
 {
- "name": "Waverise",
- "short_name": "Waverise",
+ "name": "WaveRise",
+ "short_name": "WaveRise",
  "description": "Instagram video downloader, MP3 converter and ringtone maker.",
  "start_url": "/",
  "scope": "/",

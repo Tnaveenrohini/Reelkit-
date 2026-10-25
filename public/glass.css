@@ -24,7 +24,7 @@ footer .wrap{border-radius:26px;padding:22px 18px;margin-bottom:22px}footer{bord
 .page details{margin:10px 0;border-radius:16px;padding:12px 16px}.page summary{font-weight:700}
 .page select,.page textarea{width:100%;padding:12px;margin:8px 0}
 
-/* ============ Waverise design system: Liquid Glass + Dashavatara (no RGB) ============ */
+/* ============ WaveRise design system: Liquid Glass + Dashavatara (no RGB) ============ */
 :root{--bg:#03050c;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.12);--ac:#2f8bff;--ac2:#6fc3ff;--gold:#ffb84a;--text:#fff;--mute:rgba(255,255,255,.65);--bl:24px;--r:22px}
 body{background:#03050c;color:#fff}
 h1{background:none;-webkit-text-fill-color:#fff;color:#fff;text-shadow:0 2px 28px rgba(0,0,0,.5)}
@@ -115,7 +115,7 @@ html:not([lang=en]) .menu small{display:none}
 [data-theme=light] .dsh-p{background:#d89a14;box-shadow:none}
 [data-theme=light] #clear{background:rgba(255,255,255,.75);color:#44506b}
 
-/* ===== Waverise theme: blue glass with warm gold glow (from the logo) ===== */
+/* ===== WaveRise theme: blue glass with warm gold glow (from the logo) ===== */
 :root{--bg:#03050c;--ac:#2f8bff;--ac2:#6fc3ff;--gold:#ffb84a}
 .dsh-wash{background:radial-gradient(ellipse 60% 50% at 16% 10%,rgba(30,90,220,.30),transparent 65%),radial-gradient(ellipse 70% 60% at 74% 42%,rgba(12,36,104,.5),transparent 65%),radial-gradient(ellipse 55% 45% at 94% 94%,rgba(255,170,60,.11),transparent 60%),linear-gradient(180deg,#03050c,#050a17 45%,#08101f)}
 button.go,.btn{color:#fff;text-shadow:0 1px 6px rgba(0,30,90,.4);background:linear-gradient(135deg,rgba(84,176,255,.97),rgba(30,100,235,.95));border-color:rgba(170,215,255,.55);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -6px 12px rgba(0,50,150,.3),0 8px 28px rgba(47,139,255,.35),6px 10px 26px rgba(255,170,60,.12)}

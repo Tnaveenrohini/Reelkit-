@@ -2,3 +2,4 @@ fastapi
 yt-dlp
 httpx
 imageio-ffmpeg
+uvicorn

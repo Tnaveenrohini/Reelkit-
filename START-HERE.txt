@@ -1,0 +1,19 @@
+WaveRise on your own computer (Stories, Highlights and profile pictures)
+=========================================================================
+Why: Instagram only shows Stories to logged-in accounts and often blocks servers like Vercel.
+Running the same Python backend on your own computer uses YOUR login and YOUR home internet.
+
+1. Install Python 3.10 or newer from python.org (tick "Add Python to PATH" on Windows).
+2. Install Firefox, open instagram.com, and log in. A spare account is safer than your main one.
+   (Chrome on Windows often cannot be read any more. Firefox is the reliable choice.)
+3. Windows: double-click start.bat    Mac/Linux: run ./start.sh    Type "firefox" when asked.
+4. Open the address it prints. On your phone use the second address (same Wi-Fi).
+5. On the site, scroll down, tap Status, then Run check. Everything should show OK.
+
+From anywhere (optional): install "cloudflared" (free, no account) and run
+   cloudflared tunnel --url http://localhost:8000
+It prints a https address that opens your whole site from any phone while this computer is on.
+
+If you prefer, you can paste the sessionid cookie instead:   python run_local.py --sessionid VALUE
+Never share that value or put it in GitHub. It gives access to the account.
+To limit who can use your backend from other websites, set CORS_ORIGINS to your site address.

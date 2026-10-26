@@ -1,11 +1,12 @@
-"""Waverise backend for Vercel: downloader + caption copier (fastapi, yt-dlp, httpx)."""
-import os, re, shutil, subprocess, uuid
+"""WaveRise backend for Vercel: downloader + caption copier (fastapi, yt-dlp, httpx)."""
+import os, re, shutil, subprocess, time, uuid
 from pathlib import Path
 from urllib.parse import quote, urlparse
 
 import httpx
 import yt_dlp
 from fastapi import APIRouter, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
@@ -51,7 +52,10 @@ except Exception as _e:  # a bad cookie value must never stop the site from star
     print("[waverise] could not load Instagram cookies:", _e)
 
 BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # e.g. a reel code or URL part
-app = FastAPI(title="Waverise")
+BROWSER = (os.getenv("IG_BROWSER") or "").strip().lower() or None  # e.g. "firefox": reuse the Instagram login of a browser on this computer
+_ck_cache = (0.0, {})
+app = FastAPI(title="WaveRise")
+app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "*").split(","), allow_methods=["*"], allow_headers=["*"])
 PUBLIC = Path(__file__).parent / "public"
 r_ = APIRouter()  # mounted at /api and at / so it works however Vercel passes the path
 
@@ -73,7 +77,7 @@ def explain(err, url):
     """Plain-language reason for visitors (no yt-dlp text, no environment variable names)."""
     m, story = str(err).lower(), "/stories/" in url.lower()
     if any(k in m for k in ("login", "log in", "authentication", "cookies", "empty media response", "accessible in your browser")):
-        if COOKIES:
+        if _has_login():
             return "Instagram did not accept the saved login for this request. The site owner may need to refresh it, or the link may be private."
         if story:
             return "Stories need an Instagram login, and this server doesn't have one yet. Reels, posts and carousels work without it."
@@ -90,6 +94,8 @@ def fetch_info(url):
          "ignore_no_formats_error": True}
     if COOKIES:
         o["cookiefile"] = COOKIES
+    if BROWSER:
+        o["cookiesfrombrowser"] = (BROWSER,)
     try:
         with yt_dlp.YoutubeDL(o) as y:
             return y.extract_info(url, download=False)
@@ -140,6 +146,8 @@ def stream(src, headers=None, filename=None, range_=None):
 
 def ffmpeg_path():
     """imageio-ffmpeg ships a static ffmpeg binary; copy it to /tmp so it is executable on Vercel."""
+    if shutil.which("ffmpeg"):
+        return shutil.which("ffmpeg")
     import imageio_ffmpeg
     dst = "/tmp/ffmpeg"
     if not os.path.exists(dst):
@@ -333,13 +341,29 @@ CDN = ("cdninstagram.com", "fbcdn.net")
 
 
 def _cdict():
+    """Instagram cookies as a dict: from a browser on this computer (IG_BROWSER) or from the saved cookie file."""
+    global _ck_cache
     d = {}
-    if COOKIES:
+    if BROWSER:
+        if time.time() - _ck_cache[0] < 60:
+            return _ck_cache[1]
+        try:
+            from yt_dlp.cookies import extract_cookies_from_browser
+            d = {c.name: c.value for c in extract_cookies_from_browser(BROWSER) if "instagram.com" in (c.domain or "")}
+        except Exception as e:
+            print(f"[waverise] could not read cookies from {BROWSER}: {e}")
+    if not d.get("sessionid") and COOKIES:
         for ln in Path(COOKIES).read_text().splitlines():
             p = ln.replace("#HttpOnly_", "", 1).split("\t")
             if len(p) == 7 and "instagram.com" in p[0]:
                 d[p[5]] = p[6]
+    if BROWSER:
+        _ck_cache = (time.time(), d)
     return d
+
+
+def _has_login():
+    return bool(_cdict().get("sessionid"))
 
 
 def _ig(path, params=None, auth=False):
@@ -358,7 +382,7 @@ def _profile(u):
     if not re.fullmatch(r"[A-Za-z0-9._]{1,30}", u):
         raise HTTPException(400, "That doesn't look like an Instagram username.")
     r = _ig("/api/v1/users/web_profile_info/", {"username": u})
-    if r.status_code in (401, 403, 429) and COOKIES:
+    if r.status_code in (401, 403, 429) and _has_login():
         r = _ig("/api/v1/users/web_profile_info/", {"username": u}, auth=True)
     if r.status_code == 404:
         raise HTTPException(404, "No Instagram account with that username.")
@@ -400,7 +424,7 @@ def _gate(r):
     if r.status_code == 429:
         return "limited"
     if r.status_code in (400, 401, 403) or "login" in r.text[:300].lower():
-        return "rejected" if COOKIES else "no_session"
+        return "rejected" if _has_login() else "no_session"
     return None
 
 
@@ -409,13 +433,13 @@ def profile(u: str):
     user = _profile(u)
     return {"username": user.get("username"), "name": user.get("full_name"), "verified": bool(user.get("is_verified")), "private": bool(user.get("is_private")),
             "followers": (user.get("edge_followed_by") or {}).get("count"), "dp": _px(user.get("profile_pic_url_hd") or user.get("profile_pic_url") or ""),
-            "session": bool(COOKIES)}
+            "session": _has_login()}
 
 
 @r_.get("/stories")
 def stories(u: str):
     user = _public(u)
-    if not COOKIES:
+    if not _has_login():
         return {"needs_login": True, "reason": "no_session", "items": []}
     r = _ig("/api/v1/feed/reels_media/", {"reel_ids": user["id"]}, auth=True)
     g = _gate(r)
@@ -436,7 +460,7 @@ def _tray(user):
 @r_.get("/highlights")
 def highlights(u: str):
     user = _public(u)
-    if not COOKIES:
+    if not _has_login():
         return {"needs_login": True, "reason": "no_session", "items": []}
     t = _tray(user)
     return {"needs_login": True, "reason": t, "items": []} if isinstance(t, str) else {"items": t}
@@ -445,7 +469,7 @@ def highlights(u: str):
 @r_.get("/highlight")
 def highlight(u: str, id: str):
     user = _public(u)
-    if not COOKIES:
+    if not _has_login():
         raise HTTPException(503, "Highlights need the site's Instagram login, which isn't set up yet.")
     if not re.fullmatch(r"\d{5,25}", id) or id not in {x["id"] for x in (lambda t: t if isinstance(t, list) else [])(_tray(user))}:  # only highlights that belong to this public profile
         raise HTTPException(404, "That highlight wasn't found on this profile.")
@@ -483,6 +507,8 @@ def diag(u: str = "instagram"):
     allok = all(c["ok"] for c in checks)
     if allok:
         v = "Everything works. Stories and Highlights should load."
+    elif "sessionid" not in ck and BROWSER:
+        v = f"No Instagram login was found in {BROWSER}. Open instagram.com in {BROWSER}, log in (Firefox is the most reliable), close the browser, then restart this program."
     elif "sessionid" not in ck:
         v = "Add the Instagram login (IG_SESSIONID) in Vercel and redeploy. Profile pictures may work without it, but Stories and Highlights cannot."
     elif st.get("login") in (400, 401, 403):
@@ -518,10 +544,10 @@ def home():
 def health():
     has_session = False
     try:
-        has_session = bool(COOKIES) and "\tsessionid\t" in Path(COOKIES).read_text()
+        has_session = _has_login()
     except Exception:
         pass
-    return {"ok": True, "version": 4, "ig_cookies": bool(COOKIES), "ig_session": has_session}
+    return {"ok": True, "version": 4, "ig_cookies": bool(COOKIES or BROWSER), "ig_session": has_session, "browser": BROWSER}
 
 
 app.include_router(r_, prefix="/api")

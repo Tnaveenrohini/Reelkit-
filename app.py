@@ -1,6 +1,7 @@
 """Waverise backend for Vercel: downloader + caption copier (fastapi, yt-dlp, httpx)."""
 import os, re, shutil, subprocess, uuid
 from pathlib import Path
+from urllib.parse import quote, urlparse
 
 import httpx
 import yt_dlp
@@ -323,6 +324,132 @@ def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: in
             break
         v = int(v * 0.8)  # still too big: try once more at a lower bitrate
     return _send(r, out, "video/mp4", "waverise-small.mp4", dl, "smaller video")
+
+
+# ---------- profile picture, Stories and Highlights by username ----------
+IG_APP = "936619743392459"
+UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+CDN = ("cdninstagram.com", "fbcdn.net")
+
+
+def _cdict():
+    d = {}
+    if COOKIES:
+        for ln in Path(COOKIES).read_text().splitlines():
+            p = ln.replace("#HttpOnly_", "", 1).split("\t")
+            if len(p) == 7 and "instagram.com" in p[0]:
+                d[p[5]] = p[6]
+    return d
+
+
+def _ig(path, params=None, auth=False):
+    h = {"User-Agent": UA, "X-IG-App-ID": IG_APP, "X-Requested-With": "XMLHttpRequest", "Referer": "https://www.instagram.com/", "Accept": "*/*"}
+    ck = _cdict() if auth else {}
+    if ck.get("csrftoken"):
+        h["X-CSRFToken"] = ck["csrftoken"]
+    try:
+        return httpx.get("https://www.instagram.com" + path, params=params, headers=h, cookies=ck, timeout=20, follow_redirects=True)
+    except httpx.HTTPError:
+        raise HTTPException(502, "Couldn't reach Instagram. Try again in a moment.")
+
+
+def _profile(u):
+    u = u.strip().lstrip("@")
+    if not re.fullmatch(r"[A-Za-z0-9._]{1,30}", u):
+        raise HTTPException(400, "That doesn't look like an Instagram username.")
+    r = _ig("/api/v1/users/web_profile_info/", {"username": u})
+    if r.status_code in (401, 403, 429) and COOKIES:
+        r = _ig("/api/v1/users/web_profile_info/", {"username": u}, auth=True)
+    if r.status_code == 404:
+        raise HTTPException(404, "No Instagram account with that username.")
+    try:
+        user = r.json()["data"]["user"]
+    except Exception:
+        raise HTTPException(422, "Instagram didn't return this profile right now. It may be limiting this server, so try again later.")
+    if not user:
+        raise HTTPException(404, "No Instagram account with that username.")
+    return user
+
+
+def _public(u):
+    user = _profile(u)
+    if user.get("is_private"):
+        raise HTTPException(403, "This account is private. Stories and highlights of private accounts can't be downloaded.")
+    return user
+
+
+def _px(url):
+    return "/api/img?u=" + quote(url, safe="")
+
+
+def _items(js, rid):
+    reel = (js.get("reels") or {}).get(rid) or ((js.get("reels_media") or [None])[0]) or {}
+    out = []
+    for it in reel.get("items") or []:
+        vv, cand = it.get("video_versions") or [], (it.get("image_versions2") or {}).get("candidates") or []
+        src = (vv[0] if vv else cand[0] if cand else {}).get("url")
+        if src:
+            out.append({"type": "video" if vv else "photo", "thumb": _px(cand[-1]["url"] if cand else src), "src": _px(src), "taken": it.get("taken_at")})
+    return out
+
+
+def _login_needed(r):
+    return r.status_code in (400, 401, 403) or "login" in r.text[:300].lower()
+
+
+@r_.get("/profile")
+def profile(u: str):
+    user = _profile(u)
+    return {"username": user.get("username"), "name": user.get("full_name"), "verified": bool(user.get("is_verified")), "private": bool(user.get("is_private")),
+            "followers": (user.get("edge_followed_by") or {}).get("count"), "dp": _px(user.get("profile_pic_url_hd") or user.get("profile_pic_url") or ""),
+            "session": bool(COOKIES)}
+
+
+@r_.get("/stories")
+def stories(u: str):
+    user = _public(u)
+    if not COOKIES:
+        return {"needs_login": True, "items": []}
+    r = _ig("/api/v1/feed/reels_media/", {"reel_ids": user["id"]}, auth=True)
+    if _login_needed(r):
+        return {"needs_login": True, "items": []}
+    return {"items": _items(r.json(), str(user["id"]))}
+
+
+def _tray(user):
+    r = _ig(f"/api/v1/highlights/{user['id']}/highlights_tray/", auth=True)
+    if _login_needed(r):
+        return None
+    return [{"id": str(t["id"]).split(":")[-1], "title": t.get("title") or "Highlight",
+             "cover": _px(((t.get("cover_media") or {}).get("cropped_image_version") or {}).get("url", ""))} for t in r.json().get("tray") or []]
+
+
+@r_.get("/highlights")
+def highlights(u: str):
+    user = _public(u)
+    if not COOKIES:
+        return {"needs_login": True, "items": []}
+    t = _tray(user)
+    return {"needs_login": True, "items": []} if t is None else {"items": t}
+
+
+@r_.get("/highlight")
+def highlight(u: str, id: str):
+    user = _public(u)
+    if not COOKIES:
+        raise HTTPException(503, "Highlights need the site's Instagram login, which isn't set up yet.")
+    if not re.fullmatch(r"\d{5,25}", id) or id not in {x["id"] for x in (_tray(user) or [])}:  # only highlights that belong to this public profile
+        raise HTTPException(404, "That highlight wasn't found on this profile.")
+    r = _ig("/api/v1/feed/reels_media/", {"reel_ids": "highlight:" + id}, auth=True)
+    return {"items": _items(r.json(), "highlight:" + id)}
+
+
+@r_.get("/img")
+def img(u: str, dl: int = 0, name: str = "waverise"):
+    p = urlparse(u)
+    if p.scheme != "https" or not (p.hostname or "").endswith(CDN):
+        raise HTTPException(400, "Not allowed.")
+    return stream(u, {"User-Agent": UA, "Referer": "https://www.instagram.com/"}, re.sub(r"[^A-Za-z0-9._-]", "_", name)[:60] if dl else None)
 
 
 @r_.get("/download")

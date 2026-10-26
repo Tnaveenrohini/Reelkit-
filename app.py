@@ -362,6 +362,8 @@ def _profile(u):
         r = _ig("/api/v1/users/web_profile_info/", {"username": u}, auth=True)
     if r.status_code == 404:
         raise HTTPException(404, "No Instagram account with that username.")
+    if r.status_code == 429:
+        raise HTTPException(429, "Instagram is limiting this server right now. Try again in a few minutes.")
     try:
         user = r.json()["data"]["user"]
     except Exception:
@@ -393,8 +395,13 @@ def _items(js, rid):
     return out
 
 
-def _login_needed(r):
-    return r.status_code in (400, 401, 403) or "login" in r.text[:300].lower()
+def _gate(r):
+    """Why Instagram refused: limited | rejected (our login was not accepted) | no_session. None means fine."""
+    if r.status_code == 429:
+        return "limited"
+    if r.status_code in (400, 401, 403) or "login" in r.text[:300].lower():
+        return "rejected" if COOKIES else "no_session"
+    return None
 
 
 @r_.get("/profile")
@@ -409,17 +416,19 @@ def profile(u: str):
 def stories(u: str):
     user = _public(u)
     if not COOKIES:
-        return {"needs_login": True, "items": []}
+        return {"needs_login": True, "reason": "no_session", "items": []}
     r = _ig("/api/v1/feed/reels_media/", {"reel_ids": user["id"]}, auth=True)
-    if _login_needed(r):
-        return {"needs_login": True, "items": []}
+    g = _gate(r)
+    if g:
+        return {"needs_login": True, "reason": g, "items": []}
     return {"items": _items(r.json(), str(user["id"]))}
 
 
 def _tray(user):
     r = _ig(f"/api/v1/highlights/{user['id']}/highlights_tray/", auth=True)
-    if _login_needed(r):
-        return None
+    g = _gate(r)
+    if g:
+        return g
     return [{"id": str(t["id"]).split(":")[-1], "title": t.get("title") or "Highlight",
              "cover": _px(((t.get("cover_media") or {}).get("cropped_image_version") or {}).get("url", ""))} for t in r.json().get("tray") or []]
 
@@ -428,9 +437,9 @@ def _tray(user):
 def highlights(u: str):
     user = _public(u)
     if not COOKIES:
-        return {"needs_login": True, "items": []}
+        return {"needs_login": True, "reason": "no_session", "items": []}
     t = _tray(user)
-    return {"needs_login": True, "items": []} if t is None else {"items": t}
+    return {"needs_login": True, "reason": t, "items": []} if isinstance(t, str) else {"items": t}
 
 
 @r_.get("/highlight")
@@ -438,10 +447,51 @@ def highlight(u: str, id: str):
     user = _public(u)
     if not COOKIES:
         raise HTTPException(503, "Highlights need the site's Instagram login, which isn't set up yet.")
-    if not re.fullmatch(r"\d{5,25}", id) or id not in {x["id"] for x in (_tray(user) or [])}:  # only highlights that belong to this public profile
+    if not re.fullmatch(r"\d{5,25}", id) or id not in {x["id"] for x in (lambda t: t if isinstance(t, list) else [])(_tray(user))}:  # only highlights that belong to this public profile
         raise HTTPException(404, "That highlight wasn't found on this profile.")
     r = _ig("/api/v1/feed/reels_media/", {"reel_ids": "highlight:" + id}, auth=True)
     return {"items": _items(r.json(), "highlight:" + id)}
+
+
+@r_.get("/diag")
+def diag(u: str = "instagram"):
+    """Plain-language checks for the site owner. Returns no secrets."""
+    ck = _cdict()
+    checks, st = [], {}
+
+    def add(name, ok, detail):
+        checks.append({"name": name, "ok": bool(ok), "detail": detail})
+    r = _ig("/")
+    add("This server can reach Instagram", r.status_code == 200, f"Instagram answered {r.status_code}.")
+    r = _ig("/api/v1/users/web_profile_info/", {"username": u})
+    uid = None
+    try:
+        uid = r.json()["data"]["user"]["id"]
+    except Exception:
+        pass
+    st["profile"] = r.status_code
+    add("Profile lookup without a login", bool(uid), "Works." if uid else f"Instagram answered {r.status_code}. " + ("It is limiting this server." if r.status_code == 429 else "It is blocking this lookup from the server (common for data-centre addresses)."))
+    add("Site Instagram login is saved", "sessionid" in ck, "Saved." if "sessionid" in ck else "Not set. Add IG_SESSIONID in Vercel, then redeploy.")
+    if "sessionid" in ck:
+        r = _ig("/api/v1/accounts/current_user/", {"edit": "true"}, auth=True)
+        good = r.status_code == 200 and '"user"' in r.text
+        st["login"] = r.status_code
+        add("Instagram accepts the saved login", good, "Accepted." if good else f"Instagram answered {r.status_code}. The login is expired, copied wrongly, or blocked from this server.")
+        if good and uid:
+            r = _ig("/api/v1/feed/reels_media/", {"reel_ids": uid}, auth=True)
+            add("Stories feed answers with the login", r.status_code == 200, "Works." if r.status_code == 200 else f"Instagram answered {r.status_code}.")
+    allok = all(c["ok"] for c in checks)
+    if allok:
+        v = "Everything works. Stories and Highlights should load."
+    elif "sessionid" not in ck:
+        v = "Add the Instagram login (IG_SESSIONID) in Vercel and redeploy. Profile pictures may work without it, but Stories and Highlights cannot."
+    elif st.get("login") in (400, 401, 403):
+        v = "Instagram rejected the saved login. Log in to Instagram again in a browser, copy a fresh sessionid value, update IG_SESSIONID in Vercel and redeploy. Use a spare account."
+    elif st.get("profile") in (401, 403, 429):
+        v = "Instagram is blocking or limiting requests from this server. Wait and retry, or host the backend somewhere Instagram does not block (a home PC with a tunnel, or a small VPS)."
+    else:
+        v = "Some checks failed. See the details above."
+    return {"checks": checks, "verdict": v, "ok": allok}
 
 
 @r_.get("/img")

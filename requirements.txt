@@ -3,3 +3,4 @@ yt-dlp
 httpx
 imageio-ffmpeg
 deno
+python-multipart

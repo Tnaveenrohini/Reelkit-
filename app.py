@@ -15,6 +15,7 @@ YT_ID = re.compile(r"^https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v
 TH_URL = re.compile(r"^https?://(?:www\.)?threads\.(?:net|com)/(?:(@[A-Za-z0-9._]{1,30})/post|t)/([A-Za-z0-9_-]{5,24})", re.I)
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 CDN = ("cdninstagram.com", "fbcdn.net")
+SOON = {x.strip().lower() for x in os.getenv("SOON_SITES", "youtube,threads").split(",") if x.strip()}  # sites shown as "coming soon"; set SOON_SITES to empty to switch them on
 MAX_HD_SECONDS = 20 * 60  # longest video the free server will join into 720p/1080p
 X_URL = re.compile(r"^https?://(www\.|mobile\.)?(x|twitter)\.com/(i/(web/)?|[A-Za-z0-9_]{1,15}/)status/\d+", re.I)
 BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # link parts to refuse after a valid copyright notice
@@ -35,6 +36,9 @@ def clean(url):
     url = url.strip()
     if any(b in url.lower() for b in BLOCKED):
         raise HTTPException(451, "This link is not available for legal reasons.")
+    for site, rx in (("youtube", YT_ID), ("threads", TH_URL)):
+        if site in SOON and rx.match(url):
+            raise HTTPException(503, f"{'YouTube' if site == 'youtube' else 'Threads'} downloads are coming soon to WaveRise.")
     m = YT_ID.match(url)
     if m:
         return "https://www.youtube.com/watch?v=" + m.group(1)   # one video only, playlist parts dropped
@@ -632,7 +636,7 @@ def home():
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 6, "youtube_engine": next(iter(js_runtime()), None)}
+    return {"ok": True, "version": 7, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None)}
 
 
 app.include_router(r_, prefix="/api")

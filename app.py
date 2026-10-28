@@ -715,6 +715,138 @@ def speed(url: str, index: int = 0, rate: float = 2.0, dl: int = 0):
     return _send(r, out, "video/mp4", nice_name(d, "mp4", tag), dl, f"{tag} version")
 
 
+# ---------- WhatsApp sticker ----------
+STICKER_VF = "scale=512:512:force_original_aspect_ratio=decrease:flags=lanczos,pad=512:512:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba"
+
+
+@r_.get("/sticker")
+def sticker(url: str, index: int = 0, kind: str = "still", at: float = -1, start: float = 0, length: float = 3, dl: int = 0):
+    """512x512 WebP sticker with a transparent background: still (under 100 KB) or animated (under 500 KB)."""
+    src, hdrs, vid, d = media(clean(url), index, info=True)
+    anim = kind == "animated"
+    if anim and not vid:
+        raise HTTPException(400, "Animated stickers need a video. For photos, choose Still.")
+    out = f"/tmp/k-{uuid.uuid4().hex}.webp"
+    limit = 500_000 if anim else 100_000
+    tries = [(12, 50, 6.0), (10, 38, 5.0), (10, 26, 4.0), (8, 18, 3.0)] if anim else [(0, 80, 0), (0, 62, 0), (0, 45, 0), (0, 30, 0)]
+    r = None
+    for fps, qv, maxlen in tries:
+        if anim:
+            ln = max(1.0, min(length, maxlen))
+            # compression level 2: level 6 takes minutes on the cloud ffmpeg build, level 2 under a second, still within WhatsApp's 500 KB
+            args = ["-t", f"{ln:.2f}", "-an", "-vf", f"fps={fps}," + STICKER_VF, "-c:v", "libwebp_anim", "-loop", "0", "-q:v", str(qv), "-compression_level", "2"]
+            r = _ff(src, hdrs, max(0.0, start), args, out)
+        else:
+            ss = 0 if (not vid or at < 0) else max(0.0, at)
+            pick = ["-vf", ("thumbnail=60," if vid and at < 0 else "") + STICKER_VF] + (["-t", "15"] if vid and at < 0 else [])
+            r = _ff(src, hdrs, ss, ["-an", "-frames:v", "1"] + pick + ["-c:v", "libwebp", "-q:v", str(qv), "-compression_level", "6"], out)
+        if r.returncode or not os.path.exists(out):
+            break
+        if os.path.getsize(out) <= limit:
+            break
+    return _send(r, out, "image/webp", nice_name(d, "webp", "sticker"), dl, "sticker")
+
+
+# ---------- reshape for any app ----------
+SHAPES = {"9x16": (720, 1280), "1x1": (720, 720), "4x5": (720, 900), "16x9": (1280, 720)}
+
+
+@r_.get("/reshape")
+def reshape(url: str, index: int = 0, ratio: str = "9x16", fill: str = "blur", dl: int = 0):
+    src, hdrs, vid, d = media(clean(url), index, info=True)
+    _video_only(vid)
+    if ratio not in SHAPES:
+        raise HTTPException(400, "Choose 9:16, 1:1, 4:5 or 16:9.")
+    its = items_of(d)
+    dur = d.get("duration") or (its[min(index, len(its) - 1)].get("duration") if its else None) or 0
+    if dur > 180:
+        raise HTTPException(413, "Videos up to 3 minutes can be reshaped on this free server.")
+    W, H = SHAPES[ratio]
+    fg = f"scale={W}:{H}:force_original_aspect_ratio=decrease,setsar=1"
+    if fill == "crop":
+        vf = f"[0:v]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},setsar=1[v]"
+    elif fill == "black":
+        vf = f"[0:v]{fg},pad={W}:{H}:(ow-iw)/2:(oh-ih)/2:color=black[v]"
+    else:
+        vf = (f"[0:v]split[a][b];[a]scale={W//4}:{H//4}:force_original_aspect_ratio=increase,crop={W//4}:{H//4},boxblur=6:2,scale={W}:{H},eq=brightness=-0.06[bg];"
+              f"[b]{fg}[fg];[bg][fg]overlay=(W-w)/2:(H-h)/2,setsar=1[v]")
+    out = f"/tmp/r-{uuid.uuid4().hex}.mp4"
+    args = ["-filter_complex", vf, "-map", "[v]", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"]
+    r = _ff(src, hdrs, 0, args, out, 170)
+    return _send(r, out, "video/mp4", nice_name(d, "mp4", ratio.replace("x", "-")), dl, "reshaped video")
+
+
+# ---------- carousel to PDF ----------
+def _jpeg_size(b):
+    i = 2
+    while i + 9 < len(b) and b[i] == 0xFF:
+        m, ln = b[i + 1], int.from_bytes(b[i + 2:i + 4], "big")
+        if m in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+            return int.from_bytes(b[i + 7:i + 9], "big"), int.from_bytes(b[i + 5:i + 7], "big"), b[i + 9]
+        i += 2 + ln
+    return None
+
+
+def _to_jpeg(b):
+    if b[:2] == b"\xff\xd8" and _jpeg_size(b):
+        return b
+    p = subprocess.run([ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-frames:v", "1", "-q:v", "2", "-f", "mjpeg", "pipe:1"],
+                       input=b, capture_output=True, timeout=60)
+    return p.stdout if p.returncode == 0 and p.stdout[:2] == b"\xff\xd8" else None
+
+
+def make_pdf(jpegs, title="WaveRise"):
+    """Minimal PDF: one page per photo, page width 595 pt (A4 width), height follows the photo."""
+    objs, kids = [], []
+    def add(o):
+        objs.append(o); return len(objs)
+    add(b"")  # catalog placeholder (1)
+    add(b"")  # pages placeholder (2)
+    for j in jpegs:
+        w, h, comps = _jpeg_size(j)
+        pw, ph = 595.0, round(595.0 * h / w, 2)
+        cs = b"/DeviceGray" if comps == 1 else b"/DeviceCMYK" if comps == 4 else b"/DeviceRGB"
+        img = add(b"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace %s /BitsPerComponent 8 /Filter /DCTDecode /Length %d >>\nstream\n" % (w, h, cs, len(j)) + j + b"\nendstream")
+        content = b"q %.2f 0 0 %.2f 0 0 cm /Im0 Do Q" % (pw, ph)
+        cn = add(b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream")
+        kids.append(add(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] /Resources << /XObject << /Im0 %d 0 R >> >> /Contents %d 0 R >>" % (pw, ph, img, cn)))
+    objs[0] = b"<< /Type /Catalog /Pages 2 0 R >>"
+    objs[1] = b"<< /Type /Pages /Kids [%s] /Count %d >>" % (b" ".join(b"%d 0 R" % k for k in kids), len(kids))
+    info = add(b"<< /Producer (WaveRise) /Title (" + re.sub(rb"[()\\]", b"", title.encode("latin-1", "ignore"))[:80] + b") >>")
+    out, offs = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"), []
+    for n, o in enumerate(objs, 1):
+        offs.append(len(out)); out += b"%d 0 obj\n" % n + o + b"\nendobj\n"
+    x = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offs)
+    out += b"trailer\n<< /Size %d /Root 1 0 R /Info %d 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, info, x)
+    return bytes(out)
+
+
+@r_.get("/pdf")
+def pdf(url: str):
+    u = clean(url)
+    d = fetch_info(u)
+    its = items_of(d)[:20]
+    pics = []
+    with httpx.Client(timeout=40, follow_redirects=True) as c:
+        for e in its:
+            src = e.get("thumbnail") if is_video(e) else (e.get("url") or e.get("thumbnail"))   # videos become their cover photo
+            if not src:
+                continue
+            try:
+                r = c.get(src, headers=e.get("http_headers") or {})
+            except httpx.HTTPError:
+                continue
+            j = _to_jpeg(r.content) if r.status_code == 200 else None
+            if j:
+                pics.append(jpeg_clean(j))
+    if not pics:
+        raise HTTPException(422, "Couldn't get the photos from this post to make a PDF.")
+    return Response(make_pdf(pics, (d.get("description") or "WaveRise")[:80]), media_type="application/pdf",
+                    headers={"Content-Disposition": disposition(nice_name(d, "pdf"))})
+
+
 @r_.get("/download")
 def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int = 0, loud: int = 0, privacy: int = Query(0, alias="clean")):
     u = clean(url)
@@ -789,7 +921,7 @@ def home():
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 7, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None)}
+    return {"ok": True, "version": 8, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None)}
 
 
 app.include_router(r_, prefix="/api")

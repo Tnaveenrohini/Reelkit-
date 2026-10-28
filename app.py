@@ -51,6 +51,12 @@ def explain(err, url):
     """Plain-language reason for visitors (no yt-dlp text)."""
     m = str(err).lower()
     site = {"youtube": "YouTube", "threads": "Threads", "x": "X", "instagram": "Instagram"}[site_of(url)]
+    if "requested format is not available" in m:
+        return "YouTube didn't offer a downloadable version of this video to this server. Try again later, or try another video."
+    if "javascript runtime" in m or "n challenge" in m or "signature" in m and "solv" in m:
+        return "YouTube changed how its videos are unlocked. The site owner needs to update yt-dlp and redeploy."
+    if "po token" in m or ("http error 403" in m and site == "YouTube"):
+        return "YouTube is blocking this server for now (it often does this to cloud servers). Try again later."
     if "not a bot" in m or "confirm you" in m and "bot" in m:
         return "YouTube is blocking this server for now (it often does this to cloud servers). Try again later."
     if "age" in m and ("confirm" in m or "restricted" in m) or "inappropriate for some users" in m:
@@ -67,7 +73,18 @@ def explain(err, url):
         return f"{site} is limiting requests right now. Wait a few minutes and try again."
     if any(k in m for k in ("private", "protected", "not available", "unavailable", "404", "removed", "does not exist", "suspended", "deleted")):
         return "This post is private, deleted or no longer available."
-    return "Couldn't read this link. Check that it opens in a private browser tab, then try again."
+    why = re.sub(r"https?://\S+", "", str(err)).replace("ERROR:", "").strip()
+    why = re.sub(r"\s+", " ", why)[:140]
+    return "Couldn't read this link. Check that it opens in a private browser tab, then try again." + (f" Details: {why}" if why else "")
+
+
+YT_FORMAT = "18/best[ext=mp4][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b"
+YT_CLIENT_FALLBACKS = (None, ["tv_simply", "web_safari"], ["mweb", "android_vr"])
+
+
+def _retryable(e):
+    m = str(e).lower()
+    return any(k in m for k in ("not a bot", "requested format", "player response", "403", "po token", "unable to extract", "signature", "n challenge", "javascript"))
 
 
 def fetch_info(url):
@@ -75,15 +92,31 @@ def fetch_info(url):
     if site == "threads":
         return _threads(url)
     o = {"quiet": True, "no_warnings": True, "cachedir": False, "ignore_no_formats_error": True, "noplaylist": True,
-         "format": "18/best[ext=mp4][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/best" if site == "youtube" else "best[ext=mp4]/best"}
-    try:
-        with yt_dlp.YoutubeDL(o) as y:
-            d = y.extract_info(url, download=False)
-    except Exception as e:
-        print(f"[waverise] could not read {url}: {e}")  # full detail stays in the server log
-        raise HTTPException(422, explain(e, url))
+         "format": YT_FORMAT if site == "youtube" else "best[ext=mp4]/best"}
+    if site == "youtube" and js_runtime():
+        o["js_runtimes"] = js_runtime()
+    d, last = None, None
+    for clients in (YT_CLIENT_FALLBACKS if site == "youtube" else (None,)):
+        opts = dict(o)
+        if clients:
+            opts["extractor_args"] = {"youtube": {"player_client": clients}}
+        try:
+            with yt_dlp.YoutubeDL(opts) as y:
+                d = y.extract_info(url, download=False)
+            break
+        except Exception as e:
+            last = e
+            print(f"[waverise] could not read {url} (clients {clients or 'default'}): {e}")  # full detail stays in the server log
+            if not (site == "youtube" and _retryable(e)):
+                break
+    if d is None:
+        raise HTTPException(422, explain(last, url))
     if site == "youtube" and (d.get("is_live") or d.get("live_status") in ("is_live", "is_upcoming")):
         raise HTTPException(422, "Live streams and premieres can't be downloaded until they have finished.")
+    if site == "youtube" and not d.get("url") and d.get("requested_formats"):
+        rf = d["requested_formats"]   # no ready-made file with sound: remember the pair so it can be joined
+        d["_join"] = (next((f for f in rf if f.get("vcodec") != "none"), rf[0]), next((f for f in rf if f.get("acodec") != "none"), rf[-1]))
+        d["height"] = d["_join"][0].get("height") or d.get("height")
     return d
 
 
@@ -180,6 +213,9 @@ def media(url, index=0, audio=False):
         _, a = _yt_streams(d)
         if a:
             return a["url"], a.get("http_headers") or d.get("http_headers") or {}, True
+    if d.get("_join"):
+        v, a = d["_join"]
+        return v["url"], v.get("http_headers") or d.get("http_headers") or {}, True
     its = items_of(d)
     e = its[min(max(index, 0), len(its) - 1)]
     vid = is_video(e)
@@ -209,6 +245,38 @@ def stream(src, headers=None, filename=None, range_=None):
         h["Content-Length"] = r.headers["content-length"]
     return StreamingResponse(gen(), status_code=206 if r.status_code == 206 else 200,
                              media_type=r.headers.get("content-type", "application/octet-stream"), headers=h)
+
+
+_JS = None
+
+
+def js_runtime():
+    """yt-dlp needs a JavaScript engine to unlock YouTube. Use the Deno that ships in requirements.txt."""
+    global _JS
+    if _JS is not None:
+        return _JS
+    _JS = {}
+    os.environ.setdefault("DENO_DIR", "/tmp/deno-cache")
+    os.environ.setdefault("DENO_NO_UPDATE_CHECK", "1")
+    try:
+        try:
+            import deno
+            src = deno.find_deno_bin()
+        except Exception:
+            src = shutil.which("deno")
+        if src:
+            if not os.access(src, os.X_OK):      # some hosts drop the "run" permission: use a copy in /tmp
+                dst = "/tmp/deno"
+                if not os.path.exists(dst):
+                    shutil.copy(src, dst)
+                    os.chmod(dst, 0o755)
+                src = dst
+            _JS = {"deno": {"path": src}}
+        elif shutil.which("node"):
+            _JS = {"node": {"path": shutil.which("node")}}
+    except Exception as e:
+        print("[waverise] no JavaScript engine for YouTube:", e)
+    return _JS
 
 
 def ffmpeg_path():
@@ -411,17 +479,20 @@ def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: in
 @r_.get("/download")
 def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int = 0):
     u = clean(url)
-    if q and site_of(u) == "youtube" and not inline:
+    if site_of(u) == "youtube":
         d = fetch_info(u)
         vids, aud = _yt_streams(d)
-        if q in vids and aud and q != (d.get("height") or 360):
+        if not inline and q in vids and aud and (q != (d.get("height") or 360) or d.get("_join")):
             return _yt_join(d, vids[q], aud, q)
+        if d.get("_join"):          # no ready-made file with sound: join it (also for the preview player)
+            v, a = d["_join"]
+            return _yt_join(d, v, a, v.get("height") or 360, inline)
     src, hdrs, vid = media(u, index)
     name = None if inline else f"waverise.{'mp4' if vid else 'jpg'}"
     return stream(src, hdrs, name, request.headers.get("range"))
 
 
-def _yt_join(d, v, a, q):
+def _yt_join(d, v, a, q, inline=0):
     if (d.get("duration") or 0) > MAX_HD_SECONDS:
         raise HTTPException(413, f"HD downloads are limited to videos under {MAX_HD_SECONDS // 60} minutes on this free server. Choose 360p instead.")
     cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error"]
@@ -449,7 +520,7 @@ def _yt_join(d, v, a, q):
                 yield c
         finally:
             p.kill(); p.wait()
-    return StreamingResponse(gen(), media_type="video/mp4", headers={"Content-Disposition": f'attachment; filename="waverise-{q}p.mp4"'})
+    return StreamingResponse(gen(), media_type="video/mp4", headers={} if inline else {"Content-Disposition": f'attachment; filename="waverise-{q}p.mp4"'})
 
 
 @app.get("/", include_in_schema=False)
@@ -459,7 +530,7 @@ def home():
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 5}
+    return {"ok": True, "version": 6, "youtube_engine": next(iter(js_runtime()), None)}
 
 
 app.include_router(r_, prefix="/api")

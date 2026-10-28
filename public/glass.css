@@ -154,15 +154,4 @@ button.go,.btn{color:#fff;text-shadow:0 1px 6px rgba(0,30,90,.4);background:line
 @media (prefers-reduced-motion:reduce){.vp-big,.vp-bar,.rbar i{transition:none}}
 @media (max-width:420px){.vp-bar{gap:5px;padding:7px 8px;left:8px;right:8px;bottom:8px}.vp-b{width:30px;height:30px}.vp-s{padding:0 7px}.vp-t{font-size:11px}}
 
-/* ===== profile, stories, highlights ===== */
-.pcard{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
-.dp{width:96px;height:96px;border-radius:50%;object-fit:cover;background:#000;border:2px solid rgba(255,255,255,.3);box-shadow:0 10px 30px rgba(0,0,0,.4)}
-.mg{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
-.mi{position:relative;display:flex;flex-direction:column;gap:6px;min-width:0}
-.mi img{width:100%;aspect-ratio:9/16;object-fit:cover;border-radius:12px;background:#000;border:1px solid rgba(255,255,255,.15)}
-.mi .btn{text-align:center;padding:8px 6px;font-size:13px}
-.tp{position:absolute;top:6px;left:6px;font-size:10px;padding:2px 8px;border-radius:99px;background:rgba(0,0,0,.6);color:#fff}
-.hl .mi img{aspect-ratio:1;border-radius:50%}
-.hb{background:none!important;border:0!important;box-shadow:none!important;padding:0;color:inherit;font-size:12px;cursor:pointer;align-items:center;text-align:center;word-break:break-word}
 @media (max-width:420px){.brand{font-size:19px;gap:8px}.brand img{width:34px;height:34px}#lang{padding:7px 9px;max-width:94px;font-size:12px}.ctl{gap:6px}.ic{width:34px;height:34px}}
-.hl{grid-template-columns:repeat(auto-fill,minmax(92px,1fr))}

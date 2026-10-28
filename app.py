@@ -1,310 +1,251 @@
-"""WaveRise backend: public Instagram and X (Twitter) posts, MP3, clips, ringtones, GIFs, smaller videos and captions. No login is used."""
-import os, re, shutil, subprocess, uuid
-from pathlib import Path
+/* ---------- Liquid Glass ---------- */
+.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap{background:transparent;isolation:isolate;border:1px solid rgba(255,255,255,.17);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -1px 0 rgba(255,255,255,.07),inset 1px 0 0 rgba(255,255,255,.2),inset -1px 0 0 rgba(255,255,255,.08),0 14px 44px rgba(0,0,0,.34);backdrop-filter:none;-webkit-backdrop-filter:none}
+nav,form,.card,.steps div,.feat div,.page,details,footer .wrap{position:relative}
+.bar::before,nav::before,.menu::before,form::before,.card::before,.steps div::before,.feat div::before,.page::before,details::before,footer .wrap::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.27),transparent 46%),linear-gradient(135deg,rgba(255,255,255,.14),rgba(255,255,255,.03) 50%,rgba(255,255,255,.09));backdrop-filter:blur(22px) saturate(1.9) brightness(1.08);-webkit-backdrop-filter:blur(22px) saturate(1.9) brightness(1.08)}
+.menu::before{background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.2),transparent 46%),linear-gradient(135deg,rgba(30,24,48,.62),rgba(18,14,30,.5));backdrop-filter:blur(30px) saturate(2) brightness(1.05);-webkit-backdrop-filter:blur(30px) saturate(2) brightness(1.05)}
+.bar{border-width:0 0 1px;border-radius:0;box-shadow:inset 0 -1px 0 rgba(255,255,255,.1),0 8px 30px rgba(0,0,0,.3)}
+.menu{border-color:rgba(255,255,255,.22)}
+.menu a .i{background:rgba(255,255,255,.1);box-shadow:inset 0 1px 0 rgba(255,255,255,.45)}
+button{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 0 rgba(255,255,255,.4)}
+.nv{border:0;box-shadow:none;background:transparent}.nv:hover{background:rgba(255,255,255,.1)}
+button.go,.btn,.nv.on,.menu a.on .i{position:relative;overflow:hidden;border:1px solid rgba(190,225,255,.55);background:linear-gradient(135deg,rgba(255,214,102,.96),rgba(255,140,30,.92));box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -7px 14px rgba(0,60,170,.32),0 8px 26px rgba(20,90,220,.36)}
+button.go::after,.btn::after,.nv.on::after{content:"";position:absolute;left:10%;right:10%;top:2px;height:46%;border-radius:99px;background:linear-gradient(rgba(255,255,255,.6),rgba(255,255,255,0));pointer-events:none}
+.nv.on .i,.nv.on{color:#ffffff}
+input,textarea,select{background:rgba(0,0,0,.28);border:1px solid rgba(255,255,255,.14);border-radius:12px;color:var(--text);font:inherit}
+input{border:0;background:transparent}
+form{border-radius:22px}
+.flinks{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 18px;margin:14px 0}
+.flinks a{color:var(--mute);text-decoration:none;font-size:14px;font-weight:600;padding:4px 2px}.flinks a:hover{color:var(--ac)}
+footer .wrap{border-radius:26px;padding:22px 18px;margin-bottom:22px}footer{border-top:0}
+.page{border-radius:26px;padding:28px 26px;margin:34px 0;text-align:left}
+.page h2{font-size:clamp(26px,5vw,36px);margin:0 0 6px}.page h3{margin:22px 0 4px;color:var(--ac)}
+.page p,.page li{color:#d5d1de;font-size:15px}.page ul{padding-left:20px}.page a{color:var(--ac)}
+.page .upd{color:var(--mute);font-size:13px;margin:0 0 14px}
+.page details{margin:10px 0;border-radius:16px;padding:12px 16px}.page summary{font-weight:700}
+.page select,.page textarea{width:100%;padding:12px;margin:8px 0}
 
-import httpx
-import yt_dlp
-from fastapi import APIRouter, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
-from starlette.background import BackgroundTask
-from pydantic import BaseModel
+/* ============ WaveRise design system: Liquid Glass + Dashavatara (no RGB) ============ */
+:root{--bg:#03050c;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.12);--ac:#2f8bff;--ac2:#6fc3ff;--gold:#ffb84a;--text:#fff;--mute:rgba(255,255,255,.65);--bl:24px;--r:22px}
+body{background:#03050c;color:#fff}
+h1{background:none;-webkit-text-fill-color:#fff;color:#fff;text-shadow:0 2px 28px rgba(0,0,0,.5)}
+/* GlassCard / GlassNav / GlassInput / GlassButton: reusable classes share the same rules as the existing elements */
+.glass-card,.glass-nav,.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap{border-color:rgba(255,255,255,.12)}
+.glass-card::before,.glass-nav::before,.bar::before,nav::before,form::before,.card::before,.page::before,details::before,footer .wrap::before{backdrop-filter:blur(var(--bl)) saturate(1.5) brightness(1.04);-webkit-backdrop-filter:blur(var(--bl)) saturate(1.5) brightness(1.04);background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.14),transparent 46%),linear-gradient(135deg,rgba(255,255,255,.09),rgba(255,255,255,.03) 55%,rgba(255,255,255,.06))}
+.steps div::before,.feat div::before{backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.1),transparent 46%),linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.02))}
+.steps div,.feat div{box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 8px 24px rgba(0,0,0,.28)}
+.menu::before{background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.12),transparent 46%),linear-gradient(135deg,rgba(24,26,40,.7),rgba(10,12,20,.6))}
+.menu a.on{background:linear-gradient(135deg,rgba(90,180,255,.18),rgba(47,139,255,.07))}
+/* floating glass header */
+.bar{top:10px;width:min(calc(100% - 20px),880px);margin:10px auto 0;border:1px solid rgba(255,255,255,.12);border-radius:22px;box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 16px 40px rgba(0,0,0,.45)}
+nav{box-shadow:inset 0 1px 0 rgba(255,255,255,.2);border-color:rgba(255,255,255,.1)}
+.nv.on{color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.45);background:linear-gradient(135deg,rgba(90,180,255,.55),rgba(47,139,255,.3));border:1px solid rgba(150,205,255,.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.55),inset 0 -6px 12px rgba(47,139,255,.14),0 6px 22px rgba(47,139,255,.22)}
+.nv.on .i{color:#fff}
+.menu a.on .i{color:#fff;border:1px solid rgba(150,205,255,.55);background:linear-gradient(135deg,rgba(90,180,255,.5),rgba(47,139,255,.28));box-shadow:inset 0 1px 0 rgba(255,255,255,.5)}
+/* main downloader panel */
+form{overflow:hidden;border-radius:24px;box-shadow:inset 0 1px 0 rgba(255,255,255,.4),inset 0 0 60px rgba(47,139,255,.05),0 18px 50px rgba(0,0,0,.4)}
+form:focus-within{border-color:rgba(90,180,255,.4);box-shadow:inset 0 1px 0 rgba(255,255,255,.45),0 0 0 3px rgba(47,139,255,.1),0 18px 50px rgba(0,0,0,.4)}
+form::after{content:"";position:absolute;top:0;bottom:0;left:0;width:26%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.09),transparent);transform:translateX(-160%) skewX(-18deg);animation:sweep 6s ease-in-out infinite;pointer-events:none}
+@keyframes sweep{0%{transform:translateX(-160%) skewX(-18deg)}55%,100%{transform:translateX(560%) skewX(-18deg)}}
+#u{background:rgba(0,0,0,.3);border:1px solid rgba(255,255,255,.12);border-radius:14px;box-shadow:inset 0 1px 0 rgba(255,255,255,.08),inset 0 2px 10px rgba(0,0,0,.35);transition:border-color .25s,box-shadow .25s}
+#u:focus{outline:none;border-color:rgba(90,180,255,.55);box-shadow:inset 0 2px 10px rgba(0,0,0,.35),0 0 0 3px rgba(47,139,255,.14),0 0 22px rgba(47,139,255,.16)}
+/* GlassButton */
+button{transition:transform .25s,filter .25s,background .25s}
+#clear{background:rgba(0,0,0,.28);color:var(--mute)}#clear:hover{color:#fff}
+button:hover,.btn:hover{transform:translateY(-1px) scale(1.015);filter:brightness(1.08)}
+.nv:hover,.pbtn:hover{transform:none}
+button.go,.btn{color:#ffffff;animation:none;background:linear-gradient(135deg,rgba(140,205,255,.96),rgba(47,139,255,.9));border:1px solid rgba(200,228,255,.6);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.75),inset 0 -6px 12px rgba(0,50,150,.22),0 8px 28px rgba(47,139,255,.26)}
+button.go::before,.btn::before{content:"";position:absolute;top:0;bottom:0;left:0;width:45%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);transform:translateX(-130%) skewX(-18deg);transition:transform .8s ease;pointer-events:none}
+button.go:hover::before,.btn:hover::before{transform:translateX(330%) skewX(-18deg)}
+/* GlassInput: checkbox */
+input[type=checkbox]{-webkit-appearance:none;appearance:none;display:inline-grid;place-content:center;width:20px;height:20px;border-radius:7px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 0 rgba(255,255,255,.3);cursor:pointer;transition:background .2s,border-color .2s}
+input[type=checkbox]::after{content:"";width:5px;height:10px;border:solid #ffffff;border-width:0 2px 2px 0;transform:rotate(45deg) scale(0);transition:transform .18s;margin-top:-2px}
+input[type=checkbox]:checked{background:linear-gradient(135deg,#6fc3ff,#2f8bff);border-color:rgba(190,225,255,.7)}
+input[type=checkbox]:checked::after{transform:rotate(45deg) scale(1)}
+input[type=checkbox]:focus-visible{outline:2px solid var(--ac2);outline-offset:2px}
+.opt{color:var(--mute)}
+/* Dashavatara background */
+#dsh{position:absolute;inset:0;--op:.5;--sc:1;--tr:1600ms;--aura:.3;--cho:.07;--ax:68%;--ay:46%;--as:min(58vw,720px)}
+.dsh-wash{position:absolute;inset:0;background:radial-gradient(ellipse 70% 60% at 72% 40%,rgba(36,32,78,.55),transparent 65%),radial-gradient(ellipse 60% 50% at 6% 96%,rgba(56,38,86,.3),transparent 60%),linear-gradient(180deg,#05060a,#080a10 45%,#0b0e16)}
+.dsh-aura{position:absolute;left:var(--ax);top:var(--ay);width:var(--as);aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;background:radial-gradient(circle,rgba(245,184,61,calc(var(--aura) * .9)) 0,rgba(245,184,61,calc(var(--aura) * .3)) 38%,transparent 68%);animation:breathe 8s ease-in-out infinite alternate}
+@keyframes breathe{to{transform:translate(-50%,-50%) scale(1.14);opacity:.75}}
+.dsh-av{position:absolute;left:var(--ax);top:var(--ay);width:calc(var(--as) * .78);aspect-ratio:1;transform:translate(-50%,-50%) scale(.94);opacity:0;transition:opacity var(--tr) ease,transform calc(var(--tr) * 3) ease;will-change:opacity,transform}
+.dsh-av.on{opacity:var(--op);transform:translate(-50%,-50%) scale(calc(var(--sc) * 1.04))}
+.dsh-fl{width:100%;height:100%;animation:flt 9s ease-in-out infinite alternate}
+@keyframes flt{to{transform:translate3d(0,-2.4%,0)}}
+.dsh-av svg{width:100%;height:100%;fill:none;stroke:#ffd76a;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 14px rgba(245,184,61,.45))}
+.dsh-av img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 36px rgba(245,184,61,.35));-webkit-mask-image:radial-gradient(circle,#000 56%,transparent 74%);mask-image:radial-gradient(circle,#000 56%,transparent 74%)}
+.dsh-ch{position:absolute;left:-26vmax;bottom:-30vmax;width:78vmax;height:78vmax;opacity:var(--cho);animation:spin 160s linear infinite}
+.dsh-ch svg{width:100%;height:100%;fill:none;stroke:#ffd76a;stroke-width:.35}
+@keyframes spin{to{transform:rotate(360deg)}}
+.dsh-p{position:absolute;left:var(--x);top:var(--y);width:var(--s);height:var(--s);border-radius:50%;background:#ffe9a8;box-shadow:0 0 6px rgba(255,215,106,.6);opacity:0;animation:tw var(--d) ease-in-out var(--dl) infinite}
+@keyframes tw{0%{opacity:0;transform:translate3d(0,0,0)}40%{opacity:var(--o)}100%{opacity:0;transform:translate3d(var(--dx),-70px,0)}}
+@media (max-width:640px){:root{--bl:14px}}
+@media (prefers-reduced-motion:reduce){form::after,.dsh-aura,.dsh-fl,.dsh-ch,.dsh-p,.brand img,.pbtn{animation:none!important}.dsh-av{transition:none}button,.btn,button.go::before{transition:none}}
 
-IG_URL = re.compile(r"^https?://(www\.)?instagram\.com/(p|reel|reels|tv)/", re.I)
-X_URL = re.compile(r"^https?://(www\.|mobile\.)?(x|twitter)\.com/(i/(web/)?|[A-Za-z0-9_]{1,15}/)status/\d+", re.I)
-BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # link parts to refuse after a valid copyright notice
-app = FastAPI(title="WaveRise")
-PUBLIC = Path(__file__).parent / "public"
-r_ = APIRouter()  # mounted at /api and at / so it works however Vercel passes the path
+/* ===== language, controls, light theme ===== */
+body,button,select,input,textarea{font-family:Sora,"Noto Sans Devanagari","Noto Sans Tamil","Noto Sans Telugu",system-ui,sans-serif}
+html:not([lang=en]) .menu small{display:none}
+.ctl{display:flex;gap:8px;align-items:center}
+#lang{padding:8px 12px;border-radius:99px;font-weight:600;font-size:13px;color:var(--text);cursor:pointer;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);max-width:120px}
+#lang option{background:#10121a;color:#fff}
+.ic{width:38px;height:38px;padding:0;border-radius:50%;display:grid;place-items:center;color:var(--ac2)}
+@media (max-width:640px){.nav-wrap{justify-content:space-between}.brand{order:1}.ctl{order:2}nav{order:3;width:100%;justify-content:center}}
+[data-theme=light]{color-scheme:light;--text:#0d1730;--mute:rgba(13,23,48,.62);--line:rgba(0,0,0,.1);--ac:#1f6fe0}
+[data-theme=light] body,[data-theme=light] .bg{background:#eef4fc;color:#0d1730}
+[data-theme=light] .dsh-wash{background:radial-gradient(ellipse 70% 60% at 72% 40%,rgba(255,214,120,.5),transparent 65%),radial-gradient(ellipse 60% 50% at 6% 96%,rgba(214,200,240,.45),transparent 60%),linear-gradient(180deg,#faf6ee,#f3eee3)}
+[data-theme=light] h1{-webkit-text-fill-color:#0d1730;color:#0d1730;text-shadow:none}
+[data-theme=light] :is(.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap){border-color:rgba(0,0,0,.09);box-shadow:inset 0 1px 0 rgba(255,255,255,.95),0 10px 30px rgba(20,50,110,.12)}
+[data-theme=light] :is(.bar,nav,form,.card,.steps div,.feat div,.page,details,footer .wrap)::before{background:linear-gradient(135deg,rgba(255,255,255,.72),rgba(255,255,255,.42))}
+[data-theme=light] .menu::before{background:rgba(255,255,255,.92)}
+[data-theme=light] .menu a,[data-theme=light] .brand,[data-theme=light] .nv:hover,[data-theme=light] summary{color:#0d1730}
+[data-theme=light] .nv,[data-theme=light] .flinks a,[data-theme=light] .opt,[data-theme=light] .note,[data-theme=light] .menu a small{color:rgba(13,23,48,.62)}
+[data-theme=light] .nv.on,[data-theme=light] .nv.on .i{color:#0b2a66;text-shadow:none}
+[data-theme=light] .menu a.on .i{color:#0b2a66}
+[data-theme=light] .page p,[data-theme=light] .page li,[data-theme=light] .steps p,[data-theme=light] .feat p,[data-theme=light] .hero p,[data-theme=light] details p{color:#2b3550}
+[data-theme=light] .page h3{color:#1b5fd1}[data-theme=light] .page a,[data-theme=light] .flinks a:hover{color:#1b5fd1}
+[data-theme=light] button:not(.go):not(.nv):not(.pbtn){background:rgba(255,255,255,.75);color:#0d1730;border-color:rgba(0,0,0,.12);box-shadow:inset 0 1px 0 #fff}
+[data-theme=light] #u,[data-theme=light] textarea,[data-theme=light] select{background:rgba(255,255,255,.8);border-color:rgba(0,0,0,.14);color:#0d1730;box-shadow:inset 0 1px 3px rgba(0,0,0,.08)}
+[data-theme=light] #u::placeholder{color:rgba(13,23,48,.45)}
+[data-theme=light] #lang{background:rgba(255,255,255,.75);border-color:rgba(0,0,0,.12)}
+[data-theme=light] #lang option{background:#fff;color:#0d1730}
+[data-theme=light] input[type=checkbox]{border-color:rgba(0,0,0,.3);background:rgba(255,255,255,.8)}
+[data-theme=light] .chips span{background:rgba(0,0,0,.06);color:#1b5fd1}
+[data-theme=light] .dsh-av svg,[data-theme=light] .dsh-ch svg{stroke:#b87d0a}
+[data-theme=light] .dsh-av.on{opacity:calc(var(--op) * .8)}
+[data-theme=light] .dsh-p{background:#d89a14;box-shadow:none}
+[data-theme=light] #clear{background:rgba(255,255,255,.75);color:#44506b}
 
+/* ===== WaveRise theme: blue glass with warm gold glow (from the logo) ===== */
+:root{--bg:#03050c;--ac:#2f8bff;--ac2:#6fc3ff;--gold:#ffb84a}
+.dsh-wash{background:radial-gradient(ellipse 60% 50% at 16% 10%,rgba(30,90,220,.30),transparent 65%),radial-gradient(ellipse 70% 60% at 74% 42%,rgba(12,36,104,.5),transparent 65%),radial-gradient(ellipse 55% 45% at 94% 94%,rgba(255,170,60,.11),transparent 60%),linear-gradient(180deg,#03050c,#050a17 45%,#08101f)}
+button.go,.btn{color:#fff;text-shadow:0 1px 6px rgba(0,30,90,.4);background:linear-gradient(135deg,rgba(84,176,255,.97),rgba(30,100,235,.95));border-color:rgba(170,215,255,.55);box-shadow:inset 0 1.5px 0 rgba(255,255,255,.65),inset 0 -6px 12px rgba(0,50,150,.3),0 8px 28px rgba(47,139,255,.35),6px 10px 26px rgba(255,170,60,.12)}
+.brand img{animation:glow 4s ease-in-out infinite}
+@keyframes glow{0%,100%{box-shadow:0 0 20px rgba(60,150,255,.65)}50%{box-shadow:0 0 22px rgba(255,170,60,.5)}}
+[data-theme=light] .dsh-wash{background:radial-gradient(ellipse 70% 60% at 72% 40%,rgba(120,180,255,.4),transparent 65%),radial-gradient(ellipse 60% 50% at 6% 96%,rgba(190,215,255,.5),transparent 60%),linear-gradient(180deg,#f4f8ff,#e8f0fb)}
+[data-theme=light] button.go,[data-theme=light] .btn{color:#fff}
 
-class Req(BaseModel):
-    url: str
+/* ===== premium video player ===== */
+.pv.on{width:min(100%,360px)}
+.vp{position:relative;width:100%;border-radius:20px;overflow:hidden;background:#000;border:1px solid rgba(255,255,255,.16);box-shadow:0 18px 50px rgba(0,0,0,.5),inset 0 1px 0 rgba(255,255,255,.3);touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.vp video{display:block;width:100%;max-height:70vh;background:#000;object-fit:contain}
+.vp:fullscreen{border-radius:0;display:grid;place-items:center}.vp:fullscreen video{max-height:100vh;height:100%}
+.vp-big{position:absolute;inset:0;margin:auto;width:68px;height:68px;padding:0;border-radius:50%;display:grid;place-items:center;color:#fff;background:radial-gradient(circle at 30% 24%,rgba(255,255,255,.5),rgba(255,255,255,.1) 48%,rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.5);backdrop-filter:blur(14px) saturate(1.8);-webkit-backdrop-filter:blur(14px) saturate(1.8);box-shadow:inset 0 2px 1px rgba(255,255,255,.7),0 12px 32px rgba(0,0,0,.5),0 0 0 8px rgba(47,139,255,.14);transition:opacity .25s,transform .25s}
+.vp-big .i{width:28px;height:28px;fill:#fff;stroke:none;margin-left:3px}
+.vp.playing .vp-big{opacity:0;pointer-events:none;transform:scale(.85)}
+.vp-bar{position:absolute;left:10px;right:10px;bottom:10px;display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:16px;background:linear-gradient(135deg,rgba(255,255,255,.15),rgba(255,255,255,.05));border:1px solid rgba(255,255,255,.2);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 8px 24px rgba(0,0,0,.45);opacity:0;transform:translateY(8px);transition:opacity .25s,transform .25s;pointer-events:none;color:#fff}
+.vp.ui .vp-bar{opacity:1;transform:none;pointer-events:auto}
+.vp-b{width:32px;height:32px;padding:0;border-radius:10px;display:grid;place-items:center;color:#fff;background:rgba(255,255,255,.1);border:0;box-shadow:none;flex:none}
+.vp-b .i{width:18px;height:18px;fill:currentColor;stroke:none}.vp-s{width:auto;padding:0 9px;font-size:12px;font-weight:700}
+.vp-t{font-size:11.5px;color:#fff;opacity:.88;font-variant-numeric:tabular-nums;flex:none}
+.vp-seek{-webkit-appearance:none;appearance:none;flex:1;min-width:0;height:18px;padding:0;margin:0;background:transparent;border:0;cursor:pointer;--p:0%}
+.vp-seek::-webkit-slider-runnable-track{height:5px;border-radius:99px;background:linear-gradient(90deg,var(--ac2),var(--ac) var(--p),rgba(255,255,255,.25) var(--p))}
+.vp-seek::-moz-range-track{height:5px;border-radius:99px;background:rgba(255,255,255,.25)}.vp-seek::-moz-range-progress{height:5px;border-radius:99px;background:var(--ac)}
+.vp-seek::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;margin-top:-4.5px;border-radius:50%;background:#fff;box-shadow:0 0 0 3px rgba(47,139,255,.4),0 2px 6px rgba(0,0,0,.4)}
+.vp-seek::-moz-range-thumb{width:14px;height:14px;border:0;border-radius:50%;background:#fff}
+/* ===== start to end label for trim tools ===== */
+.rngw{margin:10px 0 4px}.rng{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;margin:0 0 8px;font-size:14px}
+.rng b{color:var(--ac2);font-variant-numeric:tabular-nums}.rng .arr{opacity:.55}.rng .dur{margin-left:auto;color:var(--mute);font-size:13px}
+.rbar{height:8px;border-radius:99px;background:rgba(255,255,255,.12);position:relative;overflow:hidden}
+.rbar i{position:absolute;top:0;bottom:0;border-radius:99px;background:linear-gradient(90deg,var(--ac2),var(--ac));box-shadow:0 0 12px rgba(47,139,255,.55);transition:left .15s,width .15s}
+[data-theme=light] .rbar{background:rgba(0,0,0,.1)}
+/* ===== footer: made in India ===== */
+.made{display:flex;justify-content:center;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:10px 0 8px;font-weight:700;font-size:15px}
+.flag{width:30px;height:20px;border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.35)}.made .dot{width:5px;height:5px;border-radius:50%;background:var(--ac2)}
+@media (prefers-reduced-motion:reduce){.vp-big,.vp-bar,.rbar i{transition:none}}
+@media (max-width:420px){.vp-bar{gap:5px;padding:7px 8px;left:8px;right:8px;bottom:8px}.vp-b{width:30px;height:30px}.vp-s{padding:0 7px}.vp-t{font-size:11px}}
 
+@media (max-width:420px){.brand{font-size:19px;gap:8px}.brand img{width:34px;height:34px}#lang{padding:7px 9px;max-width:94px;font-size:12px}.ctl{gap:6px}.ic{width:34px;height:34px}}
 
-def clean(url):
-    url = url.strip().split("?")[0]
-    if any(b in url.lower() for b in BLOCKED):
-        raise HTTPException(451, "This link is not available for legal reasons.")
-    if not (IG_URL.match(url) or X_URL.match(url)):
-        raise HTTPException(400, "Paste a valid Instagram post, Reel or IGTV link, or an X (Twitter) post link.")
-    return url
+/* ======================= Wave Dock navigation ======================= */
+:root{--dock-h:66px;--wave:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='12' viewBox='0 0 80 12'%3E%3Cpath d='M0 6 Q10 0 20 6 T40 6 T60 6 T80 6' fill='none' stroke='white' stroke-width='1.4' stroke-opacity='.55'/%3E%3C/svg%3E")}
+/* floating header */
+.bar{top:12px;width:min(calc(100% - 24px),1020px);margin:12px auto 0;border-radius:26px}
+.nav-wrap{flex-wrap:nowrap;gap:14px;padding:8px 10px 8px 14px;min-height:64px}
+.brand{min-height:44px;flex:none}
+.brand img{width:40px;height:40px;border-radius:12px}
+.ctl{flex:none;gap:8px}
+#lang{min-height:42px;padding:0 30px 0 14px;-webkit-appearance:none;appearance:none;max-width:132px;
+ background:rgba(255,255,255,.07) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%239fc6ff' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E") no-repeat right 11px center}
+.ic{width:42px;height:42px}
+/* segmented rail with the liquid indicator */
+#nav{position:relative;display:flex;flex-wrap:nowrap;align-items:center;gap:2px;padding:4px;border-radius:99px;margin:0 auto}
+#nav .nv{position:relative;z-index:1;min-height:44px;padding:0 18px;border:1px solid transparent;font-size:14px;letter-spacing:.01em;transition:color .25s}
+#nav .nv .i{transition:transform .35s cubic-bezier(.34,1.56,.64,1)}
+#nav .nv:hover{background:rgba(255,255,255,.06)}
+#nav.has-ind .nv.on{background:none;border-color:transparent;box-shadow:none;text-shadow:none;color:#fff}
+#nav.has-ind .nv.on::after{display:none}
+#nav .nv:focus-visible{outline:2px solid var(--ac2);outline-offset:2px}
+.nav-ind{position:absolute;left:0;top:0;z-index:0;width:0;height:0;border-radius:99px;opacity:0;pointer-events:none;overflow:hidden;
+ background:linear-gradient(135deg,rgba(90,180,255,.62),rgba(30,100,235,.42));border:1px solid rgba(170,215,255,.6);
+ box-shadow:inset 0 1px 0 rgba(255,255,255,.6),inset 0 -8px 14px rgba(0,40,140,.25),0 8px 26px rgba(47,139,255,.35),0 0 0 4px rgba(47,139,255,.08);
+ transition:transform .55s cubic-bezier(.34,1.45,.64,1),width .55s cubic-bezier(.34,1.45,.64,1),height .4s ease,opacity .3s}
+.nav-ind::before{content:"";position:absolute;left:12%;right:12%;top:1px;height:42%;border-radius:99px;background:linear-gradient(rgba(255,255,255,.55),rgba(255,255,255,0))}
+.nav-ind::after{content:"";position:absolute;left:0;right:0;bottom:3px;height:12px;background:var(--wave) repeat-x 0 50%/40px 6px;opacity:.55;animation:navWave 3.2s linear infinite}
+@keyframes navWave{to{background-position:40px 50%}}
+/* glass drop panels (desktop) */
+#nav .menu{top:calc(100% + 12px);width:300px;padding:8px;border-radius:22px;transform-origin:top center}
+#nav .dd:last-child .menu{width:520px;display:grid;grid-template-columns:1fr 1fr;gap:2px}
+#nav .dd:last-child .menu[hidden]{display:none}
+.menu:not([hidden]){animation:navPop .26s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes navPop{from{opacity:0;transform:translateY(-8px) scale(.97)}}
+.menu a{min-height:52px}
+.menu a:focus-visible{outline:2px solid var(--ac2);outline-offset:-2px}
+.sheet-h{display:none;grid-column:1/-1;margin:2px 4px 8px;font-size:13px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--mute)}
+.nav-scrim{position:fixed;inset:0;z-index:35;background:rgba(2,4,12,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:scrimIn .25s ease}
+@keyframes scrimIn{from{opacity:0}}
+/* footer links: comfortable tap targets */
+.flinks{gap:2px 8px}
+.flinks a{display:inline-flex;align-items:center;min-height:44px;padding:0 10px;border-radius:12px}
+.flinks a:hover{background:rgba(255,255,255,.06)}
 
-
-def explain(err, url):
-    """Plain-language reason for visitors (no yt-dlp text)."""
-    m, site = str(err).lower(), ("X" if X_URL.match(url) else "Instagram")
-    if "no video could be found" in m or "no video" in m:
-        return "This post has no video or GIF. For X, WaveRise saves videos and GIFs from public posts."
-    if any(k in m for k in ("login", "log in", "authentication", "cookies", "empty media response", "accessible in your browser", "nsfw", "age-restricted", "sensitive")):
-        return f"{site} is asking for a login for this link, which WaveRise doesn't use. Try a public post, or try again in a few minutes."
-    if "429" in m or "too many" in m or "rate" in m:
-        return f"{site} is limiting requests right now. Wait a few minutes and try again."
-    if any(k in m for k in ("private", "protected", "not available", "unavailable", "404", "removed", "does not exist", "suspended", "deleted")):
-        return "This post is private, deleted or no longer available."
-    return "Couldn't read this link. Check that it opens in a private browser tab, then try again."
-
-
-def fetch_info(url):
-    o = {"quiet": True, "no_warnings": True, "cachedir": False, "format": "best[ext=mp4]/best",
-         "ignore_no_formats_error": True}
-    try:
-        with yt_dlp.YoutubeDL(o) as y:
-            return y.extract_info(url, download=False)
-    except Exception as e:
-        print(f"[waverise] could not read {url}: {e}")  # full detail stays in the server log
-        raise HTTPException(422, explain(e, url))
-
-
-def items_of(d):
-    return list(d.get("entries") or [d])
-
-
-def is_video(e):
-    return bool(e.get("formats"))
-
-
-def media(url, index=0):
-    its = items_of(fetch_info(url))
-    e = its[min(max(index, 0), len(its) - 1)]
-    vid = is_video(e)
-    src = e.get("url") or (e["formats"][-1]["url"] if vid else e.get("thumbnail"))
-    if not src:
-        raise HTTPException(404, "No downloadable file found for this item.")
-    return src, e.get("http_headers") or {}, vid
-
-
-def stream(src, headers=None, filename=None, range_=None):
-    hd = dict(headers or {})
-    if range_:
-        hd["Range"] = range_
-    c = httpx.Client(timeout=60, follow_redirects=True)
-    r = c.send(c.build_request("GET", src, headers=hd), stream=True)
-
-    def gen():
-        try:
-            yield from r.iter_bytes(65536)
-        finally:
-            r.close(); c.close()
-    h = {"Content-Disposition": f'attachment; filename="{filename}"'} if filename else {}
-    h["Accept-Ranges"] = "bytes"
-    if r.status_code == 206 and r.headers.get("content-range"):
-        h["Content-Range"] = r.headers["content-range"]
-    if r.headers.get("content-length") and not r.headers.get("content-encoding"):
-        h["Content-Length"] = r.headers["content-length"]
-    return StreamingResponse(gen(), status_code=206 if r.status_code == 206 else 200,
-                             media_type=r.headers.get("content-type", "application/octet-stream"), headers=h)
-
-
-def ffmpeg_path():
-    """imageio-ffmpeg ships a static ffmpeg binary; copy it to /tmp so it is executable on Vercel."""
-    if shutil.which("ffmpeg"):
-        return shutil.which("ffmpeg")
-    import imageio_ffmpeg
-    dst = "/tmp/ffmpeg"
-    if not os.path.exists(dst):
-        shutil.copy(imageio_ffmpeg.get_ffmpeg_exe(), dst)
-        os.chmod(dst, 0o755)
-    return dst
-
-
-# ---------- downloader + caption ----------
-@r_.post("/info")
-def info(b: Req):
-    d = fetch_info(clean(b.url))
-    its = items_of(d)
-    caption = d.get("description") or (its[0].get("description") if its else "") or ""
-    g = lambda k: d.get(k) if d.get(k) is not None else (its[0].get(k) if its else None)
-    return {
-        "uploader": d.get("uploader") or d.get("channel"),
-        "thumb": d.get("thumbnail") or (its[0].get("thumbnail") if its else None),
-        "caption": caption,
-        "duration": d.get("duration") or (its[0].get("duration") if its else None),
-        "hashtags": list(dict.fromkeys(re.findall(r"#\w+", caption))),
-        "mentions": list(dict.fromkeys(re.findall(r"@[\w.]+", caption))),
-        "date": g("upload_date"), "views": g("view_count"), "likes": g("like_count"), "comments": g("comment_count"),
-        "music": " - ".join(x for x in (g("track"), g("artist")) if x) or None,
-        "items": [{"type": "video" if is_video(e) else "photo", "width": e.get("width"), "height": e.get("height"),
-                   "duration": e.get("duration"), "size": e.get("filesize") or e.get("filesize_approx")} for e in its],
-    }
-
-
-@r_.get("/mp3")
-def mp3(url: str, index: int = 0):
-    src, hdrs, vid = media(clean(url), index)
-    if not vid:
-        raise HTTPException(400, "This item is a photo, so there is no audio to extract.")
-    cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error"]
-    if hdrs:
-        cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
-    cmd += ["-i", src, "-vn", "-map", "0:a:0", "-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3", "pipe:1"]
-    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    first = p.stdout.read(65536)
-    if not first:
-        err = p.stderr.read().decode(errors="ignore")[-200:]
-        p.wait()
-        raise HTTPException(422, "Couldn't extract audio. This video may have no sound. " + err)
-
-    def gen():
-        try:
-            yield first
-            while True:
-                chunk = p.stdout.read(65536)
-                if not chunk:
-                    break
-                yield chunk
-        finally:
-            p.kill(); p.wait()
-    return StreamingResponse(gen(), media_type="audio/mpeg",
-                             headers={"Content-Disposition": 'attachment; filename="waverise.mp3"'})
-
-
-@r_.get("/ringtone")
-def ringtone(url: str, index: int = 0, start: float = 0, length: float = 30, fade: int = 1,
-             fmt: str = "mp3", dl: int = 0):
-    src, hdrs, vid = media(clean(url), index)
-    if not vid:
-        raise HTTPException(400, "This item is a photo, so there is no audio to use.")
-    start, length = max(0.0, min(start, 21600.0)), max(3.0, min(length, 30.0))
-    m4r = fmt == "m4r"
-    ext = "m4r" if m4r else "mp3"
-    out = f"/tmp/rt-{uuid.uuid4().hex}.{ext}"
-    af = "afade=t=in:st=0:d=0.3" + (f",afade=t=out:st={max(length - 2, 0):.2f}:d=2" if fade else "")
-    enc = (["-c:a", "aac", "-b:a", "192k", "-f", "ipod"] if m4r else ["-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3"])
-    head = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
-    if hdrs:
-        head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
-    ss = ["-ss", f"{start:.2f}"]
-    tail = ["-t", f"{length:.2f}", "-vn", "-map", "0:a:0", "-af", af] + enc + [out]
-    try:
-        # fast path: seek before opening; if the server can't seek, retry by reading from the start
-        r = subprocess.run(head + ss + ["-i", src] + tail, capture_output=True, timeout=100)
-        if r.returncode:
-            r = subprocess.run(head + ["-i", src] + ss + tail, capture_output=True, timeout=100)
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "Making the ringtone took too long. Try a shorter clip.")
-    if r.returncode or not os.path.exists(out) or os.path.getsize(out) < 1024:
-        if os.path.exists(out):
-            os.remove(out)
-        raise HTTPException(422, "Couldn't make the ringtone. The clip may start after the video ends, or it has no sound. "
-                                 + r.stderr.decode(errors="ignore")[-150:])
-    return FileResponse(out, media_type="audio/mp4" if m4r else "audio/mpeg", filename=f"waverise-ringtone.{ext}",
-                        content_disposition_type="attachment" if dl else "inline",
-                        background=BackgroundTask(os.remove, out))
-
-
-@r_.get("/clip")
-def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int = 0):
-    src, hdrs, vid = media(clean(url), index)
-    if not vid:
-        raise HTTPException(400, "This item is a photo, so there is nothing to trim.")
-    start, length = max(0.0, min(start, 21600.0)), max(2.0, min(length, 30.0))
-    out = f"/tmp/clip-{uuid.uuid4().hex}.mp4"
-    head = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
-    if hdrs:
-        head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
-    ss = ["-ss", f"{start:.2f}"]
-    tail = ["-t", f"{length:.2f}", "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast",
-            "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out]
-    try:
-        r = subprocess.run(head + ss + ["-i", src] + tail, capture_output=True, timeout=130)
-        if r.returncode:
-            r = subprocess.run(head + ["-i", src] + ss + tail, capture_output=True, timeout=130)
-    except subprocess.TimeoutExpired:
-        raise HTTPException(504, "Cutting the clip took too long. Try a shorter clip.")
-    if r.returncode or not os.path.exists(out) or os.path.getsize(out) < 1024:
-        if os.path.exists(out):
-            os.remove(out)
-        raise HTTPException(422, "Couldn't cut the clip. The start may be after the video ends. "
-                                 + r.stderr.decode(errors="ignore")[-150:])
-    return FileResponse(out, media_type="video/mp4", filename="waverise-clip.mp4",
-                        content_disposition_type="attachment" if dl else "inline",
-                        background=BackgroundTask(os.remove, out))
-
-
-def _ff(src, hdrs, ss, args, out, timeout=140):
-    head = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
-    if hdrs:
-        head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
-    sk = ["-ss", f"{ss:.2f}"] if ss else []
-    try:
-        r = subprocess.run(head + sk + ["-i", src] + args + [out], capture_output=True, timeout=timeout)
-        if r.returncode and ss:  # server can't seek: read from the start instead
-            r = subprocess.run(head + ["-i", src] + sk + args + [out], capture_output=True, timeout=timeout)
-    except subprocess.TimeoutExpired:
-        if os.path.exists(out):
-            os.remove(out)
-        raise HTTPException(504, "This took too long for the free server. Try a shorter clip.")
-    return r
-
-
-def _send(r, out, mime, name, dl, what):
-    if r.returncode or not os.path.exists(out) or os.path.getsize(out) < 500:
-        if os.path.exists(out):
-            os.remove(out)
-        raise HTTPException(422, f"Couldn't make the {what}. " + r.stderr.decode(errors="ignore")[-150:])
-    return FileResponse(out, media_type=mime, filename=name, content_disposition_type="attachment" if dl else "inline",
-                        background=BackgroundTask(os.remove, out))
-
-
-@r_.get("/gif")
-def gif(url: str, index: int = 0, start: float = 0, length: float = 4, width: int = 480, fmt: str = "gif", dl: int = 0):
-    src, hdrs, vid = media(clean(url), index)
-    if not vid:
-        raise HTTPException(400, "This item is a photo, so there is nothing to animate.")
-    start, length = max(0.0, min(start, 21600.0)), max(1.0, min(length, 6.0))
-    width = width if width in (240, 320, 480) else 320
-    webp = fmt == "webp"
-    out = f"/tmp/g-{uuid.uuid4().hex}.{'webp' if webp else 'gif'}"
-    if webp:
-        args = ["-t", f"{length:.2f}", "-an", "-vf", f"fps=15,scale={width}:-2:flags=lanczos", "-c:v", "libwebp", "-loop", "0", "-q:v", "65"]
-    else:
-        args = ["-t", f"{length:.2f}", "-an", "-loop", "0", "-vf",
-                f"fps=12,scale={width}:-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"]
-    r = _ff(src, hdrs, start, args, out)
-    return _send(r, out, "image/webp" if webp else "image/gif", f"waverise.{'webp' if webp else 'gif'}", dl, "animation")
-
-
-@r_.get("/shrink")
-def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: int = 0):
-    src, hdrs, vid = media(clean(url), index)
-    if not vid:
-        raise HTTPException(400, "This item is a photo, so there is nothing to shrink.")
-    if dur > 180:
-        raise HTTPException(413, "This video is longer than 3 minutes. The free server can only shrink shorter videos.")
-    target, dur = max(2.0, min(target, 64.0)), max(1.0, dur)
-    out = f"/tmp/s-{uuid.uuid4().hex}.mp4"
-    v = int(target * 8192 * 0.92 / dur) - 96  # video kbit/s that fits the size limit
-    for _ in range(2):
-        v = max(v, 150)
-        args = ["-vf", "scale='min(720,iw)':-2", "-c:v", "libx264", "-preset", "veryfast", "-b:v", f"{v}k", "-maxrate", f"{int(v * 1.15)}k",
-                "-bufsize", f"{v * 2}k", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "96k", "-movflags", "+faststart"]
-        r = _ff(src, hdrs, 0, args, out, 150)
-        if r.returncode or not os.path.exists(out) or os.path.getsize(out) <= target * 1048576 * 1.03:
-            break
-        v = int(v * 0.8)  # still too big: try once more at a lower bitrate
-    return _send(r, out, "video/mp4", "waverise-small.mp4", dl, "smaller video")
-
-
-@r_.get("/download")
-def download(request: Request, url: str, index: int = 0, inline: int = 0):
-    src, hdrs, vid = media(clean(url), index)
-    name = None if inline else f"waverise.{'mp4' if vid else 'jpg'}"
-    return stream(src, hdrs, name, request.headers.get("range"))
-
-
-@app.get("/", include_in_schema=False)
-def home():
-    return FileResponse(PUBLIC / "index.html")
-
-
-@r_.get("/health")
-def health():
-    return {"ok": True, "version": 5}
-
-
-app.include_router(r_, prefix="/api")
-app.include_router(r_)
-
-if not os.getenv("VERCEL"):  # local testing only; on Vercel the public/ folder is served by the CDN
-    from fastapi.staticfiles import StaticFiles
-    app.mount("/", StaticFiles(directory=PUBLIC))
+/* ---------- phones: single-row top bar + bottom Wave Dock ---------- */
+@media (max-width:720px){
+ .bar{top:8px;width:calc(100% - 16px);margin-top:8px;border-radius:22px}
+ .nav-wrap{justify-content:space-between;padding:7px 8px 7px 12px;min-height:58px}
+ .brand{font-size:19px;gap:9px}.brand img{width:36px;height:36px;border-radius:11px}
+ #lang{min-height:44px;max-width:112px;font-size:12.5px;padding:0 26px 0 12px;background-position:right 9px center}
+ .ic{width:44px;height:44px}
+ #nav{position:fixed;z-index:40;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));margin:0;height:var(--dock-h);
+  display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:26px;order:0;width:auto}
+ #nav::before{background:linear-gradient(180deg,rgba(26,34,64,.82),rgba(8,12,26,.9))!important}
+ #nav .dd{display:contents}
+ #nav .nv{flex-direction:column;justify-content:center;gap:3px;min-height:0;height:100%;width:100%;padding:0 4px;border-radius:20px;font-size:11.5px;font-weight:700}
+ #nav .nv .i{width:22px;height:22px}
+ #nav .nv .chev{display:none}
+ #nav .nv.on .i:not(.chev){transform:translateY(-3px) scale(1.08)}
+ .nav-ind{border-radius:20px;overflow:visible}
+ .nav-ind::after{bottom:4px;left:10%;right:10%;border-radius:0 0 18px 18px;overflow:hidden}
+ .nav-ind>i{display:none}
+ #nav .nav-ind::before{left:50%;right:auto;top:-9px;width:46px;height:12px;transform:translateX(-50%);border-radius:50%;
+  background:radial-gradient(50% 60% at 50% 100%,rgba(150,210,255,.95),rgba(80,170,255,.35) 55%,transparent 72%);filter:blur(.4px)}
+ /* menus become bottom sheets above the dock */
+ #nav .menu,#nav .dd:last-child .menu{position:fixed;left:10px;right:10px;top:auto;bottom:calc(var(--dock-h) + 22px + env(safe-area-inset-bottom));width:auto;max-height:min(62vh,460px);overflow-y:auto;
+  display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:14px 12px 12px;border-radius:26px;transform-origin:bottom center}
+ #nav .menu[hidden]{display:none}
+ #nav .menu:not([hidden]){animation:sheetUp .32s cubic-bezier(.2,.9,.3,1.1)}
+ @keyframes sheetUp{from{opacity:0;transform:translateY(24px)}}
+ .sheet-h{display:flex;align-items:center;justify-content:space-between}
+ .sheet-h::after{content:"";width:38px;height:4px;border-radius:9px;background:rgba(255,255,255,.25)}
+ .menu a{grid-template-columns:1fr;row-gap:6px;padding:12px;min-height:86px;align-content:center;border-radius:16px;background:rgba(255,255,255,.04)}
+ .menu a .i{grid-row:auto}
+ .menu a small{font-size:11.5px;line-height:1.3}
+ body{padding-bottom:calc(var(--dock-h) + 26px + env(safe-area-inset-bottom))}
+}
+@media (max-width:360px){.brand .bn{font-size:17px}#lang{max-width:96px}}
+/* light theme */
+[data-theme=light] .nav-ind{background:linear-gradient(135deg,rgba(120,190,255,.55),rgba(47,139,255,.35));border-color:rgba(47,139,255,.45);box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 6px 20px rgba(47,139,255,.25)}
+[data-theme=light] #nav.has-ind .nv.on,[data-theme=light] #nav.has-ind .nv.on .i{color:#0b2a66}
+[data-theme=light] #lang{background-color:rgba(255,255,255,.75);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24'%3E%3Cpath d='M6 9l6 6 6-6' fill='none' stroke='%231b5fd1' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E")}
+[data-theme=light] .nav-scrim{background:rgba(20,40,80,.22)}
+[data-theme=light] .flinks a:hover{background:rgba(0,0,0,.05)}
+[data-theme=light] .sheet-h::after{background:rgba(0,0,0,.18)}
+[data-theme=light] .menu a{background:rgba(0,0,0,.02)}
+@media (max-width:720px){[data-theme=light] #nav::before{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(236,243,255,.95))!important}}
+@media (prefers-reduced-motion:reduce){.nav-ind,.nav-ind::after,#nav .nv .i{transition:none;animation:none}.menu:not([hidden]),.nav-scrim{animation:none}}
+/* dock polish */
+@media (max-width:720px){
+ .nav-ind::after{bottom:1px;height:8px;background-size:34px 5px;opacity:.38}
+ #nav .nv span{position:relative;z-index:1}
+ #nav .nav-ind::before{top:-11px;width:58px;height:16px;background:radial-gradient(50% 55% at 50% 100%,rgba(170,220,255,1),rgba(80,170,255,.45) 55%,transparent 74%)}
+}
+.page a.cemail{display:inline-block;padding:12px 2px;margin:-12px 0}

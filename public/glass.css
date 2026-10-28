@@ -199,7 +199,7 @@ button.go,.btn{color:#fff;text-shadow:0 1px 6px rgba(0,30,90,.4);background:line
 .flinks a:hover{background:rgba(255,255,255,.06)}
 
 /* ---------- phones: single-row top bar + bottom Wave Dock ---------- */
-@media (max-width:720px){
+@media (max-width:900px){
  .bar{top:8px;width:calc(100% - 16px);margin-top:8px;border-radius:22px}
  .nav-wrap{justify-content:space-between;padding:7px 8px 7px 12px;min-height:58px}
  .brand{font-size:19px;gap:9px}.brand img{width:36px;height:36px;border-radius:11px}
@@ -240,12 +240,28 @@ button.go,.btn{color:#fff;text-shadow:0 1px 6px rgba(0,30,90,.4);background:line
 [data-theme=light] .flinks a:hover{background:rgba(0,0,0,.05)}
 [data-theme=light] .sheet-h::after{background:rgba(0,0,0,.18)}
 [data-theme=light] .menu a{background:rgba(0,0,0,.02)}
-@media (max-width:720px){[data-theme=light] #nav::before{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(236,243,255,.95))!important}}
+@media (max-width:900px){[data-theme=light] #nav::before{background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(236,243,255,.95))!important}}
 @media (prefers-reduced-motion:reduce){.nav-ind,.nav-ind::after,#nav .nv .i{transition:none;animation:none}.menu:not([hidden]),.nav-scrim{animation:none}}
 /* dock polish */
-@media (max-width:720px){
+@media (max-width:900px){
  .nav-ind::after{bottom:1px;height:8px;background-size:34px 5px;opacity:.38}
  #nav .nv span{position:relative;z-index:1}
  #nav .nav-ind::before{top:-11px;width:58px;height:16px;background:radial-gradient(50% 55% at 50% 100%,rgba(170,220,255,1),rgba(80,170,255,.45) 55%,transparent 74%)}
 }
 .page a.cemail{display:inline-block;padding:12px 2px;margin:-12px 0}
+
+/* five-tab rail and dock */
+@media (min-width:901px) and (max-width:1160px){#nav .nv{padding:0 13px}#nav>.nv>.i,#nav .dd>.nv>.i:not(.chev){display:none}}
+@media (max-width:900px){
+ #nav{grid-template-columns:repeat(5,1fr);gap:2px;padding:6px 5px;left:max(10px,calc(50% - 300px));right:max(10px,calc(50% - 300px))}
+ #nav .nv{font-size:10.5px;letter-spacing:0;padding:0 2px}
+ #nav .nv span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ #nav .menu,#nav .dd:last-child .menu{left:max(10px,calc(50% - 300px));right:max(10px,calc(50% - 300px))}
+}
+@media (max-width:360px){#nav .nv{font-size:9.8px}#nav .nv .i{width:20px;height:20px}}
+.row .btn.hd{background:linear-gradient(135deg,rgba(255,215,140,.95),rgba(245,160,40,.92));border-color:rgba(255,235,190,.7);color:#1b1306;text-shadow:none}
+.row .btn.mp3b{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);color:var(--text);box-shadow:inset 0 1px 0 rgba(255,255,255,.35);text-shadow:none}
+[data-theme=light] .row .btn.mp3b{background:rgba(255,255,255,.8);color:#0d1730;border-color:rgba(0,0,0,.12)}
+.pv.wide,.pv.wide.on{width:100%;height:auto;aspect-ratio:16/9;flex-basis:100%}
+.pv.wide img{width:100%;height:100%;object-fit:cover}
+.card:has(.pv.wide){flex-direction:column}

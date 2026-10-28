@@ -1,5 +1,5 @@
 """WaveRise backend: public Instagram, X (Twitter), Threads and YouTube posts, MP3, clips, ringtones, GIFs, smaller videos and captions. No login is used."""
-import html as _html, os, re, shutil, subprocess, uuid
+import html as _html, json, os, re, shutil, subprocess, uuid
 from urllib.parse import urlparse
 from pathlib import Path
 
@@ -51,6 +51,8 @@ def explain(err, url):
     """Plain-language reason for visitors (no yt-dlp text)."""
     m = str(err).lower()
     site = {"youtube": "YouTube", "threads": "Threads", "x": "X", "instagram": "Instagram"}[site_of(url)]
+    if "only images" in m:
+        return "YouTube only shared the thumbnail with this server, not the video. It does this when it limits cloud servers. Try again later."
     if "requested format is not available" in m:
         return "YouTube didn't offer a downloadable version of this video to this server. Try again later, or try another video."
     if "javascript runtime" in m or "n challenge" in m or "signature" in m and "solv" in m:
@@ -78,13 +80,13 @@ def explain(err, url):
     return "Couldn't read this link. Check that it opens in a private browser tab, then try again." + (f" Details: {why}" if why else "")
 
 
-YT_FORMAT = "18/best[ext=mp4][acodec!=none][vcodec!=none]/best[acodec!=none][vcodec!=none]/bv*[ext=mp4]+ba[ext=m4a]/bv*+ba/b"
+YT_FORMAT = "18/b/bv*+ba/all"   # WaveRise picks the streams itself (see _yt_plans); this only has to never fail
 YT_CLIENT_FALLBACKS = (None, ["tv_simply", "web_safari"], ["mweb", "android_vr"])
 
 
 def _retryable(e):
     m = str(e).lower()
-    return any(k in m for k in ("not a bot", "requested format", "player response", "403", "po token", "unable to extract", "signature", "n challenge", "javascript"))
+    return any(k in m for k in ("only images", "not a bot", "requested format", "player response", "403", "po token", "unable to extract", "signature", "n challenge", "javascript"))
 
 
 def fetch_info(url):
@@ -103,36 +105,78 @@ def fetch_info(url):
         try:
             with yt_dlp.YoutubeDL(opts) as y:
                 d = y.extract_info(url, download=False)
+            if site == "youtube" and not _yt_plans(d)[0]:
+                raise yt_dlp.utils.DownloadError("Only images are available (YouTube shared no video or audio streams)")
             break
         except Exception as e:
             last = e
             print(f"[waverise] could not read {url} (clients {clients or 'default'}): {e}")  # full detail stays in the server log
+            d = None
             if not (site == "youtube" and _retryable(e)):
                 break
     if d is None:
         raise HTTPException(422, explain(last, url))
     if site == "youtube" and (d.get("is_live") or d.get("live_status") in ("is_live", "is_upcoming")):
         raise HTTPException(422, "Live streams and premieres can't be downloaded until they have finished.")
-    if site == "youtube" and not d.get("url") and d.get("requested_formats"):
-        rf = d["requested_formats"]   # no ready-made file with sound: remember the pair so it can be joined
-        d["_join"] = (next((f for f in rf if f.get("vcodec") != "none"), rf[0]), next((f for f in rf if f.get("acodec") != "none"), rf[-1]))
-        d["height"] = d["_join"][0].get("height") or d.get("height")
     return d
 
 
-def _yt_streams(d):
-    """720p/1080p MP4 video streams plus the best MP4 audio, for joining on the fly."""
-    fm = d.get("formats") or []
-    aud = [f for f in fm if f.get("vcodec") == "none" and str(f.get("acodec", "")).startswith("mp4a") and f.get("url") and f.get("protocol", "https").startswith("http")]
-    vid = {}
-    for f in fm:
+def _proto(f):
+    return str(f.get("protocol") or "https")
+
+
+def _hv(f):
+    return f.get("vcodec") not in (None, "none")
+
+
+def _ha(f):
+    return f.get("acodec") not in (None, "none")
+
+
+def _yt_plans(d):
+    """height -> how to deliver it: ("one", file) | ("join", video, audio) | ("hls", playlist). Plus the best audio stream."""
+    fm = [f for f in (d.get("formats") or []) if f.get("url") and f.get("ext") != "mhtml" and "storyboard" not in str(f.get("format_note", "")).lower()
+          and (_hv(f) or _ha(f))]
+    http = [f for f in fm if _proto(f).startswith("http")]
+    plans = {}
+    for f in sorted((f for f in http if _hv(f) and _ha(f)), key=lambda f: (f.get("ext") == "mp4", f.get("tbr") or 0)):
         h = f.get("height") or 0
-        if (f.get("acodec") == "none" and str(f.get("vcodec", "")).startswith("avc1") and h in (480, 720, 1080)
-                and f.get("url") and f.get("protocol", "https").startswith("http")):
-            if h not in vid or (f.get("tbr") or 0) > (vid[h].get("tbr") or 0):
-                vid[h] = f
-    best_a = max(aud, key=lambda f: f.get("abr") or f.get("tbr") or 0) if aud else None
-    return vid, best_a
+        if 0 < h <= 1080:
+            plans[h] = ("one", f)                      # ready-made file with picture and sound
+    auds = [f for f in http if _ha(f) and not _hv(f)]
+    m4a = [f for f in auds if f.get("ext") in ("m4a", "mp4") or str(f.get("acodec", "")).startswith("mp4a")]
+    a = max(m4a or auds, key=lambda f: f.get("abr") or f.get("tbr") or 0) if auds else None
+    if m4a:
+        best = {}
+        for f in http:
+            h = f.get("height") or 0
+            if _hv(f) and not _ha(f) and str(f.get("vcodec", "")).startswith("avc1") and 0 < h <= 1080:
+                if h not in best or (f.get("tbr") or 0) > (best[h].get("tbr") or 0):
+                    best[h] = f
+        top = max(m4a, key=lambda f: f.get("abr") or f.get("tbr") or 0)
+        for h, f in best.items():
+            plans.setdefault(h, ("join", f, top))      # separate picture + sound, joined on the fly
+    for f in sorted((f for f in fm if "m3u8" in _proto(f) and _hv(f) and f.get("acodec") != "none"),
+                    key=lambda f: (str(f.get("vcodec", "")).startswith("avc1"), -(f.get("tbr") or 0)), reverse=True):
+        h = f.get("height") or 0
+        if 0 < h <= 1080:
+            plans.setdefault(h, ("hls", f))            # streaming playlist with sound
+    return plans, a
+
+
+def _yt_choices(plans):
+    nice = [h for h in sorted(plans) if h in (360, 480, 720, 1080)]
+    return nice or sorted(plans)[-3:]
+
+
+def _yt_default(plans):
+    one = sorted(h for h, p in plans.items() if p[0] == "one")
+    pick = [h for h in one if h >= 360] or one or [h for h in sorted(plans) if h >= 360] or sorted(plans)
+    return pick[0]
+
+
+def _hd(f, d):
+    return f.get("http_headers") or d.get("http_headers") or {}
 
 
 def _attr(tag, name):
@@ -145,20 +189,48 @@ def _cdn(u):
     return p.scheme == "https" and (p.hostname or "").endswith(CDN)
 
 
-def _threads(url):
-    """Public Threads post -> videos and photos (profile pictures are skipped on purpose)."""
-    m = TH_URL.match(url)
-    user = (m.group(1) or "").lstrip("@")
-    hd = {"User-Agent": UA, "Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.8"}
+TH_HEADERS = {"User-Agent": UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9",
+              "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "none", "Upgrade-Insecure-Requests": "1"}
+TH_MEDIA_HD = {"User-Agent": UA, "Referer": "https://www.threads.com/"}
+
+
+def _th_get(u):
     try:
-        r = httpx.get(url.rstrip("/") + "/embed", headers=hd, timeout=20, follow_redirects=True)
-    except httpx.HTTPError:
-        raise HTTPException(502, "Couldn't reach Threads. Try again in a moment.")
-    if r.status_code == 404:
-        raise HTTPException(422, "This post is private, deleted or no longer available.")
-    if r.status_code == 429:
-        raise HTTPException(422, "Threads is limiting requests right now. Wait a few minutes and try again.")
-    page = r.text if r.status_code == 200 else ""
+        r = httpx.get(u, headers=TH_HEADERS, timeout=20, follow_redirects=True)
+        return r.status_code, r.text, str(r.url)
+    except httpx.HTTPError as e:
+        return 0, "", str(e)[:60]
+
+
+def _th_find(o, code, out):
+    """Walk Threads' embedded page data for the post whose shortcode matches."""
+    if isinstance(o, dict):
+        if o.get("code") == code and any(k in o for k in ("image_versions2", "video_versions", "carousel_media")):
+            out.append(o)
+        for v in o.values():
+            _th_find(v, code, out)
+    elif isinstance(o, list):
+        for v in o:
+            _th_find(v, code, out)
+
+
+def _th_from_post(post):
+    entries = []
+    for n in post.get("carousel_media") or [post]:
+        vv = [v for v in (n.get("video_versions") or []) if _cdn(v.get("url", ""))]
+        cand = [c for c in ((n.get("image_versions2") or {}).get("candidates") or []) if _cdn(c.get("url", ""))]
+        img = max(cand, key=lambda c: c.get("width") or 0)["url"] if cand else None
+        if vv:
+            v = max(vv, key=lambda v: (v.get("width") or 0, -(v.get("type") or 0)))["url"]
+            entries.append({"url": v, "formats": [{"url": v, "ext": "mp4"}], "thumbnail": img, "http_headers": TH_MEDIA_HD,
+                            "width": n.get("original_width"), "height": n.get("original_height")})
+        elif img:
+            entries.append({"url": img, "thumbnail": img, "http_headers": TH_MEDIA_HD, "width": n.get("original_width"), "height": n.get("original_height")})
+    cap = ((post.get("caption") or {}).get("text") or "") if isinstance(post.get("caption"), dict) else ""
+    return entries, cap, (post.get("user") or {}).get("username")
+
+
+def _th_from_embed(page):
     entries, seen, posters = [], set(), set()
     for tag in re.finditer(r"<video\b[^>]*>.*?</video>|<img\b[^>]*>", page, re.S | re.I):
         t = tag.group(0)
@@ -167,35 +239,65 @@ def _threads(url):
             poster = _attr(t.split(">", 1)[0], "poster")
             if _cdn(src) and src not in seen:
                 seen.add(src); posters.add(poster)
-                entries.append({"url": src, "formats": [{"url": src, "ext": "mp4"}], "thumbnail": poster if _cdn(poster) else None,
-                                "http_headers": {"User-Agent": UA, "Referer": "https://www.threads.com/"}})
+                entries.append({"url": src, "formats": [{"url": src, "ext": "mp4"}], "thumbnail": poster if _cdn(poster) else None, "http_headers": TH_MEDIA_HD})
             continue
         src, alt, cls = _attr(t, "src"), _attr(t, "alt").lower(), _attr(t, "class").lower()
         w, h = _attr(t, "width"), _attr(t, "height")
         small = any(x.isdigit() and int(x) <= 160 for x in (w, h))
-        if (not _cdn(src) or src in seen or src in posters or small or "profile" in alt or "avatar" in cls or "profile" in cls):
+        if not _cdn(src) or src in seen or src in posters or small or "profile" in alt or "avatar" in cls or "profile" in cls:
             continue
         seen.add(src)
-        entries.append({"url": src, "thumbnail": src, "http_headers": {"User-Agent": UA, "Referer": "https://www.threads.com/"}})
+        entries.append({"url": src, "thumbnail": src, "http_headers": TH_MEDIA_HD})
     cap = ""
     mm = re.search(r'class="[^"]*BodyText[^"]*"[^>]*>(.*?)</(?:span|div)>', page, re.S)
     if mm:
         cap = _html.unescape(re.sub(r"<[^>]+>", " ", mm.group(1)))
-    if not entries or not cap:   # fall back to the post page's public preview tags
-        try:
-            pg = httpx.get(url, headers=hd, timeout=20, follow_redirects=True).text
-        except httpx.HTTPError:
-            pg = ""
-        meta = {k.lower(): _html.unescape(v) for k, v in re.findall(r'<meta[^>]+property="(og:[a-z:_]+)"[^>]+content="([^"]*)"', pg)}
+    return entries, cap
+
+
+def _threads(url):
+    """Public Threads post -> videos and photos. Profile pictures are never collected.
+    1) the post data Threads embeds in its page, 2) the embed page, 3) the public preview tags."""
+    m = TH_URL.match(url)
+    user, code = (m.group(1) or "").lstrip("@"), m.group(2)
+    notes, entries, cap = [], [], ""
+    st, page, final = _th_get(url)
+    if st == 429:
+        raise HTTPException(422, "Threads is limiting requests right now. Wait a few minutes and try again.")
+    if st == 404:
+        raise HTTPException(422, "This post is private, deleted or no longer available.")
+    blocks = re.findall(r'<script type="application/json"[^>]*>(.*?)</script>', page, re.S)
+    found = []
+    for b in blocks:
+        if code in b:
+            try:
+                _th_find(json.loads(b), code, found)
+            except ValueError:
+                pass
+    if found:
+        best = max(found, key=lambda o: len(json.dumps(o)))
+        entries, cap, user2 = _th_from_post(best)
+        user = user or user2 or ""
+    login = "/login" in final or "accounts/login" in final
+    notes.append(f"post page {st or final}" + (" (sent to login)" if login else f", {len(blocks)} data blocks, post {'found' if found else 'not found'}"))
+    if not entries:
+        st2, emb, _ = _th_get(url.rstrip("/") + "/embed")
+        entries, cap2 = _th_from_embed(emb if st2 == 200 else "")
+        cap = cap or cap2
+        notes.append(f"embed {st2 or 'unreachable'}, {len(entries)} media")
+    if not entries or not cap:
+        meta = {k.lower(): _html.unescape(v) for k, v in re.findall(r'<meta[^>]+property="(og:[a-z:_]+)"[^>]+content="([^"]*)"', page)}
         cap = cap or meta.get("og:description", "")
         if not entries:
             v = meta.get("og:video:secure_url") or meta.get("og:video")
             if v and _cdn(v):
-                entries.append({"url": v, "formats": [{"url": v, "ext": "mp4"}], "thumbnail": meta.get("og:image"), "http_headers": {"User-Agent": UA}})
+                entries.append({"url": v, "formats": [{"url": v, "ext": "mp4"}], "thumbnail": meta.get("og:image"), "http_headers": TH_MEDIA_HD})
             elif meta.get("og:image") and _cdn(meta["og:image"]):
-                entries.append({"url": meta["og:image"], "thumbnail": meta["og:image"], "http_headers": {"User-Agent": UA}})
+                entries.append({"url": meta["og:image"], "thumbnail": meta["og:image"], "http_headers": TH_MEDIA_HD})
+            notes.append("preview tags " + ("used" if entries else "none"))
     if not entries:
-        raise HTTPException(422, "Couldn't find a video or photo in this Threads post. It may be private, deleted or text only.")
+        print("[waverise] threads failed:", url, "|", "; ".join(notes))
+        raise HTTPException(422, "Couldn't find a video or photo in this Threads post. It may be private, deleted or text only. Details: " + "; ".join(notes))
     return {"uploader": user or None, "description": re.sub(r"\s+", " ", cap).strip(), "thumbnail": entries[0].get("thumbnail"), "entries": entries}
 
 
@@ -209,13 +311,12 @@ def is_video(e):
 
 def media(url, index=0, audio=False):
     d = fetch_info(url)
-    if audio and site_of(url) == "youtube":
-        _, a = _yt_streams(d)
-        if a:
-            return a["url"], a.get("http_headers") or d.get("http_headers") or {}, True
-    if d.get("_join"):
-        v, a = d["_join"]
-        return v["url"], v.get("http_headers") or d.get("http_headers") or {}, True
+    if site_of(url) == "youtube":
+        plans, a = _yt_plans(d)
+        if audio and a:
+            return a["url"], _hd(a, d), True
+        p = plans[_yt_default(plans)]
+        return p[1]["url"], _hd(p[1], d), True     # "one"/"hls" include sound; for "join" the picture stream is used
     its = items_of(d)
     e = its[min(max(index, 0), len(its) - 1)]
     vid = is_video(e)
@@ -301,9 +402,7 @@ def info(b: Req):
     site = site_of(b.url.strip())
     q = []
     if site == "youtube":
-        vids, aud = _yt_streams(d)
-        base_h = d.get("height") or 360
-        q = sorted({base_h} | ({h for h in vids if h > base_h} if aud else set()))
+        q = _yt_choices(_yt_plans(d)[0])
     return {
         "site": site, "title": d.get("title") if site == "youtube" else None, "qualities": q,
         "uploader": d.get("uploader") or d.get("channel"),
@@ -481,34 +580,37 @@ def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int
     u = clean(url)
     if site_of(u) == "youtube":
         d = fetch_info(u)
-        vids, aud = _yt_streams(d)
-        if not inline and q in vids and aud and (q != (d.get("height") or 360) or d.get("_join")):
-            return _yt_join(d, vids[q], aud, q)
-        if d.get("_join"):          # no ready-made file with sound: join it (also for the preview player)
-            v, a = d["_join"]
-            return _yt_join(d, v, a, v.get("height") or 360, inline)
+        plans, _ = _yt_plans(d)
+        dflt = _yt_default(plans)
+        h = q if (q in plans and not inline) else dflt
+        p = plans[h]
+        if p[0] == "one":
+            return stream(p[1]["url"], _hd(p[1], d), None if inline else f"waverise-{h}p.mp4", request.headers.get("range"))
+        if h != dflt and (d.get("duration") or 0) > MAX_HD_SECONDS:
+            raise HTTPException(413, f"HD downloads are limited to videos under {MAX_HD_SECONDS // 60} minutes on this free server. Choose {dflt}p instead.")
+        return _ff_stream(d, list(p[1:]), h, inline)
     src, hdrs, vid = media(u, index)
     name = None if inline else f"waverise.{'mp4' if vid else 'jpg'}"
     return stream(src, hdrs, name, request.headers.get("range"))
 
 
-def _yt_join(d, v, a, q, inline=0):
-    if (d.get("duration") or 0) > MAX_HD_SECONDS:
-        raise HTTPException(413, f"HD downloads are limited to videos under {MAX_HD_SECONDS // 60} minutes on this free server. Choose 360p instead.")
+def _ff_stream(d, inputs, q, inline=0):
+    """Stream one MP4 made from separate picture+sound, or from a streaming playlist, without temp files."""
     cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error"]
-    for f in (v, a):
-        hd = f.get("http_headers") or d.get("http_headers") or {}
+    for f in inputs:
+        hd = _hd(f, d)
         if hd:
             cmd += ["-headers", "".join(f"{k}: {x}\r\n" for k, x in hd.items())]
         cmd += ["-i", f["url"]]
-    cmd += ["-map", "0:v:0", "-map", "1:a:0", "-c", "copy", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1"]
+    cmd += (["-map", "0:v:0", "-map", "1:a:0"] if len(inputs) == 2 else ["-map", "0:v:0", "-map", "0:a:0?", "-bsf:a", "aac_adtstoasc"])
+    cmd += ["-c", "copy", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1"]
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     first = p.stdout.read(65536)
     if not first:
         err = p.stderr.read().decode(errors="ignore")[-200:]
         p.wait()
-        print("[waverise] HD join failed:", err)
-        raise HTTPException(422, "Couldn't prepare the HD version. Try 360p instead.")
+        print("[waverise] video stream failed:", err)
+        raise HTTPException(422, "Couldn't prepare this video. Try another quality.")
 
     def gen():
         try:

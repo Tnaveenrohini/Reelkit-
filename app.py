@@ -1,12 +1,13 @@
 """WaveRise backend: public Instagram, X (Twitter), Threads and YouTube posts, MP3, clips, ringtones, GIFs, smaller videos and captions. No login is used."""
-import html as _html, json, os, re, shutil, subprocess, uuid
+import html as _html, json, math, os, re, shutil, subprocess, unicodedata, uuid
+from urllib.parse import quote
 from urllib.parse import urlparse
 from pathlib import Path
 
 import httpx
 import yt_dlp
-from fastapi import APIRouter, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
@@ -313,8 +314,13 @@ def is_video(e):
     return bool(e.get("formats"))
 
 
-def media(url, index=0, audio=False):
+def media(url, index=0, audio=False, info=False):
     d = fetch_info(url)
+    r = _media(d, url, index, audio)
+    return (*r, d) if info else r
+
+
+def _media(d, url, index=0, audio=False):
     if site_of(url) == "youtube":
         plans, a = _yt_plans(d)
         if audio and a:
@@ -330,6 +336,57 @@ def media(url, index=0, audio=False):
     return src, e.get("http_headers") or {}, vid
 
 
+def _words(t):
+    """Split into words, keeping letters, digits and combining marks (Hindi/Tamil/Telugu vowel signs) together."""
+    out, cur = [], ""
+    for ch in unicodedata.normalize("NFC", str(t or "")):
+        if unicodedata.category(ch)[0] in "LMN":
+            cur += ch
+        elif cur:
+            out.append(cur); cur = ""
+    return out + ([cur] if cur else [])
+
+
+def nice_name(d, ext, tag="", index=None):
+    """Readable file name from the account and the first words of the caption, e.g. nasa-sunrise-over-the-ocean.mp4"""
+    who = (d.get("uploader") or d.get("channel") or "").strip().lstrip("@")
+    text = d.get("title") if d.get("title") and not str(d.get("title")).lower().startswith(("video by", "post by")) else d.get("description") or ""
+    text = re.sub(r"https?://\S+|[#@][\w.]+", " ", str(text))
+    words = _words(text)[:5]
+    base = "-".join(x for x in _words(who) + words if x)
+    slug = base.lower()[:60].rstrip("-") or "waverise"
+    for extra in ([f"{index + 1}"] if index else []) + ([tag] if tag else []):
+        slug += "-" + extra
+    return f"{slug}.{ext}"
+
+
+def disposition(name, inline=False):
+    stem, _, ext = name.rpartition(".")
+    asc = re.sub(r"[^A-Za-z0-9._-]+", "-", unicodedata.normalize("NFKD", stem).encode("ascii", "ignore").decode()).strip("-.") or "waverise"
+    return f'{"inline" if inline else "attachment"}; filename="{asc}.{ext}"; filename*=UTF-8\'\'{quote(name)}'
+
+
+CLEAN = ["-map_metadata", "-1", "-map_chapters", "-1", "-fflags", "+bitexact", "-flags:v", "+bitexact", "-flags:a", "+bitexact"]
+LOUD = "loudnorm=I=-14:TP=-1.5:LRA=11"
+
+
+def jpeg_clean(b):
+    """Remove hidden details (EXIF location/device/dates, XMP, comments) from a JPEG without re-compressing it."""
+    if b[:2] != b"\xff\xd8":
+        return b
+    out, i = bytearray(b[:2]), 2
+    while i + 4 <= len(b) and b[i] == 0xFF:
+        m = b[i + 1]
+        if m == 0xDA:                                   # image data starts: copy the rest as is
+            out += b[i:]
+            return bytes(out)
+        ln = int.from_bytes(b[i + 2:i + 4], "big")
+        if not (0xE1 <= m <= 0xEF or m == 0xFE):        # keep everything except APP1-APP15 and comments
+            out += b[i:i + 2 + ln]
+        i += 2 + ln
+    return b
+
+
 def stream(src, headers=None, filename=None, range_=None):
     hd = dict(headers or {})
     if range_:
@@ -342,7 +399,7 @@ def stream(src, headers=None, filename=None, range_=None):
             yield from r.iter_bytes(65536)
         finally:
             r.close(); c.close()
-    h = {"Content-Disposition": f'attachment; filename="{filename}"'} if filename else {}
+    h = {"Content-Disposition": disposition(filename)} if filename else {}
     h["Accept-Ranges"] = "bytes"
     if r.status_code == 206 and r.headers.get("content-range"):
         h["Content-Range"] = r.headers["content-range"]
@@ -423,14 +480,14 @@ def info(b: Req):
 
 
 @r_.get("/mp3")
-def mp3(url: str, index: int = 0):
-    src, hdrs, vid = media(clean(url), index, audio=True)
+def mp3(url: str, index: int = 0, loud: int = 0):
+    src, hdrs, vid, d = media(clean(url), index, audio=True, info=True)
     if not vid:
         raise HTTPException(400, "This item is a photo, so there is no audio to extract.")
     cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error"]
     if hdrs:
         cmd += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
-    cmd += ["-i", src, "-vn", "-map", "0:a:0", "-c:a", "libmp3lame", "-b:a", "192k", "-f", "mp3", "pipe:1"]
+    cmd += ["-i", src, "-vn", "-map", "0:a:0"] + (["-af", LOUD] if loud else []) + CLEAN + ["-c:a", "libmp3lame", "-b:a", "192k", "-id3v2_version", "0", "-f", "mp3", "pipe:1"]
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     first = p.stdout.read(65536)
     if not first:
@@ -449,13 +506,13 @@ def mp3(url: str, index: int = 0):
         finally:
             p.kill(); p.wait()
     return StreamingResponse(gen(), media_type="audio/mpeg",
-                             headers={"Content-Disposition": 'attachment; filename="waverise.mp3"'})
+                             headers={"Content-Disposition": disposition(nice_name(d, "mp3", "", index))})
 
 
 @r_.get("/ringtone")
 def ringtone(url: str, index: int = 0, start: float = 0, length: float = 30, fade: int = 1,
              fmt: str = "mp3", dl: int = 0):
-    src, hdrs, vid = media(clean(url), index, audio=True)
+    src, hdrs, vid, d = media(clean(url), index, audio=True, info=True)
     if not vid:
         raise HTTPException(400, "This item is a photo, so there is no audio to use.")
     start, length = max(0.0, min(start, 21600.0)), max(3.0, min(length, 30.0))
@@ -468,7 +525,7 @@ def ringtone(url: str, index: int = 0, start: float = 0, length: float = 30, fad
     if hdrs:
         head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
     ss = ["-ss", f"{start:.2f}"]
-    tail = ["-t", f"{length:.2f}", "-vn", "-map", "0:a:0", "-af", af] + enc + [out]
+    tail = ["-t", f"{length:.2f}", "-vn", "-map", "0:a:0", "-af", af] + enc + CLEAN + [out]
     try:
         # fast path: seek before opening; if the server can't seek, retry by reading from the start
         r = subprocess.run(head + ss + ["-i", src] + tail, capture_output=True, timeout=100)
@@ -481,14 +538,14 @@ def ringtone(url: str, index: int = 0, start: float = 0, length: float = 30, fad
             os.remove(out)
         raise HTTPException(422, "Couldn't make the ringtone. The clip may start after the video ends, or it has no sound. "
                                  + r.stderr.decode(errors="ignore")[-150:])
-    return FileResponse(out, media_type="audio/mp4" if m4r else "audio/mpeg", filename=f"waverise-ringtone.{ext}",
+    return FileResponse(out, media_type="audio/mp4" if m4r else "audio/mpeg", filename=nice_name(d, ext, "ringtone"),
                         content_disposition_type="attachment" if dl else "inline",
                         background=BackgroundTask(os.remove, out))
 
 
 @r_.get("/clip")
 def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int = 0):
-    src, hdrs, vid = media(clean(url), index)
+    src, hdrs, vid, d = media(clean(url), index, info=True)
     if not vid:
         raise HTTPException(400, "This item is a photo, so there is nothing to trim.")
     start, length = max(0.0, min(start, 21600.0)), max(2.0, min(length, 30.0))
@@ -498,7 +555,7 @@ def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int
         head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
     ss = ["-ss", f"{start:.2f}"]
     tail = ["-t", f"{length:.2f}", "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast",
-            "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", out]
+            "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"] + CLEAN + [out]
     try:
         r = subprocess.run(head + ss + ["-i", src] + tail, capture_output=True, timeout=130)
         if r.returncode:
@@ -510,12 +567,14 @@ def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int
             os.remove(out)
         raise HTTPException(422, "Couldn't cut the clip. The start may be after the video ends. "
                                  + r.stderr.decode(errors="ignore")[-150:])
-    return FileResponse(out, media_type="video/mp4", filename="waverise-clip.mp4",
+    return FileResponse(out, media_type="video/mp4", filename=nice_name(d, "mp4", "clip"),
                         content_disposition_type="attachment" if dl else "inline",
                         background=BackgroundTask(os.remove, out))
 
 
 def _ff(src, hdrs, ss, args, out, timeout=140):
+    if "-map_metadata" not in args:
+        args = list(args) + CLEAN          # every file WaveRise makes is cleaned of hidden details
     head = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
     if hdrs:
         head += ["-headers", "".join(f"{k}: {v}\r\n" for k, v in hdrs.items())]
@@ -542,7 +601,7 @@ def _send(r, out, mime, name, dl, what):
 
 @r_.get("/gif")
 def gif(url: str, index: int = 0, start: float = 0, length: float = 4, width: int = 480, fmt: str = "gif", dl: int = 0):
-    src, hdrs, vid = media(clean(url), index)
+    src, hdrs, vid, d = media(clean(url), index, info=True)
     if not vid:
         raise HTTPException(400, "This item is a photo, so there is nothing to animate.")
     start, length = max(0.0, min(start, 21600.0)), max(1.0, min(length, 6.0))
@@ -555,12 +614,12 @@ def gif(url: str, index: int = 0, start: float = 0, length: float = 4, width: in
         args = ["-t", f"{length:.2f}", "-an", "-loop", "0", "-vf",
                 f"fps=12,scale={width}:-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=4"]
     r = _ff(src, hdrs, start, args, out)
-    return _send(r, out, "image/webp" if webp else "image/gif", f"waverise.{'webp' if webp else 'gif'}", dl, "animation")
+    return _send(r, out, "image/webp" if webp else "image/gif", nice_name(d, "webp" if webp else "gif"), dl, "animation")
 
 
 @r_.get("/shrink")
 def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: int = 0):
-    src, hdrs, vid = media(clean(url), index)
+    src, hdrs, vid, d = media(clean(url), index, info=True)
     if not vid:
         raise HTTPException(400, "This item is a photo, so there is nothing to shrink.")
     if dur > 180:
@@ -576,11 +635,88 @@ def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: in
         if r.returncode or not os.path.exists(out) or os.path.getsize(out) <= target * 1048576 * 1.03:
             break
         v = int(v * 0.8)  # still too big: try once more at a lower bitrate
-    return _send(r, out, "video/mp4", "waverise-small.mp4", dl, "smaller video")
+    return _send(r, out, "video/mp4", nice_name(d, "mp4", "small"), dl, "smaller video")
+
+
+def _video_only(vid):
+    if not vid:
+        raise HTTPException(400, "This item is a photo. Choose a video post.")
+
+
+@r_.get("/boomerang")
+def boomerang(url: str, index: int = 0, start: float = 0, length: float = 2, fmt: str = "mp4", dl: int = 0):
+    src, hdrs, vid, d = media(clean(url), index, info=True)
+    _video_only(vid)
+    start, length = max(0.0, min(start, 21600.0)), max(1.0, min(length, 3.0))
+    gif = fmt == "gif"
+    out = f"/tmp/b-{uuid.uuid4().hex}.{'gif' if gif else 'mp4'}"
+    w = 360 if gif else 720
+    loop = (f"[0:v]trim=duration={length:.2f},setpts=PTS-STARTPTS,fps={15 if gif else 30},scale='min({w},iw)':-2:flags=lanczos,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[o];"
+            "[o]split[x][y];[x][y]concat=n=2:v=1:a=0")
+    if gif:
+        args = ["-an", "-filter_complex", loop + "[l];[l]split[p][q];[p]palettegen=stats_mode=diff[pl];[q][pl]paletteuse=dither=bayer:bayer_scale=4", "-loop", "0"] + CLEAN
+    else:
+        args = ["-an", "-filter_complex", loop, "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + CLEAN
+    r = _ff(src, hdrs, start, args, out)
+    return _send(r, out, "image/gif" if gif else "video/mp4", nice_name(d, "gif" if gif else "mp4", "boomerang"), dl, "boomerang")
+
+
+@r_.get("/frame")
+def frame(url: str, index: int = 0, at: float = -1, dl: int = 0):
+    """HD photo from a video: a clear, typical frame picked automatically (at=-1) or the moment you choose."""
+    src, hdrs, vid, d = media(clean(url), index, info=True)
+    _video_only(vid)
+    out = f"/tmp/f-{uuid.uuid4().hex}.jpg"
+    if at < 0:
+        r = _ff(src, hdrs, 0, ["-t", "20", "-an", "-vf", "thumbnail=90", "-frames:v", "1", "-q:v", "2"] + CLEAN, out)
+    else:
+        r = _ff(src, hdrs, max(0.0, min(at, 21600.0)), ["-an", "-frames:v", "1", "-q:v", "2"] + CLEAN, out)
+    return _send(r, out, "image/jpeg", nice_name(d, "jpg", "photo"), dl, "photo")
+
+
+MAX_SPLIT_SECONDS = 10 * 60
+
+
+@r_.get("/status")
+def status_part(url: str, index: int = 0, part: int = 1, seg: int = 30, dl: int = 1):
+    """One part of a video cut into Status/Story-sized pieces (each part is its own short request)."""
+    src, hdrs, vid, d = media(clean(url), index, info=True)
+    _video_only(vid)
+    seg = seg if seg in (15, 30, 60) else 30
+    its = items_of(d)
+    dur = d.get("duration") or (its[min(index, len(its) - 1)].get("duration") if its else None) or 0
+    if dur > MAX_SPLIT_SECONDS:
+        raise HTTPException(413, f"Videos up to {MAX_SPLIT_SECONDS // 60} minutes can be split on this free server.")
+    n = max(1, math.ceil(dur / seg)) if dur else 1
+    part = max(1, min(part, n))
+    out = f"/tmp/p-{uuid.uuid4().hex}.mp4"
+    args = ["-t", str(seg), "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"] + CLEAN
+    r = _ff(src, hdrs, (part - 1) * seg, args, out)
+    return _send(r, out, "video/mp4", nice_name(d, "mp4", f"part-{part}-of-{n}"), dl, f"part {part}")
+
+
+@r_.get("/speed")
+def speed(url: str, index: int = 0, rate: float = 2.0, dl: int = 0):
+    src, hdrs, vid, d = media(clean(url), index, info=True)
+    _video_only(vid)
+    if rate not in (0.5, 0.75, 1.25, 1.5, 2.0):
+        raise HTTPException(400, "Choose 0.5x, 0.75x, 1.25x, 1.5x or 2x.")
+    its = items_of(d)
+    dur = d.get("duration") or (its[min(index, len(its) - 1)].get("duration") if its else None) or 0
+    if dur / rate > 240:
+        raise HTTPException(413, "The result would be longer than 4 minutes, which is too long for this free server.")
+    out = f"/tmp/s-{uuid.uuid4().hex}.mp4"
+    tag = f"{rate:g}x"
+    enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + CLEAN
+    r = _ff(src, hdrs, 0, ["-filter_complex", f"[0:v]setpts=PTS/{rate}[v];[0:a]atempo={rate}[a]", "-map", "[v]", "-map", "[a]", "-c:a", "aac", "-b:a", "128k"] + enc, out)
+    if r.returncode:   # the video has no sound: change the picture only
+        r = _ff(src, hdrs, 0, ["-an", "-vf", f"setpts=PTS/{rate}"] + enc, out)
+    return _send(r, out, "video/mp4", nice_name(d, "mp4", tag), dl, f"{tag} version")
 
 
 @r_.get("/download")
-def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int = 0):
+def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int = 0, loud: int = 0, privacy: int = Query(0, alias="clean")):
     u = clean(url)
     if site_of(u) == "youtube":
         d = fetch_info(u)
@@ -589,16 +725,31 @@ def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int
         h = q if (q in plans and not inline) else dflt
         p = plans[h]
         if p[0] == "one":
-            return stream(p[1]["url"], _hd(p[1], d), None if inline else f"waverise-{h}p.mp4", request.headers.get("range"))
+            if not (loud or privacy) or inline:
+                return stream(p[1]["url"], _hd(p[1], d), None if inline else nice_name(d, "mp4", f"{h}p"), request.headers.get("range"))
+            return _ff_stream(d, [p[1]], h, 0, loud, privacy, nice_name(d, "mp4", f"{h}p"))
         if h != dflt and (d.get("duration") or 0) > MAX_HD_SECONDS:
             raise HTTPException(413, f"HD downloads are limited to videos under {MAX_HD_SECONDS // 60} minutes on this free server. Choose {dflt}p instead.")
-        return _ff_stream(d, list(p[1:]), h, inline)
-    src, hdrs, vid = media(u, index)
-    name = None if inline else f"waverise.{'mp4' if vid else 'jpg'}"
+        return _ff_stream(d, list(p[1:]), h, inline, loud, privacy, nice_name(d, "mp4", f"{h}p"))
+    src, hdrs, vid, d = media(u, index, info=True)
+    if inline:
+        return stream(src, hdrs, None, request.headers.get("range"))
+    name = nice_name(d, "mp4" if vid else "jpg", "", index)
+    if vid and (loud or privacy):
+        return _ff_stream(d, [{"url": src, "http_headers": hdrs}], 0, 0, loud, privacy, name)
+    if not vid and privacy:
+        try:
+            with httpx.Client(timeout=60, follow_redirects=True) as c:
+                r = c.get(src, headers=hdrs)
+        except httpx.HTTPError:
+            raise HTTPException(502, "Couldn't fetch the photo. Try again.")
+        if len(r.content) > 40 * 1048576:
+            raise HTTPException(413, "This photo is too large to clean here.")
+        return Response(jpeg_clean(r.content), media_type=r.headers.get("content-type", "image/jpeg"), headers={"Content-Disposition": disposition(name)})
     return stream(src, hdrs, name, request.headers.get("range"))
 
 
-def _ff_stream(d, inputs, q, inline=0):
+def _ff_stream(d, inputs, q, inline=0, loud=0, privacy=0, name=None):
     """Stream one MP4 made from separate picture+sound, or from a streaming playlist, without temp files."""
     cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error"]
     for f in inputs:
@@ -606,8 +757,10 @@ def _ff_stream(d, inputs, q, inline=0):
         if hd:
             cmd += ["-headers", "".join(f"{k}: {x}\r\n" for k, x in hd.items())]
         cmd += ["-i", f["url"]]
-    cmd += (["-map", "0:v:0", "-map", "1:a:0"] if len(inputs) == 2 else ["-map", "0:v:0", "-map", "0:a:0?", "-bsf:a", "aac_adtstoasc"])
-    cmd += ["-c", "copy", "-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1"]
+    hls = len(inputs) == 1 and "m3u8" in (str(inputs[0].get("protocol", "")) + inputs[0]["url"])
+    cmd += ["-map", "0:v:0", "-map", "1:a:0"] if len(inputs) == 2 else ["-map", "0:v:0", "-map", "0:a:0?"]
+    cmd += ["-c:v", "copy"] + (["-af", LOUD, "-c:a", "aac", "-b:a", "160k"] if loud else ["-c:a", "copy"] + (["-bsf:a", "aac_adtstoasc"] if hls else []))
+    cmd += (CLEAN if privacy else []) + ["-movflags", "frag_keyframe+empty_moov+default_base_moof", "-f", "mp4", "pipe:1"]
     p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     first = p.stdout.read(65536)
     if not first:
@@ -626,7 +779,7 @@ def _ff_stream(d, inputs, q, inline=0):
                 yield c
         finally:
             p.kill(); p.wait()
-    return StreamingResponse(gen(), media_type="video/mp4", headers={} if inline else {"Content-Disposition": f'attachment; filename="waverise-{q}p.mp4"'})
+    return StreamingResponse(gen(), media_type="video/mp4", headers={} if inline else {"Content-Disposition": disposition(name or nice_name(d, "mp4", f"{q}p" if q else ""))})
 
 
 @app.get("/", include_in_schema=False)

@@ -1,4 +1,4 @@
-"""WaveRise backend: public posts, Reels and carousels, MP3, clips, ringtones, GIFs and captions. No Instagram login is used."""
+"""WaveRise backend: public Instagram and X (Twitter) posts, MP3, clips, ringtones, GIFs, smaller videos and captions. No login is used."""
 import os, re, shutil, subprocess, uuid
 from pathlib import Path
 
@@ -10,6 +10,7 @@ from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
 IG_URL = re.compile(r"^https?://(www\.)?instagram\.com/(p|reel|reels|tv)/", re.I)
+X_URL = re.compile(r"^https?://(www\.|mobile\.)?(x|twitter)\.com/(i/(web/)?|[A-Za-z0-9_]{1,15}/)status/\d+", re.I)
 BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # link parts to refuse after a valid copyright notice
 app = FastAPI(title="WaveRise")
 PUBLIC = Path(__file__).parent / "public"
@@ -24,19 +25,21 @@ def clean(url):
     url = url.strip().split("?")[0]
     if any(b in url.lower() for b in BLOCKED):
         raise HTTPException(451, "This link is not available for legal reasons.")
-    if not IG_URL.match(url):
-        raise HTTPException(400, "Paste a valid Instagram post, Reel or IGTV link.")
+    if not (IG_URL.match(url) or X_URL.match(url)):
+        raise HTTPException(400, "Paste a valid Instagram post, Reel or IGTV link, or an X (Twitter) post link.")
     return url
 
 
 def explain(err, url):
     """Plain-language reason for visitors (no yt-dlp text)."""
-    m = str(err).lower()
-    if any(k in m for k in ("login", "log in", "authentication", "cookies", "empty media response", "accessible in your browser")):
-        return "Instagram is asking for a login for this link, which WaveRise doesn't use. Try a public Reel or post, or try again in a few minutes."
+    m, site = str(err).lower(), ("X" if X_URL.match(url) else "Instagram")
+    if "no video could be found" in m or "no video" in m:
+        return "This post has no video or GIF. For X, WaveRise saves videos and GIFs from public posts."
+    if any(k in m for k in ("login", "log in", "authentication", "cookies", "empty media response", "accessible in your browser", "nsfw", "age-restricted", "sensitive")):
+        return f"{site} is asking for a login for this link, which WaveRise doesn't use. Try a public post, or try again in a few minutes."
     if "429" in m or "too many" in m or "rate" in m:
-        return "Instagram is limiting requests right now. Wait a few minutes and try again."
-    if any(k in m for k in ("private", "not available", "unavailable", "404", "removed", "does not exist")):
+        return f"{site} is limiting requests right now. Wait a few minutes and try again."
+    if any(k in m for k in ("private", "protected", "not available", "unavailable", "404", "removed", "does not exist", "suspended", "deleted")):
         return "This post is private, deleted or no longer available."
     return "Couldn't read this link. Check that it opens in a private browser tab, then try again."
 

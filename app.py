@@ -6,7 +6,7 @@ from pathlib import Path
 
 import httpx
 import yt_dlp
-from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
+from fastapi import APIRouter, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
@@ -847,6 +847,191 @@ def pdf(url: str):
                     headers={"Content-Disposition": disposition(nice_name(d, "pdf"))})
 
 
+# ---------- carousel (or your photos) to Reel, and duet / split screen ----------
+REEL_SHAPES = {"9x16": (720, 1280), "4x5": (720, 900), "1x1": (720, 720)}
+FX = {"fade": "fade", "slide": "slideleft", "zoom": "zoomin", "none": None}
+GOLD = "0xF2C14E"
+
+
+def _run(cmd, timeout=170):
+    try:
+        return subprocess.run(cmd, capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "This took too long for the free server. Try fewer or shorter videos.")
+
+
+def _hdr(h):
+    return ["-headers", "".join(f"{k}: {v}\r\n" for k, v in h.items())] if h else []
+
+
+def _cell(i, W, H, fill, D, tag):
+    """Filter that turns input i into a WxH picture lasting D seconds (crop to fill, or fit on a blurred copy)."""
+    if fill == "crop":
+        f = f"[{i}:v]scale={W}:{H}:force_original_aspect_ratio=increase:flags=lanczos,crop={W}:{H},setsar=1"
+    else:
+        w4, h4 = max(W // 4 // 2 * 2, 2), max(H // 4 // 2 * 2, 2)
+        f = (f"[{i}:v]split[p{tag}][q{tag}];[p{tag}]scale={w4}:{h4}:force_original_aspect_ratio=increase,crop={w4}:{h4},boxblur=6:2,scale={W}:{H},eq=brightness=-0.06[bg{tag}];"
+             f"[q{tag}]scale={W}:{H}:force_original_aspect_ratio=decrease:flags=lanczos[fg{tag}];[bg{tag}][fg{tag}]overlay=(W-w)/2:(H-h)/2,setsar=1")
+    return f + f",fps=30,tpad=stop_mode=clone:stop_duration={D:.2f},trim=duration={D:.2f},setpts=PTS-STARTPTS"
+
+
+def _reel(sources, sec, ratio, fill, fx, zoom, name, dl):
+    """sources: list of (path_or_url, headers, is_video). Makes an MP4 slideshow with gentle zoom and transitions."""
+    if ratio not in REEL_SHAPES:
+        raise HTTPException(400, "Choose 9:16, 4:5 or 1:1.")
+    n = len(sources)
+    if not n:
+        raise HTTPException(422, "No photos found to make a Reel.")
+    sec = max(1.5, min(float(sec), 6.0))
+    if n * sec > 61:
+        raise HTTPException(400, f"That would be {round(n * sec)} seconds. Reels made here can be up to 60 seconds: choose fewer seconds per slide.")
+    W, H = REEL_SHAPES[ratio]
+    tr = FX.get(fx, "fade")
+    T = 0.5 if tr and n > 1 else 0.0
+    D = sec + T
+    frames = int(D * 30)
+    cmd, parts = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"], []
+    for i, (src, hdrs, vid) in enumerate(sources):
+        cmd += _hdr(hdrs) + ((["-t", f"{D:.2f}"]) if vid else ["-loop", "1", "-framerate", "30", "-t", f"{D:.2f}"]) + ["-i", src]
+        f = _cell(i, W, H, fill, D, i)
+        if zoom and not vid:   # slow zoom in or out (alternating), worked on a 2x copy so it glides instead of wobbling
+            z = f"1+0.07*on/{frames}" if i % 2 == 0 else f"1.07-0.07*on/{frames}"
+            f += f",scale={W * 2}:{H * 2}:flags=bicubic,zoompan=z='{z}':x='iw/2-iw/zoom/2':y='ih/2-ih/zoom/2':d=1:s={W}x{H}:fps=30,trim=duration={D:.2f},setpts=PTS-STARTPTS"
+        parts.append(f + f",fps=30,settb=AVTB,setsar=1,format=yuv420p[v{i}]")
+    total = n * sec + T
+    if n == 1:
+        last = "[v0]"
+    elif tr:
+        for k in range(1, n):
+            prev = "[v0]" if k == 1 else f"[x{k - 1}]"
+            parts.append(f"{prev}[v{k}]xfade=transition={tr}:duration={T:.2f}:offset={k * sec:.3f}[x{k}]")
+        last = f"[x{n - 1}]"
+    else:
+        parts.append("".join(f"[v{k}]" for k in range(n)) + f"concat=n={n}:v=1:a=0[x]")
+        last, total = "[x]", n * D
+    cmd += ["-f", "lavfi", "-t", f"{total:.2f}", "-i", "anullsrc=r=44100:cl=stereo"]
+    out = f"/tmp/w-{uuid.uuid4().hex}.mp4"
+    cmd += ["-filter_complex", ";".join(parts), "-map", last, "-map", f"{n}:a", "-t", f"{total:.2f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22",
+            "-pix_fmt", "yuv420p", "-r", "30", "-c:a", "aac", "-b:a", "64k", "-movflags", "+faststart"] + CLEAN + [out]
+    return _send(_run(cmd, 280), out, "video/mp4", name, dl, "Reel")
+
+
+def _fetch_files(items):
+    """Download carousel photos to /tmp (videos are read straight from the link)."""
+    srcs, tmp = [], []
+    with httpx.Client(timeout=40, follow_redirects=True) as c:
+        for e in items:
+            h = e.get("http_headers") or {}
+            if is_video(e):
+                u = e.get("url") or e["formats"][-1]["url"]
+                srcs.append((u, h, True)); continue
+            u = e.get("url") or e.get("thumbnail")
+            if not u:
+                continue
+            try:
+                r = c.get(u, headers=h)
+            except httpx.HTTPError:
+                continue
+            if r.status_code == 200 and len(r.content) > 100:
+                p = f"/tmp/i-{uuid.uuid4().hex}"
+                open(p, "wb").write(r.content); tmp.append(p); srcs.append((p, {}, False))
+    return srcs, tmp
+
+
+def _rm(paths):
+    for p in paths:
+        try:
+            os.remove(p)
+        except OSError:
+            pass
+
+
+@r_.get("/slideshow")
+def slideshow(url: str, sec: float = 3, ratio: str = "9x16", fill: str = "blur", fx: str = "fade", zoom: int = 1, dl: int = 0):
+    """Carousel to Reel: every slide becomes part of one MP4 (videos play their first seconds, muted)."""
+    d = fetch_info(clean(url))
+    srcs, tmp = _fetch_files(items_of(d)[:20])
+    try:
+        return _reel(srcs, sec, ratio, fill, fx, zoom, nice_name(d, "mp4", "reel"), dl)
+    finally:
+        _rm(tmp)
+
+
+@r_.post("/slideshow")
+async def slideshow_upload(files: list[UploadFile] = File(...), sec: float = Form(3), ratio: str = Form("9x16"), fill: str = Form("blur"),
+                           fx: str = Form("fade"), zoom: int = Form(1)):
+    """Your own photos to a Reel. The photos are deleted as soon as the video is made."""
+    tmp = []
+    try:
+        for f in files[:20]:
+            b = await f.read()
+            if len(b) > 100:
+                p = f"/tmp/u-{uuid.uuid4().hex}"
+                open(p, "wb").write(b); tmp.append(p)
+        return _reel([(p, {}, False) for p in tmp], sec, ratio, fill, fx, zoom, "my-photos-reel.mp4", 1)
+    finally:
+        _rm(tmp)
+
+
+def _dur(d, index):
+    its = items_of(d)
+    e = its[min(max(index, 0), len(its) - 1)]
+    return float(e.get("duration") or d.get("duration") or 0)
+
+
+DUET = {"stack": (720, 1280), "side": (720, 1280), "wide": (1280, 720), "pip": (720, 1280)}
+MAX_DUET_SECONDS = 180
+
+
+@r_.get("/duet")
+def duet(a: str, b: str, ai: int = 0, bi: int = 0, layout: str = "stack", fill: str = "crop", sound: str = "a", dl: int = 0):
+    """Two posts in one video: top and bottom, side by side, or picture in picture."""
+    if layout not in DUET:
+        raise HTTPException(400, "Choose a layout.")
+    sa, ha, va, da = media(clean(a), ai, info=True)
+    sb, hb, vb, db = media(clean(b), bi, info=True)
+    if not (va or vb):
+        raise HTTPException(400, "At least one of the two posts needs to be a video.")
+    lens = [x for x, v in ((_dur(da, ai), va), (_dur(db, bi), vb)) if v and x > 0]
+    L = min(min(lens) if lens else 60.0, MAX_DUET_SECONDS)
+    W, H = DUET[layout]
+    if layout == "stack":
+        ca, cb, pa, pb = (W, 638), (W, 638), (0, 0), (0, 642)
+    elif layout == "side":
+        ca, cb, pa, pb = (358, H), (358, H), (0, 0), (362, 0)
+    elif layout == "wide":
+        ca, cb, pa, pb = (638, H), (638, H), (0, 0), (642, 0)
+    else:
+        ca, cb, pa, pb = (W, H), (232, 412), (0, 0), (W - 232 - 32, 36)
+    cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
+    for src, hd, v in ((sa, ha, va), (sb, hb, vb)):
+        cmd += _hdr(hd) + (["-t", f"{L:.2f}"] if v else ["-loop", "1", "-framerate", "30", "-t", f"{L:.2f}"]) + ["-i", src]
+    fa = _cell(0, *ca, fill, L, "a") + "[A]"
+    fb = _cell(1, *cb, fill, L, "b") + (",pad=iw+8:ih+8:4:4:color=white[B]" if layout == "pip" else "[B]")
+    if layout == "pip":
+        fv = f"[A][B]overlay={pb[0] - 4}:{pb[1] - 4},format=yuv420p[v]"
+    else:
+        fv = f"color=c={GOLD}:s={W}x{H}:r=30:d={L:.2f}[bg];[bg][A]overlay={pa[0]}:{pa[1]}[t];[t][B]overlay={pb[0]}:{pb[1]},format=yuv420p[v]"
+    if sound == "b" and not vb:
+        sound = "a"
+    if sound == "a" and not va:
+        sound = "b"
+    out = f"/tmp/d-{uuid.uuid4().hex}.mp4"
+    enc = ["-t", f"{L:.2f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"] + CLEAN + [out]
+    graph = ";".join([fa, fb, fv])
+
+    def go(snd):
+        if snd == "both":
+            g = graph + ";[0:a][1:a]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[au]"
+            return _run(cmd + ["-filter_complex", g, "-map", "[v]", "-map", "[au]"] + enc, 280)
+        return _run(cmd + ["-filter_complex", graph, "-map", "[v]", "-map", f"{0 if snd == 'a' else 1}:a:0?"] + enc, 280)
+
+    r = go(sound)
+    if r.returncode and sound == "both":     # one of them has no sound: keep the one that does
+        r = go("a" if va else "b")
+    return _send(r, out, "video/mp4", nice_name(da, "mp4", "duet"), dl, "duet video")
+
+
 @r_.get("/download")
 def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int = 0, loud: int = 0, privacy: int = Query(0, alias="clean")):
     u = clean(url)
@@ -921,7 +1106,7 @@ def home():
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 8, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None)}
+    return {"ok": True, "version": 9, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None)}
 
 
 app.include_router(r_, prefix="/api")

@@ -1104,9 +1104,196 @@ def home():
     return FileResponse(PUBLIC / "index.html")
 
 
+# ---------- Caption & hashtag writer (Groq AI when GROQ_API_KEY is set, built-in writer otherwise) ----------
+import random, time
+GROQ_MODELS = [m for m in [os.getenv("GROQ_MODEL", "").strip(), "openai/gpt-oss-120b", "openai/gpt-oss-20b"] if m]
+AI_PER_HOUR = int(os.getenv("AI_PER_HOUR", "30"))     # AI requests per visitor per hour; after that the built-in writer answers
+_ai_hits = {}
+LANGS = {"en": "English", "hi": "Hindi written in Devanagari script", "ta": "Tamil written in Tamil script", "te": "Telugu written in Telugu script",
+         "hinglish": "Hinglish (Hindi written in English letters, the way people text in India)"}
+TONES = {"fun": "fun, witty and playful", "heart": "warm, heartfelt and emotional", "classy": "classy, minimal and elegant",
+         "short": "very short and punchy (under 8 words)", "promo": "a friendly sales post for a small business, with a clear call to action"}
+EMO = {"fun": ["😂", "✨", "🤪"], "heart": ["❤️", "🥹", "🌸"], "classy": ["✨", "🤍", "🌙"], "short": ["🔥", "😎", "⚡"], "promo": ["🛍️", "✨", "📦"]}
+TPL = {
+ "en": {"fun": ["Plot twist: {t} was the best part of my week {e}", "Me, pretending to be normal about {t} {e}", "Not me posting {t} again… okay, yes me {e}", "{t}? Say less {e}"],
+        "heart": ["Some moments stay with you forever. {t} is one of them {e}", "Grateful for {t} and the people who make it special {e}", "Little moments, big memories: {t} {e}"],
+        "classy": ["{t}. Simple, quiet, beautiful.", "A little bit of {t}, a lot of happiness {e}", "Collecting moments, not things: {t}"],
+        "short": ["{t} {e}", "Mood: {t}", "{t} mode: on {e}"],
+        "promo": ["Now available: {t}! DM us to order {e}", "{t} is here. Limited stock, grab yours today {e}", "Looking for {t}? We've got you covered. Message us now {e}"]},
+ "hi": {"fun": ["{t} देख के दिल बोला — बस यही चाहिए था {e}", "दुनिया एक तरफ़, {t} एक तरफ़ {e}", "नॉर्मल रहने की कोशिश की, पर {t} ने सब बदल दिया {e}"],
+        "heart": ["कुछ पल हमेशा दिल में रह जाते हैं, {t} उनमें से एक है {e}", "{t} और अपनों का साथ — इससे बढ़कर क्या {e}", "छोटे पल, बड़ी यादें: {t} {e}"],
+        "classy": ["{t}. सादगी में ही ख़ूबसूरती है।", "थोड़ा सा {t}, ढेर सारी ख़ुशी {e}", "पल इकट्ठा करने का शौक़: {t}"],
+        "short": ["{t} {e}", "आज का मूड: {t}", "{t} वाला दिन {e}"],
+        "promo": ["अब उपलब्ध: {t}! ऑर्डर के लिए DM करें {e}", "{t} आ गया है। स्टॉक सीमित है, आज ही लें {e}", "{t} चाहिए? हमसे संपर्क करें {e}"]},
+ "ta": {"fun": ["{t} பார்த்ததும் மனசு சொன்னது — இதுதான் வேணும் {e}", "உலகம் ஒரு பக்கம், {t} ஒரு பக்கம் {e}", "சாதாரணமா இருக்கப் பார்த்தேன், {t} எல்லாத்தையும் மாத்திடுச்சு {e}"],
+        "heart": ["சில தருணங்கள் என்றும் மனதில் நிற்கும், {t} அதில் ஒன்று {e}", "{t}, கூடவே நம்ம மக்கள் — இதைவிட வேற என்ன வேணும் {e}", "சின்ன தருணங்கள், பெரிய நினைவுகள்: {t} {e}"],
+        "classy": ["{t}. எளிமையே அழகு.", "கொஞ்சம் {t}, நிறைய சந்தோஷம் {e}", "பொருட்கள் அல்ல, தருணங்களைச் சேர்க்கிறேன்: {t}"],
+        "short": ["{t} {e}", "இன்றைய மூட்: {t}", "{t} டே {e}"],
+        "promo": ["இப்போது கிடைக்கிறது: {t}! ஆர்டர் செய்ய DM செய்யுங்கள் {e}", "{t} வந்துவிட்டது. குறைந்த அளவே உள்ளது, இன்றே வாங்குங்கள் {e}", "{t} வேண்டுமா? உடனே எங்களைத் தொடர்பு கொள்ளுங்கள் {e}"]},
+ "te": {"fun": ["{t} చూడగానే మనసు చెప్పింది — ఇదే కావాలి {e}", "ప్రపంచం ఒక వైపు, {t} ఒక వైపు {e}", "నార్మల్‌గా ఉండాలనుకున్నా, కానీ {t} అంతా మార్చేసింది {e}"],
+        "heart": ["కొన్ని క్షణాలు ఎప్పటికీ గుండెలో ఉంటాయి, {t} అందులో ఒకటి {e}", "{t}, మనవాళ్ల తోడు — ఇంతకంటే ఏం కావాలి {e}", "చిన్న క్షణాలు, పెద్ద జ్ఞాపకాలు: {t} {e}"],
+        "classy": ["{t}. సింప్లిసిటీలోనే అందం.", "కొంచెం {t}, బోలెడంత ఆనందం {e}", "వస్తువులు కాదు, క్షణాలు సేకరిస్తున్నా: {t}"],
+        "short": ["{t} {e}", "ఈరోజు మూడ్: {t}", "{t} డే {e}"],
+        "promo": ["ఇప్పుడు అందుబాటులో: {t}! ఆర్డర్ కోసం DM చేయండి {e}", "{t} వచ్చేసింది. స్టాక్ పరిమితం, ఈరోజే తీసుకోండి {e}", "{t} కావాలా? ఇప్పుడే మమ్మల్ని సంప్రదించండి {e}"]},
+ "hinglish": {"fun": ["{t} dekh ke dil bola — bas yahi chahiye tha {e}", "Duniya ek taraf, {t} ek taraf {e}", "Normal rehne ki koshish ki, par {t} ne sab badal diya {e}"],
+        "heart": ["Kuch pal hamesha dil mein reh jaate hain, {t} unmein se ek hai {e}", "{t} aur apno ka saath — isse badhkar kya {e}", "Chhote pal, badi yaadein: {t} {e}"],
+        "classy": ["{t}. Saadgi mein hi khoobsurti hai.", "Thoda sa {t}, dher saari khushi {e}", "Cheezein nahi, pal collect karte hain: {t}"],
+        "short": ["{t} {e}", "Aaj ka mood: {t}", "{t} wala din {e}"],
+        "promo": ["Ab available: {t}! Order ke liye DM karein {e}", "{t} aa gaya hai. Limited stock, aaj hi lein {e}", "{t} chahiye? Abhi message karein {e}"]},
+}
+TAGS = [
+ (("food", "biryani", "dosa", "idli", "chai", "coffee", "cake", "recipe", "cooking", "restaurant", "lunch", "dinner", "breakfast", "sweets", "street food", "pizza", "thali"),
+  ["#foodie", "#foodlover", "#indianfood", "#instafood", "#foodphotography", "#homemade", "#streetfood"]),
+ (("travel", "trip", "beach", "mountain", "hills", "goa", "kerala", "manali", "ooty", "temple", "sunset", "sunrise", "road trip", "vacation", "holiday", "marina"),
+  ["#travel", "#travelgram", "#incredibleindia", "#wanderlust", "#travelphotography", "#explore", "#naturelovers"]),
+ (("wedding", "marriage", "shaadi", "bride", "groom", "engagement", "haldi", "mehendi", "sangeet", "reception"),
+  ["#wedding", "#indianwedding", "#shaadi", "#bride", "#weddingphotography", "#mehendi", "#couplegoals"]),
+ (("gym", "workout", "fitness", "yoga", "running", "cricket", "football", "sports", "badminton"),
+  ["#fitness", "#gym", "#workout", "#fitindia", "#yoga", "#healthylifestyle", "#motivation"]),
+ (("dance", "song", "music", "singing", "cover", "guitar", "lyrics"), ["#dance", "#dancevideo", "#reelsindia", "#music", "#singing", "#cover"]),
+ (("saree", "outfit", "fashion", "dress", "kurta", "style", "makeup", "jewellery", "lehenga"), ["#fashion", "#saree", "#ootd", "#style", "#indianwear", "#ethnicwear", "#makeup"]),
+ (("family", "friends", "birthday", "mom", "dad", "amma", "appa", "baby", "kids", "anniversary", "love"), ["#family", "#friends", "#love", "#memories", "#happymoments", "#togetherness"]),
+ (("rain", "flower", "garden", "nature", "sky", "monsoon", "river", "waterfall"), ["#nature", "#naturephotography", "#monsoon", "#skylovers", "#naturelovers"]),
+ (("shop", "sale", "offer", "order", "store", "business", "new arrival", "handmade", "discount", "collection", "available"),
+  ["#smallbusiness", "#shoplocal", "#onlineshopping", "#handmade", "#sale", "#supportsmallbusiness", "#madeinindia"]),
+ (("dog", "cat", "puppy", "kitten", "pet"), ["#pets", "#doglover", "#catlover", "#petsofinstagram"]),
+ (("funny", "comedy", "meme", "prank", "joke"), ["#funny", "#comedy", "#memes", "#reelsindia"]),
+]
+FEST_TAGS = {"diwali": "#happydiwali", "deepavali": "#happydeepavali", "pongal": "#happypongal", "sankranti": "#makarsankranti", "holi": "#happyholi", "eid": "#eidmubarak",
+             "christmas": "#merrychristmas", "navratri": "#navratri", "dussehra": "#dussehra", "ganesh": "#ganeshchaturthi", "onam": "#happyonam", "ugadi": "#happyugadi", "rakhi": "#rakshabandhan"}
+LANG_TAGS = {"ta": ["#tamil", "#tamilreels"], "te": ["#telugu", "#telugureels"], "hi": ["#hindi", "#hindireels"], "hinglish": ["#desi", "#hindireels"], "en": ["#india"]}
+STOP = {"with", "from", "this", "that", "have", "were", "into", "your", "about", "after", "before", "today", "first", "some", "very", "just", "post", "video", "photo", "reel"}
+
+
+def _short_topic(t):
+    t = re.sub(r"https?://\S+|[#@][\w.]+", " ", t or "")
+    t = re.sub(r"\s+", " ", t).strip(" .,!-–—")
+    t = re.split(r"(?<=[.!?।])\s|\n", t)[0].strip(" .,!")
+    if len(t) > 70:
+        t = t[:70].rsplit(" ", 1)[0]
+    return t
+
+
+def quick_tags(text, lang):
+    low = (text or "").lower()
+    out = []
+    for f, tag in FEST_TAGS.items():
+        if f in low:
+            out += [tag, "#festival"]
+    cats = [tags for keys, tags in TAGS if any(re.search(r"(?<![a-z])" + re.escape(k), low) for k in keys)]
+    per = 6 if len(cats) <= 1 else 4 if len(cats) == 2 else 3      # several topics: a few tags from each
+    for tags in cats:
+        out += tags[:per]
+    words = [w for w in re.findall(r"[a-z]{4,}", low) if w not in STOP][:3]
+    out += ["#" + w for w in words]
+    if len(words) >= 2:
+        out.append("#" + words[0] + words[1])
+    out = out[:14] + LANG_TAGS.get(lang, []) + ["#reels", "#reelsinstagram", "#instagood", "#explore", "#trending"]
+    seen, res = set(), []
+    for t in out:
+        if t not in seen:
+            seen.add(t); res.append(t)
+    return res[:20]
+
+
+def quick_write(topic, lang, tone, emoji, seed=None):
+    lang = lang if lang in TPL else "en"
+    tone = tone if tone in TPL[lang] else "fun"
+    t = _short_topic(topic) or "this moment"
+    rnd = random.Random(seed)
+    pool = list(TPL[lang][tone])
+    rnd.shuffle(pool)
+    em = EMO[tone]
+    caps = []
+    for i, p in enumerate(pool[:3]):
+        e = em[i % len(em)] if emoji else ""
+        c = p.replace("{t}", t).replace("{e}", e).strip()
+        caps.append(c[:1].upper() + c[1:] if lang in ("en", "hinglish") else c)
+    return {"captions": caps, "hashtags": quick_tags(topic, lang), "ai": False}
+
+
+def _groq(topic, ctx, lang, tone, emoji):
+    key = os.getenv("GROQ_API_KEY", "").strip()
+    if not key:
+        return None
+    sys_p = ("You write Instagram and WhatsApp captions for Indian creators and small businesses. "
+             "Reply with JSON only, exactly: {\"captions\": [three different captions], \"hashtags\": [15 hashtags]}. "
+             "Each caption under 220 characters. Hashtags start with #, have no spaces, mostly in English letters, mixing popular and specific ones; "
+             "add 1 or 2 in the caption language when it fits. Never include links, phone numbers or made-up facts, prices or dates.")
+    user_p = (f"Post: {topic or '(not given)'}\n" + (f"Existing caption of the post for context: {ctx}\n" if ctx else "") +
+              f"Language: {LANGS.get(lang, 'English')}\nTone: {TONES.get(tone, TONES['fun'])}\nEmojis: {'yes, a few' if emoji else 'no emojis'}")
+    body = {"messages": [{"role": "system", "content": sys_p}, {"role": "user", "content": user_p}], "temperature": 0.9,
+            "max_completion_tokens": 1600, "response_format": {"type": "json_object"}, "reasoning_effort": "low"}
+    with httpx.Client(timeout=25) as c:
+        for model in GROQ_MODELS:
+            for extra in (True, False):
+                b = dict(body, model=model)
+                if not extra:
+                    b.pop("reasoning_effort", None); b.pop("response_format", None)
+                try:
+                    r = c.post("https://api.groq.com/openai/v1/chat/completions", headers={"Authorization": f"Bearer {key}"}, json=b)
+                except httpx.HTTPError as e:
+                    print("[waverise] Groq unreachable:", e); return None
+                if r.status_code == 200:
+                    try:
+                        txt = r.json()["choices"][0]["message"]["content"] or ""
+                        m = re.search(r"\{.*\}", txt, re.S)
+                        j = json.loads(m.group(0) if m else txt)
+                        caps = [str(x).strip() for x in j.get("captions", []) if str(x).strip()][:3]
+                        tags = []
+                        for t in j.get("hashtags", []):
+                            t = "#" + re.sub(r"[\s#]+", "", str(t))
+                            if len(t) > 1 and t not in tags:
+                                tags.append(t)
+                        if caps:
+                            return {"captions": caps, "hashtags": tags[:20] or quick_tags(topic + " " + ctx, lang), "ai": True}
+                    except (ValueError, KeyError, IndexError, AttributeError):
+                        pass
+                    break                                  # answered but unusable: try the next model
+                if r.status_code in (401, 403, 429):     # bad key or out of free quota: use the built-in writer
+                    print("[waverise] Groq said", r.status_code, r.text[:200]); return None
+                if r.status_code == 400 and extra:
+                    continue                              # maybe this model doesn't take one of the options: try plain
+                break                                      # model missing or retired: try the next one
+    return None
+
+
+class WriteReq(BaseModel):
+    topic: str = ""
+    url: str = ""
+    lang: str = "en"
+    tone: str = "fun"
+    emoji: bool = True
+
+
+@r_.post("/write")
+def write(b: WriteReq, request: Request):
+    topic, ctx = (b.topic or "").strip()[:400], ""
+    if (b.url or "").strip():
+        d = fetch_info(clean(b.url.strip()))
+        ctx = re.sub(r"\s+", " ", str(d.get("description") or d.get("title") or "")).strip()[:600]
+    if not topic and not ctx:
+        raise HTTPException(400, "Tell us what your post is about, or paste a post link.")
+    lang = b.lang if b.lang in LANGS else "en"
+    tone = b.tone if b.tone in TONES else "fun"
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "") or "?").split(",")[0].strip()
+    now = time.time()
+    hits = [t for t in _ai_hits.get(ip, []) if now - t < 3600]
+    res = None
+    if len(hits) < AI_PER_HOUR:
+        res = _groq(topic, ctx, lang, tone, b.emoji)
+        if res:
+            hits.append(now)
+    _ai_hits[ip] = hits
+    if len(_ai_hits) > 5000:
+        _ai_hits.clear()
+    return res or quick_write(topic or ctx, lang, tone, b.emoji)
+
+
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 9, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None)}
+    return {"ok": True, "version": 10, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None),
+            "ai_writer": bool(os.getenv("GROQ_API_KEY", "").strip())}
 
 
 app.include_router(r_, prefix="/api")

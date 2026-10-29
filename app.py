@@ -1,4 +1,5 @@
-"""WaveRise backend: public Instagram, X (Twitter), Threads and YouTube posts, MP3, clips, ringtones, GIFs, smaller videos and captions. No login is used."""
+"""WaveRise backend: public Instagram and X (Twitter) posts, MP3, clips, ringtones, GIFs, smaller videos, stickers, Reels and captions. No login is used.
+Threads and YouTube code stays in place but is switched off (SOON_SITES) until it works reliably from a cloud server."""
 import html as _html, json, math, os, re, shutil, subprocess, time, unicodedata, uuid
 from urllib.parse import quote
 from urllib.parse import urlparse
@@ -846,24 +847,6 @@ def _video_only(vid):
         raise HTTPException(400, "This item is a photo. Choose a video post.")
 
 
-@r_.get("/boomerang")
-def boomerang(url: str, index: int = 0, start: float = 0, length: float = 2, fmt: str = "mp4", dl: int = 0):
-    src, hdrs, vid, d = media(clean(url), index, info=True)
-    _video_only(vid)
-    start, length = max(0.0, min(start, 21600.0)), max(1.0, min(length, 3.0))
-    gif = fmt == "gif"
-    out = f"/tmp/b-{uuid.uuid4().hex}.{'gif' if gif else 'mp4'}"
-    w = 360 if gif else 720
-    loop = (f"[0:v]trim=duration={length:.2f},setpts=PTS-STARTPTS,fps={15 if gif else 30},scale='min({w},iw)':-2:flags=lanczos,setsar=1,split[a][b];[b]reverse[r];[a][r]concat=n=2:v=1:a=0[o];"
-            "[o]split[x][y];[x][y]concat=n=2:v=1:a=0")
-    if gif:
-        args = ["-an", "-filter_complex", loop + "[l];[l]split[p][q];[p]palettegen=stats_mode=diff[pl];[q][pl]paletteuse=dither=bayer:bayer_scale=4", "-loop", "0"] + CLEAN
-    else:
-        args = ["-an", "-filter_complex", loop, "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + CLEAN
-    r = _ff(src, hdrs, start, args, out)
-    return _send(r, out, "image/gif" if gif else "video/mp4", nice_name(d, "gif" if gif else "mp4", "boomerang"), dl, "boomerang")
-
-
 @r_.get("/frame")
 def frame(url: str, index: int = 0, at: float = -1, dl: int = 0):
     """HD photo from a video: a clear, typical frame picked automatically (at=-1) or the moment you choose."""
@@ -897,25 +880,6 @@ def status_part(url: str, index: int = 0, part: int = 1, seg: int = 30, dl: int 
             "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"] + CLEAN
     r = _ff(src, hdrs, (part - 1) * seg, args, out)
     return _send(r, out, "video/mp4", nice_name(d, "mp4", f"part-{part}-of-{n}"), dl, f"part {part}")
-
-
-@r_.get("/speed")
-def speed(url: str, index: int = 0, rate: float = 2.0, dl: int = 0):
-    src, hdrs, vid, d = media(clean(url), index, info=True)
-    _video_only(vid)
-    if rate not in (0.5, 0.75, 1.25, 1.5, 2.0):
-        raise HTTPException(400, "Choose 0.5x, 0.75x, 1.25x, 1.5x or 2x.")
-    its = items_of(d)
-    dur = d.get("duration") or (its[min(index, len(its) - 1)].get("duration") if its else None) or 0
-    if dur / rate > 240:
-        raise HTTPException(413, "The result would be longer than 4 minutes, which is too long for this free server.")
-    out = f"/tmp/s-{uuid.uuid4().hex}.mp4"
-    tag = f"{rate:g}x"
-    enc = ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-movflags", "+faststart"] + CLEAN
-    r = _ff(src, hdrs, 0, ["-filter_complex", f"[0:v]setpts=PTS/{rate}[v];[0:a]atempo={rate}[a]", "-map", "[v]", "-map", "[a]", "-c:a", "aac", "-b:a", "128k"] + enc, out)
-    if r.returncode:   # the video has no sound: change the picture only
-        r = _ff(src, hdrs, 0, ["-an", "-vf", f"setpts=PTS/{rate}"] + enc, out)
-    return _send(r, out, "video/mp4", nice_name(d, "mp4", tag), dl, f"{tag} version")
 
 
 # ---------- WhatsApp sticker ----------
@@ -980,77 +944,7 @@ def reshape(url: str, index: int = 0, ratio: str = "9x16", fill: str = "blur", d
     return _send(r, out, "video/mp4", nice_name(d, "mp4", ratio.replace("x", "-")), dl, "reshaped video")
 
 
-# ---------- carousel to PDF ----------
-def _jpeg_size(b):
-    i = 2
-    while i + 9 < len(b) and b[i] == 0xFF:
-        m, ln = b[i + 1], int.from_bytes(b[i + 2:i + 4], "big")
-        if m in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
-            return int.from_bytes(b[i + 7:i + 9], "big"), int.from_bytes(b[i + 5:i + 7], "big"), b[i + 9]
-        i += 2 + ln
-    return None
-
-
-def _to_jpeg(b):
-    if b[:2] == b"\xff\xd8" and _jpeg_size(b):
-        return b
-    p = subprocess.run([ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-frames:v", "1", "-q:v", "2", "-f", "mjpeg", "pipe:1"],
-                       input=b, capture_output=True, timeout=60)
-    return p.stdout if p.returncode == 0 and p.stdout[:2] == b"\xff\xd8" else None
-
-
-def make_pdf(jpegs, title="WaveRise"):
-    """Minimal PDF: one page per photo, page width 595 pt (A4 width), height follows the photo."""
-    objs, kids = [], []
-    def add(o):
-        objs.append(o); return len(objs)
-    add(b"")  # catalog placeholder (1)
-    add(b"")  # pages placeholder (2)
-    for j in jpegs:
-        w, h, comps = _jpeg_size(j)
-        pw, ph = 595.0, round(595.0 * h / w, 2)
-        cs = b"/DeviceGray" if comps == 1 else b"/DeviceCMYK" if comps == 4 else b"/DeviceRGB"
-        img = add(b"<< /Type /XObject /Subtype /Image /Width %d /Height %d /ColorSpace %s /BitsPerComponent 8 /Filter /DCTDecode /Length %d >>\nstream\n" % (w, h, cs, len(j)) + j + b"\nendstream")
-        content = b"q %.2f 0 0 %.2f 0 0 cm /Im0 Do Q" % (pw, ph)
-        cn = add(b"<< /Length %d >>\nstream\n" % len(content) + content + b"\nendstream")
-        kids.append(add(b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2f %.2f] /Resources << /XObject << /Im0 %d 0 R >> >> /Contents %d 0 R >>" % (pw, ph, img, cn)))
-    objs[0] = b"<< /Type /Catalog /Pages 2 0 R >>"
-    objs[1] = b"<< /Type /Pages /Kids [%s] /Count %d >>" % (b" ".join(b"%d 0 R" % k for k in kids), len(kids))
-    info = add(b"<< /Producer (WaveRise) /Title (" + re.sub(rb"[()\\]", b"", title.encode("latin-1", "ignore"))[:80] + b") >>")
-    out, offs = bytearray(b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n"), []
-    for n, o in enumerate(objs, 1):
-        offs.append(len(out)); out += b"%d 0 obj\n" % n + o + b"\nendobj\n"
-    x = len(out)
-    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objs) + 1) + b"".join(b"%010d 00000 n \n" % o for o in offs)
-    out += b"trailer\n<< /Size %d /Root 1 0 R /Info %d 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objs) + 1, info, x)
-    return bytes(out)
-
-
-@r_.get("/pdf")
-def pdf(url: str):
-    u = clean(url)
-    d = fetch_info(u)
-    its = items_of(d)[:20]
-    pics = []
-    with httpx.Client(timeout=40, follow_redirects=True) as c:
-        for e in its:
-            src = e.get("thumbnail") if is_video(e) else (e.get("url") or e.get("thumbnail"))   # videos become their cover photo
-            if not src:
-                continue
-            try:
-                r = c.get(src, headers=e.get("http_headers") or {})
-            except httpx.HTTPError:
-                continue
-            j = _to_jpeg(r.content) if r.status_code == 200 else None
-            if j:
-                pics.append(jpeg_clean(j))
-    if not pics:
-        raise HTTPException(422, "Couldn't get the photos from this post to make a PDF.")
-    return Response(make_pdf(pics, (d.get("description") or "WaveRise")[:80]), media_type="application/pdf",
-                    headers={"Content-Disposition": disposition(nice_name(d, "pdf"))})
-
-
-# ---------- carousel (or your photos) to Reel, and duet / split screen ----------
+# ---------- carousel (or your photos) to Reel ----------
 REEL_SHAPES = {"9x16": (720, 1280), "4x5": (720, 900), "1x1": (720, 720)}
 FX = {"fade": "fade", "slide": "slideleft", "zoom": "zoomin", "none": None}
 GOLD = "0xF2C14E"
@@ -1174,65 +1068,6 @@ async def slideshow_upload(files: list[UploadFile] = File(...), sec: float = For
         return _reel([(p, {}, False) for p in tmp], sec, ratio, fill, fx, zoom, "my-photos-reel.mp4", 1)
     finally:
         _rm(tmp)
-
-
-def _dur(d, index):
-    its = items_of(d)
-    e = its[min(max(index, 0), len(its) - 1)]
-    return float(e.get("duration") or d.get("duration") or 0)
-
-
-DUET = {"stack": (720, 1280), "side": (720, 1280), "wide": (1280, 720), "pip": (720, 1280)}
-MAX_DUET_SECONDS = 180
-
-
-@r_.get("/duet")
-def duet(a: str, b: str, ai: int = 0, bi: int = 0, layout: str = "stack", fill: str = "crop", sound: str = "a", dl: int = 0):
-    """Two posts in one video: top and bottom, side by side, or picture in picture."""
-    if layout not in DUET:
-        raise HTTPException(400, "Choose a layout.")
-    sa, ha, va, da = media(clean(a), ai, info=True)
-    sb, hb, vb, db = media(clean(b), bi, info=True)
-    if not (va or vb):
-        raise HTTPException(400, "At least one of the two posts needs to be a video.")
-    lens = [x for x, v in ((_dur(da, ai), va), (_dur(db, bi), vb)) if v and x > 0]
-    L = min(min(lens) if lens else 60.0, MAX_DUET_SECONDS)
-    W, H = DUET[layout]
-    if layout == "stack":
-        ca, cb, pa, pb = (W, 638), (W, 638), (0, 0), (0, 642)
-    elif layout == "side":
-        ca, cb, pa, pb = (358, H), (358, H), (0, 0), (362, 0)
-    elif layout == "wide":
-        ca, cb, pa, pb = (638, H), (638, H), (0, 0), (642, 0)
-    else:
-        ca, cb, pa, pb = (W, H), (232, 412), (0, 0), (W - 232 - 32, 36)
-    cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
-    for src, hd, v in ((sa, ha, va), (sb, hb, vb)):
-        cmd += _hdr(hd) + (["-t", f"{L:.2f}"] if v else ["-loop", "1", "-framerate", "30", "-t", f"{L:.2f}"]) + ["-i", src]
-    fa = _cell(0, *ca, fill, L, "a") + "[A]"
-    fb = _cell(1, *cb, fill, L, "b") + (",pad=iw+8:ih+8:4:4:color=white[B]" if layout == "pip" else "[B]")
-    if layout == "pip":
-        fv = f"[A][B]overlay={pb[0] - 4}:{pb[1] - 4},format=yuv420p[v]"
-    else:
-        fv = f"color=c={GOLD}:s={W}x{H}:r=30:d={L:.2f}[bg];[bg][A]overlay={pa[0]}:{pa[1]}[t];[t][B]overlay={pb[0]}:{pb[1]},format=yuv420p[v]"
-    if sound == "b" and not vb:
-        sound = "a"
-    if sound == "a" and not va:
-        sound = "b"
-    out = f"/tmp/d-{uuid.uuid4().hex}.mp4"
-    enc = ["-t", f"{L:.2f}", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"] + CLEAN + [out]
-    graph = ";".join([fa, fb, fv])
-
-    def go(snd):
-        if snd == "both":
-            g = graph + ";[0:a][1:a]amix=inputs=2:duration=longest:normalize=0,alimiter=limit=0.95[au]"
-            return _run(cmd + ["-filter_complex", g, "-map", "[v]", "-map", "[au]"] + enc, 280)
-        return _run(cmd + ["-filter_complex", graph, "-map", "[v]", "-map", f"{0 if snd == 'a' else 1}:a:0?"] + enc, 280)
-
-    r = go(sound)
-    if r.returncode and sound == "both":     # one of them has no sound: keep the one that does
-        r = go("a" if va else "b")
-    return _send(r, out, "video/mp4", nice_name(da, "mp4", "duet"), dl, "duet video")
 
 
 @r_.get("/download")
@@ -1495,7 +1330,7 @@ def write(b: WriteReq, request: Request):
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 11, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None),
+    return {"ok": True, "version": 12, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None),
             "ai_writer": bool(os.getenv("GROQ_API_KEY", "").strip())}
 
 

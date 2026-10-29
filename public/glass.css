@@ -428,3 +428,13 @@ details.report summary,details.mytools summary{cursor:pointer;min-height:44px;di
 .comm .row select{width:auto;flex:1 1 200px}
 [data-theme=light] .comm .tin{background:rgba(255,255,255,.9);border-color:rgba(0,0,0,.16);color:#0d1730}
 .crow .seg{margin:0}
+
+/* Passport Photo Maker */
+.ppsheet{margin-top:6px;padding:10px;border-radius:14px;background:rgba(255,255,255,.04);border:1px solid var(--line)}
+.ppsheet img{display:block;width:100%;max-width:520px;height:auto;margin:0 auto;border-radius:6px;background:#fff}
+.card select{max-width:100%}
+.card .row>select{flex:1 1 200px;min-height:46px}
+/* About-this-tool text under each tool */
+.seo-about{margin-top:26px}
+.seo-about h2{font-size:20px;margin:0 0 6px}
+.seo-about p{margin:0;color:var(--mute);max-width:70ch}

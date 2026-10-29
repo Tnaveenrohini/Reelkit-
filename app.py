@@ -1,5 +1,5 @@
 """WaveRise backend: public Instagram, X (Twitter), Threads and YouTube posts, MP3, clips, ringtones, GIFs, smaller videos and captions. No login is used."""
-import html as _html, json, math, os, re, shutil, subprocess, unicodedata, uuid
+import html as _html, json, math, os, re, shutil, subprocess, time, unicodedata, uuid
 from urllib.parse import quote
 from urllib.parse import urlparse
 from pathlib import Path
@@ -75,6 +75,9 @@ def explain(err, url):
     if "no video could be found" in m or "no video" in m:
         return "This post has no video or GIF. For X, WaveRise saves videos and GIFs from public posts."
     if any(k in m for k in ("login", "log in", "authentication", "cookies", "empty media response", "accessible in your browser", "nsfw", "age-restricted", "sensitive")):
+        if site == "Instagram":
+            return ("Instagram didn't share this post with WaveRise just now. It sometimes holds back posts from cloud servers for a few minutes. "
+                    "Wait a minute and try again. Posts from private accounts, and posts marked sensitive, can't be downloaded.")
         return f"{site} is asking for a login for this link, which WaveRise doesn't use. Try a public post, or try again in a few minutes."
     if "429" in m or "too many" in m or "rate" in m:
         return f"{site} is limiting requests right now. Wait a few minutes and try again."
@@ -94,10 +97,210 @@ def _retryable(e):
     return any(k in m for k in ("only images", "not a bot", "requested format", "player response", "403", "po token", "unable to extract", "signature", "n challenge", "javascript"))
 
 
+# ---------- Instagram without login: the post page's own data, then the web app's public query ----------
+IG_CODE = re.compile(r"instagram\.com/(?:p|reels?|tv)/([A-Za-z0-9_-]{5,})", re.I)
+IG_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36"
+IG_APP_ID = "936619743392459"
+IG_DOC_ID = os.getenv("IG_DOC_ID", "27128499623469141")      # the logged-out web app's post query (updated July 2026); override without a code change
+IG_MEDIA_HDR = {"User-Agent": IG_UA, "Referer": "https://www.instagram.com/"}
+IG_NAV = {"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9",
+          "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "none", "Sec-Fetch-User": "?1", "Upgrade-Insecure-Requests": "1"}
+
+
+def _ig_walk(o, code, depth=0):
+    """Find the media object for this shortcode anywhere in Instagram's JSON (new v1 shape or older GraphQL shape)."""
+    if depth > 60:
+        return None
+    if isinstance(o, dict):
+        c = o.get("code") or o.get("shortcode")
+        if c == code and any(k in o for k in ("video_versions", "image_versions2", "carousel_media", "display_url", "video_url", "edge_sidecar_to_children")):
+            return o
+        for v in o.values():
+            r = _ig_walk(v, code, depth + 1)
+            if r is not None:
+                return r
+    elif isinstance(o, list):
+        for v in o:
+            r = _ig_walk(v, code, depth + 1)
+            if r is not None:
+                return r
+    return None
+
+
+def _ig_entry(m):
+    if "video_versions" in m or "image_versions2" in m:          # v1 shape
+        vids = m.get("video_versions") or []
+        imgs = (m.get("image_versions2") or {}).get("candidates") or []
+        img = max(imgs, key=lambda x: (x.get("width") or 0) * (x.get("height") or 0)) if imgs else {}
+        e = {"thumbnail": img.get("url"), "width": img.get("width"), "height": img.get("height"), "http_headers": dict(IG_MEDIA_HDR)}
+        if vids:
+            v = max(vids, key=lambda x: (x.get("width") or 0) * (x.get("height") or 0))
+            e.update(url=v["url"], ext="mp4", width=v.get("width") or e["width"], height=v.get("height") or e["height"], duration=m.get("video_duration"),
+                     formats=[{"url": v["url"], "ext": "mp4", "width": v.get("width"), "height": v.get("height"), "http_headers": dict(IG_MEDIA_HDR)}])
+        else:
+            e["url"] = img.get("url")
+        return e
+    dims_ = m.get("dimensions") or {}
+    e = {"thumbnail": m.get("display_url") or m.get("thumbnail_src"), "width": dims_.get("width"), "height": dims_.get("height"), "http_headers": dict(IG_MEDIA_HDR)}
+    if m.get("is_video") and m.get("video_url"):
+        e.update(url=m["video_url"], ext="mp4", duration=m.get("video_duration"),
+                 formats=[{"url": m["video_url"], "ext": "mp4", "http_headers": dict(IG_MEDIA_HDR)}])
+    else:
+        e["url"] = e["thumbnail"]
+    return e
+
+
+def _ig_info(m):
+    if m.get("carousel_media"):
+        kids = m["carousel_media"]
+    elif m.get("edge_sidecar_to_children"):
+        kids = [x.get("node") or {} for x in m["edge_sidecar_to_children"].get("edges") or []]
+    else:
+        kids = [m]
+    entries = [e for e in (_ig_entry(k) for k in kids) if e.get("url")]
+    if not entries:
+        return None
+    cap = m.get("caption")
+    cap = cap.get("text") if isinstance(cap, dict) else (cap if isinstance(cap, str) else "")
+    if not cap:
+        edges = (m.get("edge_media_to_caption") or {}).get("edges") or []
+        cap = (edges[0].get("node") or {}).get("text", "") if edges else ""
+    user = (m.get("user") or m.get("owner") or {}).get("username")
+    ts = m.get("taken_at") or m.get("taken_at_timestamp")
+    d = {"uploader": user, "channel": user, "description": cap or "", "title": None, "thumbnail": entries[0].get("thumbnail"),
+         "like_count": m.get("like_count") or (m.get("edge_media_preview_like") or {}).get("count"), "comment_count": m.get("comment_count"),
+         "upload_date": time.strftime("%Y%m%d", time.gmtime(int(ts))) if ts else None, "entries": entries}
+    if len(entries) == 1:
+        d["duration"] = entries[0].get("duration")
+    return d
+
+
+def _ig_page_json(html):
+    for s in re.finditer(r'<script type="application/json"[^>]*>(.*?)</script>', html or "", re.S):
+        try:
+            yield json.loads(s.group(1))
+        except ValueError:
+            continue
+
+
+def _ig_embed(html, code):
+    """Last resort: the public embed page. Video address and picture are written into its script data."""
+    m = None
+    for blob in re.findall(r'"gql_data"\s*:\s*(\{.*?\})\s*,\s*"', html or "", re.S) + re.findall(r'"contextJSON"\s*:\s*"((?:[^"\\]|\\.)*)"', html or ""):
+        try:
+            j = json.loads(blob) if blob.startswith("{") else json.loads(json.loads(f'"{blob}"'))
+        except ValueError:
+            continue
+        m = _ig_walk(j, code)
+        if m:
+            return _ig_info(m)
+    vu = re.search(r'"video_url"\s*:\s*"([^"]+)"', html or "")
+    img = re.search(r'class="EmbeddedMediaImage"[^>]*src="([^"]+)"', html or "")
+    user = re.search(r'class="UsernameText"[^>]*>([^<]+)<', html or "")
+    if not (vu or img):
+        return None
+    un = lambda s: json.loads(f'"{s}"') if s else None
+    pic = _html.unescape(img.group(1)) if img else None
+    e = {"thumbnail": pic, "http_headers": dict(IG_MEDIA_HDR)}
+    if vu:
+        v = un(vu.group(1)); e.update(url=v, ext="mp4", formats=[{"url": v, "ext": "mp4", "http_headers": dict(IG_MEDIA_HDR)}])
+    else:
+        e["url"] = pic
+    return {"uploader": user.group(1).strip() if user else None, "description": "", "title": None, "thumbnail": pic, "entries": [e]}
+
+
+def _ig_direct(url, notes):
+    m = IG_CODE.search(url)
+    if not m:
+        return None
+    code = m.group(1)
+    with httpx.Client(timeout=15, follow_redirects=True, headers={"User-Agent": IG_UA, "Accept-Language": "en-US,en;q=0.9"}) as c:
+        html = ""
+        try:                                                       # 1) the post page embeds the post's data for logged-out visitors
+            r = c.get(f"https://www.instagram.com/p/{code}/", headers=IG_NAV)
+            final = str(r.url)
+            if "accounts/login" in final or "/challenge" in final:
+                notes.append("post page sent to login")
+            elif r.status_code == 404:
+                notes.append("post page 404"); raise HTTPException(422, "This post is private, deleted or no longer available.")
+            elif r.status_code == 200:
+                html = r.text
+                for j in _ig_page_json(html):
+                    found = _ig_walk(j, code)
+                    if found and (d := _ig_info(found)):
+                        notes.append("post page ok"); return d
+                notes.append("post page had no post data")
+            else:
+                notes.append(f"post page {r.status_code}")
+        except httpx.HTTPError as e:
+            notes.append(f"post page unreachable ({type(e).__name__})")
+        try:                                                       # 2) the query the logged-out web app makes
+            lsd = re.search(r'"LSD",\[\],\{[^{}]*"token":"([^"]+)"', html)
+            if not lsd or not c.cookies.get("csrftoken"):
+                home = c.get("https://www.instagram.com/", headers=IG_NAV)
+                lsd = lsd or re.search(r'"LSD",\[\],\{[^{}]*"token":"([^"]+)"', home.text)
+            tok = lsd.group(1) if lsd else ""
+            data = {"variables": json.dumps({"shortcode": code, "__relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider": False}, separators=(",", ":")),
+                    "doc_id": IG_DOC_ID, "server_timestamps": "true"}
+            if tok:
+                data["lsd"] = tok
+            h = {"x-ig-app-id": IG_APP_ID, "x-csrftoken": c.cookies.get("csrftoken") or "", "Referer": f"https://www.instagram.com/p/{code}/", "Origin": "https://www.instagram.com",
+                 "Accept": "*/*", "Content-Type": "application/x-www-form-urlencoded", "X-Requested-With": "XMLHttpRequest",
+                 "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"}
+            if tok:
+                h["x-fb-lsd"] = tok
+            r = c.post("https://www.instagram.com/api/graphql", data=data, headers=h)
+            if r.status_code == 200:
+                try:
+                    j = r.json()
+                except ValueError:
+                    j = None
+                found = _ig_walk(j, code) if j else None
+                if found and (d := _ig_info(found)):
+                    notes.append("web query ok"); return d
+                notes.append("web query had no post data")
+            else:
+                notes.append(f"web query {r.status_code}")
+        except httpx.HTTPError as e:
+            notes.append(f"web query unreachable ({type(e).__name__})")
+        try:                                                       # 3) the public embed page
+            r = c.get(f"https://www.instagram.com/p/{code}/embed/captioned/", headers=IG_NAV)
+            if r.status_code == 200 and (d := _ig_embed(r.text, code)):
+                notes.append("embed ok"); return d
+            notes.append(f"embed {r.status_code}, no media")
+        except httpx.HTTPError as e:
+            notes.append(f"embed unreachable ({type(e).__name__})")
+    return None
+
+
+_info_cache = {}
+INFO_TTL = 600     # seconds: one Instagram read serves the info screen and the download that follows
+
+
 def fetch_info(url):
+    hit = _info_cache.get(url)
+    if hit and time.time() - hit[0] < INFO_TTL:
+        return json.loads(hit[1])
+    d = _fetch_info(url)
+    if len(_info_cache) > 300:
+        _info_cache.clear()
+    try:
+        _info_cache[url] = (time.time(), json.dumps(d, default=str))
+    except (TypeError, ValueError):
+        pass
+    return d
+
+
+def _fetch_info(url):
     site = site_of(url)
     if site == "threads":
         return _threads(url)
+    ig_notes = []
+    if site == "instagram":
+        d = _ig_direct(url, ig_notes)
+        print(f"[waverise] instagram direct for {url}: {'; '.join(ig_notes)}")
+        if d:
+            return d
     o = {"quiet": True, "no_warnings": True, "cachedir": False, "ignore_no_formats_error": True, "noplaylist": True,
          "format": YT_FORMAT if site == "youtube" else "best[ext=mp4]/best"}
     if site == "youtube" and js_runtime():
@@ -1105,7 +1308,7 @@ def home():
 
 
 # ---------- Caption & hashtag writer (Groq AI when GROQ_API_KEY is set, built-in writer otherwise) ----------
-import random, time
+import random
 GROQ_MODELS = [m for m in [os.getenv("GROQ_MODEL", "").strip(), "openai/gpt-oss-120b", "openai/gpt-oss-20b"] if m]
 AI_PER_HOUR = int(os.getenv("AI_PER_HOUR", "30"))     # AI requests per visitor per hour; after that the built-in writer answers
 _ai_hits = {}
@@ -1292,7 +1495,7 @@ def write(b: WriteReq, request: Request):
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 10, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None),
+    return {"ok": True, "version": 11, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None),
             "ai_writer": bool(os.getenv("GROQ_API_KEY", "").strip())}
 
 

@@ -98,8 +98,8 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 
 </style>
 <script>try{if(sessionStorage.getItem("wr_intro")&&!/[?&]intro/.test(location.search))document.documentElement.classList.add("wr-seen")}catch(e){}</script>
-<link rel="stylesheet" href="intro.css">
-<link rel="stylesheet" href="glass.css">
+<link rel="stylesheet" href="intro.css?v=11">
+<link rel="stylesheet" href="glass.css?v=11">
 <noscript><style>#wr-intro{display:none}</style></noscript>
 </head>
 <body>
@@ -168,9 +168,9 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 <footer><div class="wrap"><p><button id="inst" type="button" class="go" data-i="inst">Install WaveRise app</button></p><p id="instmsg" class="note" style="margin:0 0 10px"></p><div class="flinks"><a href="#about" data-i="f_about">About WaveRise</a><a href="#contact" data-i="f_contact">Contact Us</a><a href="#faq" data-i="f_faq">FAQ</a><a href="#privacy" data-i="f_privacy">Privacy Policy</a><a href="#terms" data-i="f_terms">Terms of Service</a><a href="#dmca" data-i="f_dmca">DMCA / Copyright</a></div><p class="made"><svg class="flag" viewBox="0 0 30 20" aria-hidden="true"><rect width="30" height="6.67" fill="#ff9933"/><rect y="6.67" width="30" height="6.66" fill="#fff"/><rect y="13.33" width="30" height="6.67" fill="#138808"/><circle cx="15" cy="10" r="2.6" fill="none" stroke="#000080" stroke-width=".5"/><path d="M15 7.4v5.2M12.4 10h5.2M13.16 8.16l3.68 3.68M16.84 8.16l-3.68 3.68" stroke="#000080" stroke-width=".3"/></svg><span data-i="made">Made in India</span><span class="dot"></span><span data-i="proud">Proud to be Indian</span></p>
 <p class="note" style="margin:0">© 2026 WaveRise. Not affiliated with Instagram, Threads, Meta, X, YouTube or Google.</p></div></footer>
 
-<script src="config.js"></script>
-<script src="dashavatara.js" defer></script>
-<script src="intro.js" defer></script>
+<script src="config.js?v=11"></script>
+<script src="dashavatara.js?v=11" defer></script>
+<script src="intro.js?v=11" defer></script>
 <script>
 /* WaveRise Festival Frames: greeting frames drawn on the phone. No photo ever leaves the device. */
 (() => {
@@ -727,7 +727,7 @@ async function festEditor(){
   lg=sel('Greeting language',[['en','English'],['hi','हिन्दी'],['ta','தமிழ்'],['te','తెలుగు']],S.lang),
   tx=h('input',{type:'text',class:'tin',maxlength:60,'aria-label':'Greeting text'}),nm=h('input',{type:'text',class:'tin',maxlength:40,placeholder:'Your name (optional)','aria-label':'Your name'}),
   inp=h('input',{type:'file',accept:'image/*'}),zm=h('input',{type:'range',min:1,max:3,step:.01,value:S.zoom,'aria-label':'Zoom photo',style:'width:100%;flex:none'}),mk=swt('WaveRise mark',S.mark),
-  cv=h('canvas',{class:'fest-cv',role:'img','aria-label':'Greeting preview'}),dl=h('a',{class:'btn',download:'greeting.jpg',href:'#'},'Download'),
+  cv=h('canvas',{class:'fest-cv',role:'img','aria-label':'Greeting preview',style:'display:block;width:100%;max-width:420px;height:auto;margin:16px auto 8px;border-radius:14px'}),dl=h('a',{class:'btn',download:'greeting.jpg',href:'#'},'Download'),
   sh=SHARE_JPG?h('button',{type:'button',class:'btn share'},L('share')):null,tip=h('p',{class:'note',style:'text-align:left;margin:4px 0 0'}),st=h('p',{class:'note',style:'text-align:left;margin:0 0 10px'});
  tx.value=S.own&&S.text!=null?S.text:fo().g[S.lang];nm.value=S.name;
  if(up)st.textContent=`Coming up: ${up.n} ${up.days<=0?'is today':up.days===1?'is tomorrow':`in ${up.days} days`}.`;else st.hidden=true;
@@ -817,12 +817,12 @@ function bgIntro(){if($('#out').children.length)return;card(h('p',{style:'margin
 async function bgRun(im,base){const st=aiStatus('Getting the AI ready…');card(st.el);
  try{await cutModel(p=>st.set(`Downloading the AI… ${Math.round(p*100)}% (only the first time)`));st.set('Finding the person…');await new Promise(r=>setTimeout(r,30));const cut=await cutout(im);bgView(cut,im,base)}
  catch(e){card(h('p',{class:'err'},e.message),photoBtn('Try another photo',bgRun))}}
-function bgView(cut,im,base){let bg='',blob=null,name='';const pv=h('canvas',{class:'cut-cv'}),dl=h('a',{class:'btn',href:'#',download:'photo.png'},'Download'),
-  sh=SHARE_OK?h('button',{type:'button',class:'btn share'},L('share')):null,pick=h('input',{type:'color',value:'#ff9933','aria-label':'Pick any colour',class:'swc'}),sw=h('div',{class:'swatches',role:'radiogroup','aria-label':'Background'}),stk=h('div',{style:'margin-top:16px'});
+function bgView(cut,im,base){let bg='',blob=null,name='';const pv=h('canvas',{class:'cut-cv',style:'display:block;width:100%;max-width:440px;height:auto;margin:14px auto 4px;border-radius:14px'}),dl=h('a',{class:'btn',href:'#',download:'photo.png'},'Download'),
+  sh=SHARE_OK?h('button',{type:'button',class:'btn share'},L('share')):null,pick=h('input',{type:'color',value:'#ff9933','aria-label':'Pick any colour',class:'swc',style:'width:30px;height:30px;padding:0;border-radius:50%'}),sw=h('div',{class:'swatches',role:'radiogroup','aria-label':'Background'}),stk=h('div',{style:'margin-top:16px'});
  const draw=async()=>{const cv=onBg(cut,im,bg);pv.width=cv.width;pv.height=cv.height;pv.getContext('2d').drawImage(cv,0,0);pv.classList.toggle('chk',!bg);
   const png=!bg;blob=await toBlob(cv,png?'image/png':'image/jpeg',.92);name=`${base}-${png?'no-background':bg==='blur'?'blur-background':'new-background'}.${png?'png':'jpg'}`;
   if(dl.href.startsWith('blob:'))URL.revokeObjectURL(dl.href);dl.href=URL.createObjectURL(blob);dl.download=name;sw.querySelectorAll('button').forEach(b=>b.setAttribute('aria-checked',b.dataset.bg===bg))};
- BGS.forEach(([v,t])=>{const b=h('button',{type:'button',class:'sw1',role:'radio','data-bg':v,title:t,'aria-label':t},v&&v!=='blur'?h('i',{style:`background:${v}`}):h('i',{class:v?'bl':'tr'}),h('span',{},t));b.onclick=()=>{bg=v;draw()};sw.append(b)});
+ BGS.forEach(([v,t])=>{const b=h('button',{type:'button',class:'sw1',role:'radio','data-bg':v,title:t,'aria-label':t},v&&v!=='blur'?h('i',{style:`background:${v};width:28px;height:28px;border-radius:50%;display:block`}):h('i',{class:v?'bl':'tr',style:'width:28px;height:28px;border-radius:50%;display:block'}),h('span',{},t));b.onclick=()=>{bg=v;draw()};sw.append(b)});
  sw.append(h('label',{class:'sw1'},pick,h('span',{},'Any')));pick.oninput=()=>{bg=pick.value;draw()};
  if(sh){sh.dataset.label=L('share');sh.onclick=()=>{if(sh._f)return shareFile(sh,sh._f);blob&&shareFile(sh,new File([blob],name,{type:blob.type}))}}
  dl.onclick=e=>{if(!dl.href.startsWith('blob:'))e.preventDefault()};
@@ -845,7 +845,7 @@ async function cropRun(im,base){const st=aiStatus('Looking for faces…');card(s
  for(const c of CROPS){if(c.pp&&!one){tiles.push(h('div',{class:'crop off'},h('b',{},c.n),h('p',{class:'note'},fs.length>1?'Needs a photo with just one face.':'Needs a photo with a face.')));continue}
   const b=cropBox(W,H,c,focus,one),cv=document.createElement('canvas');cv.width=c.w;cv.height=c.h;const g=cv.getContext('2d');g.imageSmoothingQuality='high';g.fillStyle='#fff';g.fillRect(0,0,c.w,c.h);g.drawImage(im,b.x,b.y,b.w,b.h,0,0,c.w,c.h);
   const bl=await toBlob(cv,'image/jpeg',.92),n=`${base}-${c.id}.jpg`,u=URL.createObjectURL(bl);files.push({name:n,blob:bl});
-  tiles.push(h('div',{class:'crop'},h('a',{href:u,download:n,title:'Download '+c.n},h('img',{src:u,alt:c.n,class:c.dp?'dp':null,style:`aspect-ratio:${c.w}/${c.h}`})),h('b',{},c.n),
+  tiles.push(h('div',{class:'crop'},h('a',{href:u,download:n,title:'Download '+c.n},h('img',{src:u,alt:c.n,class:c.dp?'dp':null,style:`aspect-ratio:${c.w}/${c.h};width:100%;height:auto;max-height:260px;object-fit:contain`})),h('b',{},c.n),
    h('div',{class:'row'},h('a',{class:'btn sm',href:u,download:n},'Download'),shareBlob(bl,n))))}
  const zip=h('button',{type:'button',class:'btn'},'Download all (ZIP)');zip.onclick=async()=>{const z=makeZip(await Promise.all(files.map(async f=>({name:f.name,data:new Uint8Array(await f.blob.arrayBuffer())})))),a=h('a',{href:URL.createObjectURL(z),download:base+'-crops.zip'});document.body.append(a);a.click();a.remove()};
  const fl=files.map(f=>new File([f.blob],f.name,{type:'image/jpeg'})),all=SHARE_OK&&canShareF(fl)?h('button',{type:'button',class:'btn share'},'Send all'):null;if(all)all.onclick=()=>navigator.share({files:fl}).catch(()=>{});

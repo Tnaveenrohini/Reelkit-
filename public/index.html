@@ -99,7 +99,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 </style>
 <script>try{if(sessionStorage.getItem("wr_intro")&&!/[?&]intro/.test(location.search))document.documentElement.classList.add("wr-seen")}catch(e){}</script>
 <link rel="stylesheet" href="intro.css?v=11">
-<link rel="stylesheet" href="glass.css?v=13">
+<link rel="stylesheet" href="glass.css?v=14">
 <noscript><style>#wr-intro{display:none}</style></noscript>
 </head>
 <body>
@@ -677,7 +677,7 @@ async function festEditor(){
  tx.value=S.own&&S.text!=null?S.text:fo().g[S.lang];nm.value=S.name;
  if(up)st.textContent=`Coming up: ${up.n} ${up.days<=0?'is today':up.days===1?'is tomorrow':`in ${up.days} days`}.`;else st.hidden=true;
  const fname=()=>[S.fest,'greeting',slug(nm.value)].filter(Boolean).join('-')+'.jpg';
- let tm=0;const bake=()=>{clearTimeout(tm);tm=setTimeout(()=>cv.toBlob(b=>{if(!b)return;S.blob=b;if(dl.href.startsWith('blob:'))URL.revokeObjectURL(dl.href);dl.href=URL.createObjectURL(b);dl.download=fname()},'image/jpeg',.92),250)};
+ let tm=0,pend=false;const bake=()=>{clearTimeout(tm);pend=true;tm=setTimeout(()=>cv.toBlob(b=>{pend=false;if(!b)return;S.blob=b;if(dl.href.startsWith('blob:'))URL.revokeObjectURL(dl.href);dl.href=URL.createObjectURL(b);dl.download=fname()},'image/jpeg',.92),250)};
  const paint=()=>{S.text=tx.value;S.name=nm.value;S.mark=mk.i.checked;W.draw(cv,{...S,placeholder:'Your photo here',text:tx.value});cv.classList.toggle('has',!!S.img);
   tip.textContent=S.img?'Drag the photo to move it. Use the slider to zoom.':'Choose a photo, or paste a post link above to use its photo.';zm.hidden=!S.img;bake()};
  fs.onchange=()=>{S.fest=fs.value;if(!S.own)tx.value=fo().g[S.lang];paint()};lg.onchange=()=>{S.lang=lg.value;if(!S.own)tx.value=fo().g[S.lang];paint()};
@@ -686,8 +686,8 @@ async function festEditor(){
  let drag=null;cv.onpointerdown=e=>{if(!S.img)return;drag={x:e.clientX,y:e.clientY};cv.setPointerCapture(e.pointerId)};
  cv.onpointermove=e=>{if(!drag)return;const k=cv.width/cv.getBoundingClientRect().width;S.ox+=(e.clientX-drag.x)*k;S.oy+=(e.clientY-drag.y)*k;drag={x:e.clientX,y:e.clientY};W.draw(cv,{...S,text:tx.value})};
  cv.onpointerup=cv.onpointercancel=()=>{if(drag){drag=null;bake()}};
- if(sh){sh.dataset.label=L('share');sh.onclick=()=>{if(sh._f)return shareFile(sh,sh._f);const go=b=>shareFile(sh,new File([b],fname(),{type:'image/jpeg'}));if(S.blob)go(S.blob);else cv.toBlob(b=>b&&go(b),'image/jpeg',.92)}}
- dl.onclick=e=>{if(!dl.href.startsWith('blob:')){e.preventDefault();cv.toBlob(b=>{if(!b)return;S.blob=b;dl.href=URL.createObjectURL(b);dl.download=fname();dl.click()},'image/jpeg',.92)}};
+ if(sh){sh.dataset.label=L('share');sh.onclick=()=>{if(sh._f)return shareFile(sh,sh._f);const go=b=>shareFile(sh,new File([b],fname(),{type:'image/jpeg'}));if(S.blob&&!pend)go(S.blob);else{clearTimeout(tm);cv.toBlob(b=>{pend=false;if(b){S.blob=b;go(b)}},'image/jpeg',.92)}}}
+ dl.onclick=e=>{if(pend||!dl.href.startsWith('blob:')){e.preventDefault();clearTimeout(tm);cv.toBlob(b=>{pend=false;if(!b)return;S.blob=b;if(dl.href.startsWith('blob:'))URL.revokeObjectURL(dl.href);dl.href=URL.createObjectURL(b);dl.download=fname();dl.click()},'image/jpeg',.92)}};
  const box=h('div',{class:'card',style:'display:block'},st,h('div',{class:'row'},fs,sz),h('div',{class:'row',style:'margin-top:10px'},lg),
   h('div',{class:'fgrid'},tx,nm),h('div',{class:'row',style:'margin-top:12px;align-items:center'},h('label',{class:'btn mp3b filebtn'},'Choose photo',inp),mk.el),
   cv,zm,tip,h('div',{class:'row',style:'margin-top:12px'},dl,sh),h('p',{class:'note',style:'text-align:left;margin-top:8px'},'Made on your phone. Your photo is never uploaded.'));

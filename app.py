@@ -1142,6 +1142,81 @@ def home():
     return FileResponse(PUBLIC / "index.html")
 
 
+# ---------- A real page for every tool, so Google can find each one (/instagram-reels-downloader, /passport-photo-maker…) ----------
+_PAGE = (PUBLIC / "index.html").read_text("utf-8")
+try:
+    SEO = json.loads(re.search(r'<script type="application/json" id="wr-seo">(.*?)</script>', _PAGE, re.S).group(1).replace("<\\/", "</"))
+except Exception:
+    SEO = {}
+SEO_PAGES = ("about", "contact", "faq", "privacy", "terms", "dmca")
+
+
+def _origin(req: Request) -> str:
+    host = (req.headers.get("x-forwarded-host") or req.headers.get("host") or "").split(",")[0].strip()
+    proto = (req.headers.get("x-forwarded-proto") or req.url.scheme or "https").split(",")[0].strip()
+    return f"{proto}://{host}" if host else ""
+
+
+def _seo_html(key: str, origin: str) -> str:
+    e, esc = SEO[key], lambda v: _html.escape(v, quote=True)
+    url = origin + ("/" if key == "video" else "/" + e["s"])
+    t, d = esc(e["t"]), esc(e["d"])
+    page = _PAGE
+    page = re.sub(r"<title>.*?</title>", f"<title>{t}</title>", page, count=1, flags=re.S)
+    page = re.sub(r'<meta name="description" content="[^"]*">', f'<meta name="description" content="{d}">', page, count=1)
+    page = page.replace('<link rel="canonical" href="/">', f'<link rel="canonical" href="{esc(url)}">', 1)
+    page = re.sub(r'<meta property="og:title" content="[^"]*">', f'<meta property="og:title" content="{t}">', page, count=1)
+    page = re.sub(r'<meta property="og:description" content="[^"]*">', f'<meta property="og:description" content="{d}">', page, count=1)
+    page = page.replace('<meta property="og:url" content="/">', f'<meta property="og:url" content="{esc(url)}">', 1)
+    page = page.replace('content="/og-image.jpg', f'content="{esc(origin)}/og-image.jpg')
+    if e.get("h"):
+        page = page.replace('<h1 id="h"></h1><p id="p"></p>', f'<h1 id="h">{esc(e["h"])}</h1><p id="p">{esc(e["p"])}</p>', 1)
+        page = page.replace('<h2 id="ah"></h2><p id="ap"></p>', f'<h2 id="ah">About {esc(e["h"])}</h2><p id="ap">{esc(e["a"])}</p>', 1)
+        ld = {"@context": "https://schema.org", "@type": "WebApplication", "name": e["h"], "url": url, "description": e["d"],
+              "applicationCategory": "MultimediaApplication", "operatingSystem": "Any", "isPartOf": {"@type": "WebSite", "name": "WaveRise", "url": origin + "/"},
+              "offers": {"@type": "Offer", "price": "0", "priceCurrency": "INR"}}
+        page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>',
+                      lambda _: '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>", page, count=1, flags=re.S)
+    return page
+
+
+SEO_CACHE = {"Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-revalidate=86400"}
+
+
+def _seo_route(key: str):
+    def page(request: Request):
+        return Response(_seo_html(key, _origin(request)), media_type="text/html; charset=utf-8", headers=SEO_CACHE)
+    return page
+
+
+def _seo_slash(slug: str):
+    def go():
+        return Response(status_code=301, headers={"Location": "/" + slug})
+    return go
+
+
+_TAKEN = {getattr(r, "path", "") for r in r_.routes}
+for _k, _e in SEO.items():
+    if "/" + _e["s"] in _TAKEN:   # never hide an API route
+        continue
+    app.add_api_route("/" + _e["s"], _seo_route(_k), methods=["GET", "HEAD"], include_in_schema=False)
+    app.add_api_route("/" + _e["s"] + "/", _seo_slash(_e["s"]), methods=["GET", "HEAD"], include_in_schema=False)
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap(request: Request):
+    o, day = _origin(request), time.strftime("%Y-%m-%d", time.gmtime())
+    urls = [(o + "/", "1.0")] + [(o + "/" + e["s"], "0.3" if k in SEO_PAGES else "0.8") for k, e in SEO.items() if k != "video"]
+    body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + "".join(
+        f"  <url><loc>{_html.escape(u)}</loc><lastmod>{day}</lastmod><priority>{p}</priority></url>\n" for u, p in urls) + "</urlset>\n"
+    return Response(body, media_type="application/xml", headers=SEO_CACHE)
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots(request: Request):
+    return Response(f"User-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: {_origin(request)}/sitemap.xml\n", media_type="text/plain", headers=SEO_CACHE)
+
+
 # ---------- Caption & hashtag writer (Groq AI when GROQ_API_KEY is set, built-in writer otherwise) ----------
 import random
 GROQ_MODELS = [m for m in [os.getenv("GROQ_MODEL", "").strip(), "openai/gpt-oss-120b", "openai/gpt-oss-20b"] if m]

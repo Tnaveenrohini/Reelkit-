@@ -1,7 +1,7 @@
 {
  "name": "WaveRise",
  "short_name": "WaveRise",
- "description": "Download videos from Instagram, X, Threads and YouTube, make MP3s and ringtones.",
+ "description": "Save Instagram and X videos, Reels and photos. MP3, ringtones, stickers, festival frames and free AI photo tools.",
  "start_url": "/",
  "scope": "/",
  "display": "standalone",

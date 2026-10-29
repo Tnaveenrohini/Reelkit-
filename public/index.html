@@ -550,9 +550,11 @@ $('#clear').onclick=()=>{$('#u').value='';out();$('#u').focus()};
 
 $('#f').onsubmit=async e=>{e.preventDefault();const url=$('#u').value.trim();if(!url)return msg('Paste an Instagram link first.',true);
  const sn=soonOf(url,cur);if(sn)return showSoon(sn);
+ const SHOW={download:showDl,x:showDl,threads:showDl,yt:showDl,mp3:showMp3,ring:showRing,clip:showClip,shrink:showShrink,gif:showGif,frame:showFrame,split:showSplit,sticker:showSticker,reshape:showReshape,festival:showFest,show:showSlides,bg:showBg,crop:showCrop,caption:showCap};
+ if(!SHOW[cur]){/* a copied or shared link arrived on a photo-only tool: open the right downloader */const to=/(^|\/\/)(www\.|mobile\.)?(x|twitter)\.com\//i.test(url)?'x':'video';history.pushState(null,'',keyHref(to));route();$('#u').value=url;return setTimeout(()=>$('#f').requestSubmit(),0)}
  $('#go').disabled=true;const mode=cur;
  try{
-  {msg('Reading the post',false,true);const d=await api('/api/info',{url});({download:showDl,x:showDl,threads:showDl,yt:showDl,mp3:showMp3,ring:showRing,clip:showClip,shrink:showShrink,gif:showGif,frame:showFrame,split:showSplit,sticker:showSticker,reshape:showReshape,festival:showFest,show:showSlides,bg:showBg,crop:showCrop,caption:showCap})[mode](d,url)}
+  {msg('Reading the post',false,true);const d=await api('/api/info',{url});SHOW[mode](d,url)}
  }catch(x){msg(x.message,true)}
  $('#go').disabled=false};
 

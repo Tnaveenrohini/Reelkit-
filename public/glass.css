@@ -357,3 +357,8 @@ textarea.tin{padding:12px 14px;min-height:92px;resize:vertical;line-height:1.45}
 .kbnums{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:10px;font-size:18px}
 .kbnums strong{font-size:26px}.kbnums .good{color:#5be38f}.kbnums .bad{color:#ffa59b}
 .fld .tin{flex:none;height:48px;min-height:48px}
+/* Menus scroll: paint the glass on the menu itself so it stays put while the tools scroll (a ::before layer scrolled away with them) */
+#nav .menu{background:radial-gradient(120% 90% at var(--mx,18%) var(--my,0%),rgba(255,255,255,.12),transparent 46%),linear-gradient(135deg,rgba(24,26,40,.86),rgba(10,12,20,.8));background-attachment:scroll;-webkit-backdrop-filter:blur(30px) saturate(2) brightness(1.05);backdrop-filter:blur(30px) saturate(2) brightness(1.05)}
+#nav .menu::before{display:none}
+[data-theme=light] #nav .menu{background:rgba(255,255,255,.94)}
+@media (max-width:900px){#nav{grid-template-columns:repeat(3,1fr)!important}}

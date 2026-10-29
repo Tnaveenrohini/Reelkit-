@@ -1143,11 +1143,47 @@ def home():
 
 
 # ---------- A real page for every tool, so Google can find each one (/instagram-reels-downloader, /passport-photo-maker…) ----------
-_PAGE = (PUBLIC / "index.html").read_text("utf-8")
-try:
-    SEO = json.loads(re.search(r'<script type="application/json" id="wr-seo">(.*?)</script>', _PAGE, re.S).group(1).replace("<\\/", "</"))
-except Exception:
-    SEO = {}
+_PAGE = ""
+
+
+def _load_seo(text: str) -> dict:
+    try:
+        return json.loads(re.search(r'<script type="application/json" id="wr-seo">(.*?)</script>', text, re.S).group(1).replace("<\\/", "</"))
+    except Exception:
+        return {}
+
+
+try:  # on Vercel the public/ folder may live only on the CDN, so this must never stop the server from starting
+    _PAGE = (PUBLIC / "index.html").read_text("utf-8")
+except Exception as e:
+    print("[waverise] index.html not bundled with the function; tool pages will fetch it from the site:", e, flush=True)
+SEO = _load_seo(_PAGE)
+if not SEO:  # page addresses are fixed, so tool pages can still be routed without the file
+    SEO = {"video": {"s": "instagram-video-downloader"}, "photo": {"s": "instagram-photo-downloader"}, "reels": {"s": "instagram-reels-downloader"},
+           "carousel": {"s": "instagram-carousel-downloader"}, "x": {"s": "twitter-video-downloader"}, "mp3": {"s": "video-to-mp3"},
+           "ringtone": {"s": "reel-to-ringtone"}, "clip": {"s": "video-trimmer"}, "shrink": {"s": "compress-video-for-whatsapp"}, "gif": {"s": "gif-maker"},
+           "frame": {"s": "video-to-photo"}, "status": {"s": "whatsapp-status-splitter"}, "reshape": {"s": "resize-video"}, "slideshow": {"s": "photos-to-reel"},
+           "reduce": {"s": "photo-mb-to-kb"}, "passport": {"s": "passport-photo-maker"}, "festival": {"s": "festival-frames"},
+           "sticker": {"s": "whatsapp-sticker-maker"}, "fancy": {"s": "fancy-text"}, "caption": {"s": "instagram-caption-copier"},
+           "bgremove": {"s": "background-remover"}, "smartcrop": {"s": "smart-crop"}, "writer": {"s": "caption-writer"}, "about": {"s": "about"},
+           "contact": {"s": "contact"}, "faq": {"s": "faq"}, "privacy": {"s": "privacy-policy"}, "terms": {"s": "terms"}, "dmca": {"s": "dmca"}}
+_SEO_FULL = bool(_PAGE)
+
+
+def _page_for(origin: str) -> str:
+    """index.html text: from the bundle if present, else from the site's own CDN (cached)."""
+    global _PAGE, SEO, _SEO_FULL
+    if not _PAGE and origin:
+        try:
+            r = httpx.get(origin + "/index.html", timeout=8, follow_redirects=True)
+            if r.status_code == 200 and "wr-seo" in r.text:
+                _PAGE = r.text
+                full = _load_seo(_PAGE)
+                if full:
+                    SEO.update(full); _SEO_FULL = True
+        except Exception as e:
+            print("[waverise] could not fetch index.html:", e, flush=True)
+    return _PAGE
 SEO_PAGES = ("about", "contact", "faq", "privacy", "terms", "dmca")
 
 
@@ -1157,11 +1193,13 @@ def _origin(req: Request) -> str:
     return f"{proto}://{host}" if host else ""
 
 
-def _seo_html(key: str, origin: str) -> str:
+def _seo_html(key: str, origin: str):
+    page = _page_for(origin)
     e, esc = SEO[key], lambda v: _html.escape(v, quote=True)
+    if not page or "t" not in e:
+        return None
     url = origin + ("/" if key == "video" else "/" + e["s"])
     t, d = esc(e["t"]), esc(e["d"])
-    page = _PAGE
     page = re.sub(r"<title>.*?</title>", f"<title>{t}</title>", page, count=1, flags=re.S)
     page = re.sub(r'<meta name="description" content="[^"]*">', f'<meta name="description" content="{d}">', page, count=1)
     page = page.replace('<link rel="canonical" href="/">', f'<link rel="canonical" href="{esc(url)}">', 1)
@@ -1185,7 +1223,13 @@ SEO_CACHE = {"Cache-Control": "public, max-age=0, s-maxage=3600, stale-while-rev
 
 def _seo_route(key: str):
     def page(request: Request):
-        return Response(_seo_html(key, _origin(request)), media_type="text/html; charset=utf-8", headers=SEO_CACHE)
+        try:
+            body = _seo_html(key, _origin(request))
+        except Exception as e:
+            print("[waverise] tool page failed:", key, e, flush=True); body = None
+        if body is None:   # fall back to the normal page; it opens the right tool from the address
+            return Response(status_code=307, headers={"Location": "/#" + key, "Cache-Control": "no-store"})
+        return Response(body, media_type="text/html; charset=utf-8", headers=SEO_CACHE)
     return page
 
 

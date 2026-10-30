@@ -20,6 +20,8 @@ CDN = ("cdninstagram.com", "fbcdn.net")
 SOON = {x.strip().lower() for x in os.getenv("SOON_SITES", "youtube,threads").split(",") if x.strip()}  # sites shown as "coming soon"; set SOON_SITES to empty to switch them on
 MAX_HD_SECONDS = 20 * 60  # longest video the free server will join into 720p/1080p
 X_URL = re.compile(r"^https?://(www\.|mobile\.)?(x|twitter)\.com/(i/(web/)?|[A-Za-z0-9_]{1,15}/)status/\d+", re.I)
+FB_URL = re.compile(r"^https?://(?:(?:www|m|web|mbasic|touch)\.)?facebook\.com/(?:watch/?\?|watch/live/?\?|reel/\d|share/(?:v|r|p)/|[^/?#]+/videos/|video\.php\?|story\.php\?|permalink\.php\?|[^/?#]+/posts/|groups/[^/]+/(?:posts|permalink)/)|^https?://fb\.watch/[\w-]+", re.I)
+PLAN_SITES = ("youtube", "facebook")   # sites whose videos come as several qualities (ready-made or picture + sound joined on the fly)
 BLOCKED = [x.strip().lower() for x in os.getenv("BLOCKED_LINKS", "").split(",") if x.strip()]  # link parts to refuse after a valid copyright notice
 app = FastAPI(title="WaveRise")
 PUBLIC = Path(__file__).parent / "public"
@@ -31,7 +33,48 @@ class Req(BaseModel):
 
 
 def site_of(url):
-    return "youtube" if YT_ID.match(url) else "threads" if TH_URL.match(url) else "x" if X_URL.match(url) else "instagram"
+    return ("youtube" if YT_ID.match(url) else "threads" if TH_URL.match(url) else "x" if X_URL.match(url)
+            else "facebook" if FB_URL.match(url) else "instagram")
+
+
+_fb_resolved = {}
+
+
+def _fb_clean(url):
+    """Facebook links: keep the parts that name the video, follow share/fb.watch links to the real video address."""
+    u = re.sub(r"^https?://(?:m|web|mbasic|touch)\.facebook\.com/", "https://www.facebook.com/", url, flags=re.I).replace("http://", "https://", 1)
+    u = re.sub(r"^https://facebook\.com/", "https://www.facebook.com/", u, flags=re.I)
+    m = re.search(r"facebook\.com/watch(?:/live)?/?\?(?:.*&)?v=(\d+)", u) or re.search(r"facebook\.com/video\.php\?(?:.*&)?v=(\d+)", u)
+    if m:
+        return f"https://www.facebook.com/watch/?v={m.group(1)}"
+    if re.search(r"facebook\.com/(?:story|permalink)\.php\?", u):
+        q = dict(x.split("=", 1) for x in u.split("?", 1)[1].split("#")[0].split("&") if "=" in x)
+        return u.split("?")[0] + "?" + "&".join(f"{k}={q[k]}" for k in ("story_fbid", "id") if k in q)
+    u = u.split("?")[0].split("#")[0]
+    if re.match(r"^https://fb\.watch/|^https://www\.facebook\.com/share/", u, re.I):
+        if u in _fb_resolved:
+            return _fb_resolved[u]
+        final = u
+        try:
+            r = httpx.get(u, headers={"User-Agent": UA, "Accept": "text/html", "Accept-Language": "en-US,en;q=0.9"}, timeout=12, follow_redirects=True)
+            to = str(r.url)
+            if "/login" in to:                       # Facebook sends logged-out visitors to log in, with the video in ?next=
+                from urllib.parse import parse_qs, unquote
+                nxt = (parse_qs(urlparse(to).query).get("next") or [""])[0]
+                to = unquote(nxt) if nxt else ""
+            if to and FB_URL.match(to) and not re.search(r"/share/|fb\.watch", to):
+                final = _fb_clean(to)
+            else:
+                m = re.search(r'<link rel="canonical" href="([^"]+)"', r.text) or re.search(r'property="og:url" content="([^"]+)"', r.text)
+                if m and FB_URL.match(_html.unescape(m.group(1))) and not re.search(r"/share/|fb\.watch", m.group(1)):
+                    final = _fb_clean(_html.unescape(m.group(1)))
+        except httpx.HTTPError as e:
+            print("[waverise] facebook share link not followed:", e)
+        if len(_fb_resolved) > 500:
+            _fb_resolved.clear()
+        _fb_resolved[u] = final
+        return final
+    return u
 
 
 def clean(url):
@@ -44,19 +87,21 @@ def clean(url):
     m = YT_ID.match(url)
     if m:
         return "https://www.youtube.com/watch?v=" + m.group(1)   # one video only, playlist parts dropped
+    if FB_URL.match(url):
+        return _fb_clean(url)
     url = url.split("?")[0].split("#")[0]
     m = TH_URL.match(url)
     if m:
         return f"https://www.threads.com/{m.group(1)}/post/{m.group(2)}" if m.group(1) else f"https://www.threads.com/t/{m.group(2)}"
     if not (IG_URL.match(url) or X_URL.match(url)):
-        raise HTTPException(400, "Paste a public Instagram, X, Threads or YouTube link.")
+        raise HTTPException(400, "Paste a public Instagram, Facebook or X link.")
     return url
 
 
 def explain(err, url):
     """Plain-language reason for visitors (no yt-dlp text)."""
     m = str(err).lower()
-    site = {"youtube": "YouTube", "threads": "Threads", "x": "X", "instagram": "Instagram"}[site_of(url)]
+    site = {"youtube": "YouTube", "threads": "Threads", "x": "X", "facebook": "Facebook", "instagram": "Instagram"}[site_of(url)]
     if "only images" in m:
         return "YouTube only shared the thumbnail with this server, not the video. It does this when it limits cloud servers. Try again later."
     if "requested format is not available" in m:
@@ -79,6 +124,9 @@ def explain(err, url):
         if site == "Instagram":
             return ("Instagram didn't share this post with WaveRise just now. It sometimes holds back posts from cloud servers for a few minutes. "
                     "Wait a minute and try again. Posts from private accounts, and posts marked sensitive, can't be downloaded.")
+        if site == "Facebook":
+            return ("Facebook wants a login to show this video, which WaveRise doesn't use. That happens with private videos, videos shared only with friends, "
+                    "private groups and age-restricted videos. Public Page videos and public Reels work. If it is public, try again in a few minutes.")
         return f"{site} is asking for a login for this link, which WaveRise doesn't use. Try a public post, or try again in a few minutes."
     if "429" in m or "too many" in m or "rate" in m:
         return f"{site} is limiting requests right now. Wait a few minutes and try again."
@@ -303,7 +351,7 @@ def _fetch_info(url):
         if d:
             return d
     o = {"quiet": True, "no_warnings": True, "cachedir": False, "ignore_no_formats_error": True, "noplaylist": True,
-         "format": YT_FORMAT if site == "youtube" else "best[ext=mp4]/best"}
+         "format": YT_FORMAT if site == "youtube" else "b/bv*+ba/all" if site == "facebook" else "best[ext=mp4]/best"}
     if site == "youtube" and js_runtime():
         o["js_runtimes"] = js_runtime()
     d, last = None, None
@@ -325,8 +373,30 @@ def _fetch_info(url):
                 break
     if d is None:
         raise HTTPException(422, explain(last, url))
-    if site == "youtube" and (d.get("is_live") or d.get("live_status") in ("is_live", "is_upcoming")):
+    if site in PLAN_SITES and (d.get("is_live") or d.get("live_status") in ("is_live", "is_upcoming")):
         raise HTTPException(422, "Live streams and premieres can't be downloaded until they have finished.")
+    if site == "facebook":
+        d = _fb_fix(d)
+        if not _yt_plans(d)[0]:
+            raise HTTPException(422, "This Facebook post has no video WaveRise can save. It saves public Facebook videos and Reels.")
+    return d
+
+
+def _fb_fix(d):
+    """Facebook posts: use the first video of a post, and give Facebook's ready-made 'sd'/'hd' files a height when it is missing."""
+    if d.get("entries"):
+        vids = [e for e in d["entries"] if e and e.get("formats")]
+        if vids:
+            e = dict(vids[0]); e.setdefault("uploader", d.get("uploader")); e.setdefault("description", d.get("description")); d = e
+    for f in d.get("formats") or []:
+        fid = str(f.get("format_id", "")).lower()
+        if fid in ("hd", "sd") and f.get("vcodec") is None and f.get("acodec") is None:
+            f["vcodec"], f["acodec"] = "avc1", "mp4a"      # Facebook's ready-made files carry picture and sound
+        if not f.get("height") and _hv(f):
+            f["height"] = 720 if "hd" in fid else 360 if "sd" in fid else None
+    t = str(d.get("title") or "")
+    if not t or t.lower().startswith(("facebook", "video")) or t.isdigit():
+        d["title"] = (d.get("description") or "").split("\n")[0][:80] or d.get("uploader") or "Facebook video"
     return d
 
 
@@ -525,7 +595,7 @@ def media(url, index=0, audio=False, info=False):
 
 
 def _media(d, url, index=0, audio=False):
-    if site_of(url) == "youtube":
+    if site_of(url) in PLAN_SITES:
         plans, a = _yt_plans(d)
         if audio and a:
             return a["url"], _hd(a, d), True
@@ -666,10 +736,10 @@ def info(b: Req):
     g = lambda k: d.get(k) if d.get(k) is not None else (its[0].get(k) if its else None)
     site = site_of(b.url.strip())
     q = []
-    if site == "youtube":
+    if site in PLAN_SITES:
         q = _yt_choices(_yt_plans(d)[0])
     return {
-        "site": site, "title": d.get("title") if site == "youtube" else None, "qualities": q,
+        "site": site, "title": d.get("title") if site in PLAN_SITES else None, "qualities": q,
         "uploader": d.get("uploader") or d.get("channel"),
         "thumb": d.get("thumbnail") or (its[0].get("thumbnail") if its else None),
         "caption": caption,
@@ -1073,7 +1143,7 @@ async def slideshow_upload(files: list[UploadFile] = File(...), sec: float = For
 @r_.get("/download")
 def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int = 0, loud: int = 0, privacy: int = Query(0, alias="clean")):
     u = clean(url)
-    if site_of(u) == "youtube":
+    if site_of(u) in PLAN_SITES:
         d = fetch_info(u)
         plans, _ = _yt_plans(d)
         dflt = _yt_default(plans)
@@ -1449,7 +1519,7 @@ def write(b: WriteReq, request: Request):
 
 @r_.get("/health")
 def health():
-    return {"ok": True, "version": 12, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None),
+    return {"ok": True, "version": 13, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None),
             "ai_writer": bool(os.getenv("GROQ_API_KEY", "").strip())}
 
 

@@ -1,7 +1,7 @@
 {
  "name": "WaveRise",
  "short_name": "WaveRise",
- "description": "Save Instagram and X videos, Reels and photos. MP3, ringtones, stickers, festival frames and free AI photo tools.",
+ "description": "Save Instagram, Facebook and X videos, Reels and photos, and WhatsApp Status. MP3, ringtones, stickers, festival frames and free AI photo tools.",
  "start_url": "/",
  "scope": "/",
  "display": "standalone",
@@ -40,12 +40,27 @@
   }
  ],
  "share_target": {
-  "action": "/",
-  "method": "GET",
+  "action": "/share-target",
+  "method": "POST",
+  "enctype": "multipart/form-data",
   "params": {
    "title": "title",
    "text": "text",
-   "url": "url"
+   "url": "url",
+   "files": [
+    {
+     "name": "media",
+     "accept": [
+      "image/*",
+      "video/*",
+      ".jpg",
+      ".jpeg",
+      ".png",
+      ".webp",
+      ".mp4"
+     ]
+    }
+   ]
   }
  },
  "id": "/",

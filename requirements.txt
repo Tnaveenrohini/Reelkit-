@@ -4,3 +4,4 @@ httpx
 imageio-ffmpeg
 deno
 python-multipart
+cryptography

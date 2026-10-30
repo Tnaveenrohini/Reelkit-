@@ -461,3 +461,85 @@ details.report summary,details.mytools summary{cursor:pointer;min-height:44px;di
 .dsi .btn,.gridi .btn{display:flex;align-items:center;justify-content:center;text-align:center}
 
 .card a.btn.sm{display:inline-flex;align-items:center;justify-content:center;text-align:center}
+
+/* =====================================================================
+   Blue & Gold (calm): flat navy surfaces, gold main buttons, no glass blur,
+   no glow or shine, no animated background. Overrides everything above.
+   ===================================================================== */
+:root{--bg:#07122B;--card:#0D1D40;--line:#1B2F5A;--ac:#F2C14E;--ac2:#F2C14E;--gold:#F2C14E;--text:#F4F1EA;--mute:#AEB8D0;--field:#07122B;--fline:#22355F;--ink:#1A1405}
+html,body,.bg{background:var(--bg)!important;color:var(--text)}
+.bg>*{display:none!important}
+*,*::before,*::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+/* no decorative motion: shine sweeps, glowing logo, nav wave, button lift */
+form::after,button.go::before,.btn::before,button.go::after,.btn::after,.nv.on::after,.nav-ind::before,.nav-ind::after,#nav .nav-ind::before{display:none!important;animation:none!important}
+.brand img{animation:none!important;box-shadow:none!important}
+button:hover,.btn:hover{transform:none!important;filter:none}
+#nav .nv.on .i:not(.chev){transform:none!important}
+h1{text-shadow:none!important}
+.hero h1,#h{font-size:clamp(26px,6.6vw,40px);line-height:1.2;letter-spacing:-.01em}
+.hero p,#p{color:var(--mute)}
+/* surfaces */
+.bar,nav,.menu,form,.card,.steps div,.feat div,.page,details,footer .wrap{background:var(--card)!important;border:1px solid var(--line)!important;box-shadow:none!important}
+.bar::before,nav::before,.menu::before,form::before,.card::before,.steps div::before,.feat div::before,.page::before,details::before,footer .wrap::before,#nav::before{display:none!important}
+.bar{background:rgba(7,18,43,.97)!important}
+.card .card,.card form{background:transparent!important}
+.page p,.page li{color:#D7DCE8}.page h3{color:var(--gold)}.page a,.flinks a:hover{color:var(--gold)}
+.note,.opt,.flinks a,.menu a small{color:var(--mute)}
+/* brand: Wave + gold Rise */
+.brand{color:var(--text)}
+/* buttons: one gold main action, the rest are calm outlines */
+button.go,.btn{background:var(--gold)!important;color:var(--ink)!important;border:0!important;box-shadow:none!important;font-weight:800;text-shadow:none!important}
+button.go:hover,.btn:hover{background:#FFD36E!important}
+button.go:disabled,.btn[disabled]{opacity:.55}
+.btn.mp3b,.btn.share,.btn.hd,.btn.sm.mp3b{background:transparent!important;color:var(--text)!important;border:1px solid var(--fline)!important}
+.btn.hd{color:var(--gold)!important;border-color:rgba(242,193,78,.55)!important}
+.btn.mp3b:hover,.btn.share:hover,.btn.hd:hover{background:rgba(255,255,255,.05)!important}
+button:not(.go):not(.nv):not(.pbtn):not(.btn):not(.vp-b):not(.vp-big){background:transparent;color:var(--text);border:1px solid var(--fline);box-shadow:none}
+#clear{background:transparent!important;color:var(--mute)!important}
+/* fields */
+#u,input[type=text],input[type=url],input[type=number],input[type=search],input[type=date],textarea,select,.tin{background:var(--field)!important;border:1px solid var(--fline)!important;box-shadow:none!important;color:var(--text)!important}
+#u:focus,.tin:focus,textarea:focus,select:focus{outline:none;border-color:var(--gold)!important;box-shadow:0 0 0 3px rgba(242,193,78,.18)!important}
+form:focus-within{border-color:var(--line)!important}
+#lang{background-color:transparent!important;border:1px solid var(--fline)!important;color:var(--text)!important}
+#lang option{background:#0D1D40;color:#F4F1EA}
+.ic{border:1px solid var(--fline)!important;background:transparent!important;color:var(--text)!important}
+input[type=checkbox]{background:transparent;border:1px solid var(--fline);box-shadow:none}
+input[type=checkbox]:checked{background:var(--gold);border-color:var(--gold)}
+input[type=checkbox]::after{border-color:var(--ink)}
+input[type=range]{accent-color:var(--gold)}
+progress{accent-color:var(--gold)}
+.chips span{background:#13254A!important;color:#D7DCE8!important;box-shadow:none!important;border:0!important}
+/* top bar and Tools sheet */
+.menu{background:var(--card)!important}
+.menu a{background:#0A1834!important;border:1px solid var(--line)}
+.menu a.on{background:#13254A!important;border-color:rgba(242,193,78,.45)}
+.menu a .i{background:#13254A!important;color:var(--gold)!important;box-shadow:none!important;border:0!important}
+.menu a.on .i{background:var(--gold)!important;color:var(--ink)!important}
+.msec,.sheet-h{color:var(--gold)!important}
+.nav-scrim{background:rgba(3,8,20,.6)}
+/* bottom bar: navy pill, gold active tab */
+#nav{background:var(--card)!important;border:1px solid var(--line)!important}
+.nav-ind{background:var(--gold)!important;border:0!important;box-shadow:none!important;transition:transform .25s ease,width .25s ease,height .2s ease,opacity .2s!important}
+#nav .nv{color:var(--mute)}
+#nav .nv.on,#nav.has-ind .nv.on,#nav .nv.on .i,#nav.has-ind .nv.on .i{color:var(--ink)!important;text-shadow:none!important}
+#nav:not(.has-ind) .nv.on{background:var(--gold)!important;border:0!important;box-shadow:none!important}
+#nav .nv:hover{background:rgba(255,255,255,.05)}
+#nav .nv.on:hover{background:transparent}
+@media (max-width:900px){#nav{border-radius:99px!important}#nav .nv,.nav-ind{border-radius:99px!important}}
+/* result cards, tool results */
+.kbres,.ppsheet,.pdfi,.gridi,.dsi,.stp{background:#0A1834!important;border-color:var(--line)!important}
+.good{color:#7EE2A8!important}
+/* ---------- light version of Blue & Gold ---------- */
+html[data-theme=light]{--bg:#F5F6FA;--card:#FFFFFF;--line:#E1E5EE;--text:#0E1A33;--mute:#4D5872;--field:#F7F8FB;--fline:#CDD4E1;--gold:#E9B23A;--ink:#1A1405}
+html[data-theme=light] h1,html[data-theme=light] #h{color:#0E1A33!important;-webkit-text-fill-color:#0E1A33!important}
+html[data-theme=light] .bar{background:rgba(255,255,255,.97)!important}
+html[data-theme=light] .menu a{background:#F7F8FB!important}
+html[data-theme=light] .menu a .i{background:#FFF3D6!important;color:#9A6A00!important}
+html[data-theme=light] .msec,html[data-theme=light] .sheet-h,html[data-theme=light] .page h3,html[data-theme=light] .page a,html[data-theme=light] .btn.hd{color:#8A5D00!important}
+html[data-theme=light] .chips span{background:#EEF1F7!important;color:#2B3550!important}
+html[data-theme=light] .page p,html[data-theme=light] .page li{color:#2B3550}
+html[data-theme=light] .kbres,html[data-theme=light] .ppsheet,html[data-theme=light] .pdfi,html[data-theme=light] .gridi,html[data-theme=light] .dsi,html[data-theme=light] .stp{background:#F7F8FB!important}
+html[data-theme=light] #lang option{background:#fff;color:#0E1A33}
+html[data-theme=light] .good{color:#147A43!important}
+.brand .wv{color:var(--text)!important;-webkit-text-fill-color:currentColor!important;background:none!important}.brand .rs{color:var(--gold)!important;-webkit-text-fill-color:currentColor!important;background:none!important}html[data-theme=light] .brand .rs{color:#B07A00!important}
+.btn.filebtn,.btn.mp3b.filebtn{background:var(--gold)!important;color:var(--ink)!important;border:0!important}

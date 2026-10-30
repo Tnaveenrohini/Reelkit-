@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>WaveRise Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/admin/app.css">
+<link rel="icon" href="/favicon-32.png?v=12">
+</head>
+<body>
+<header class="top">
+  <button class="menu-btn" id="menuBtn" type="button" aria-label="Open menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <a class="logo" href="#overview">Wave<b>Rise</b> <span>Admin</span></a>
+  <div class="status" id="topStatus" aria-live="polite"></div>
+  <div class="who"><span id="who"></span><button type="button" class="btn ghost sm" id="logout">Sign out</button></div>
+</header>
+<div class="shell">
+  <nav class="side" id="side" aria-label="Admin sections">
+    <a href="#overview" data-s="overview">Overview</a>
+    <p class="grp">SEO Management</p>
+    <a href="#gsc" data-s="gsc">Google Search Console</a>
+    <a href="#ga" data-s="ga">Google Analytics</a>
+    <a href="#sitemap" data-s="sitemap">Sitemap Manager</a>
+    <a href="#robots" data-s="robots">Robots.txt Manager</a>
+    <a href="#meta" data-s="meta">Meta Tags Manager</a>
+    <a href="#schema" data-s="schema">Schema Manager</a>
+    <a href="#indexing" data-s="indexing">Indexing Monitor</a>
+    <a href="#health" data-s="health">SEO Health</a>
+    <p class="grp">Website Management</p>
+    <a href="#redirects" data-s="redirects">Redirects</a>
+    <a href="#e404" data-s="e404">404 Errors</a>
+    <p class="grp">Security</p>
+    <a href="#audit" data-s="audit">Security Logs</a>
+    <a href="#settings" data-s="settings">Settings</a>
+  </nav>
+  <main id="main" tabindex="-1"><p class="muted pad">Loading…</p></main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="/admin/app.js"></script>
+</body>
+</html>

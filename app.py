@@ -1207,6 +1207,22 @@ def _ff_stream(d, inputs, q, inline=0, loud=0, privacy=0, name=None):
     return StreamingResponse(gen(), media_type="video/mp4", headers={} if inline else {"Content-Disposition": disposition(name or nice_name(d, "mp4", f"{q}p" if q else ""))})
 
 
+# ---------- Share → WaveRise (installed app). The service worker normally handles this on the phone; this is the fallback
+# when it hasn't started yet: links go to the downloader, files go to Status Saver with a "share again" note. ----------
+@app.post("/share-target", include_in_schema=False)
+async def share_target(request: Request):
+    from urllib.parse import urlencode
+    from fastapi.responses import RedirectResponse
+    try:
+        form = await request.form()
+    except Exception:
+        return RedirectResponse("/whatsapp-status-saver?share_failed=1", status_code=303)
+    if any(getattr(v, "filename", None) for _, v in form.multi_items()):
+        return RedirectResponse("/whatsapp-status-saver?share_failed=1", status_code=303)
+    q = {k: str(form.get(k))[:2000] for k in ("title", "text", "url") if form.get(k)}
+    return RedirectResponse("/" + ("?" + urlencode(q) if q else ""), status_code=303)
+
+
 # ---------- Public SEO pages, sitemap.xml, robots.txt, redirects, 404 log (wr_seo) and the private admin area (wr_admin) ----------
 import wr_seo, wr_admin
 SEO = wr_seo.SEO

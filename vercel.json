@@ -1,0 +1,11 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "functions": {
+    "app.py": {
+      "includeFiles": "templates/**"
+    }
+  },
+  "crons": [
+    { "path": "/api/cron/seo-check", "schedule": "0 3 * * *" }
+  ]
+}

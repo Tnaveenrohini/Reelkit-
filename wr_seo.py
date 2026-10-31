@@ -248,8 +248,15 @@ def norm_path(p):
     return p.rstrip("/") if len(p) > 1 else p
 
 
+# tools that were retired: send their old addresses (and Google's links) to the closest tool that's still here
+RETIRED = {"/resize-video": "/compress-video-for-whatsapp", "/fancy-text": "/", "/photos-to-reel": "/instagram-carousel-downloader",
+           "/smart-crop": "/passport-photo-maker", "/caption-writer": "/instagram-caption-copier", "/instagram-grid-maker": "/"}
+
+
 def not_found(request: Request):
     path = request.url.path
+    if request.method in ("GET", "HEAD") and norm_path(path) in RETIRED:
+        return RedirectResponse(RETIRED[norm_path(path)], status_code=301)
     if request.method in ("GET", "HEAD"):
         rd = overrides("redirects").get(norm_path(path))
         if rd and rd.get("to"):

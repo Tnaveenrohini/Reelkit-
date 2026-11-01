@@ -184,8 +184,12 @@ def _ig_entry(m):
         e = {"thumbnail": img.get("url"), "width": img.get("width"), "height": img.get("height"), "http_headers": dict(IG_MEDIA_HDR)}
         if vids:
             v = max(vids, key=lambda x: (x.get("width") or 0) * (x.get("height") or 0))
-            e.update(url=v["url"], ext="mp4", width=v.get("width") or e["width"], height=v.get("height") or e["height"], duration=m.get("video_duration"),
-                     formats=[{"url": v["url"], "ext": "mp4", "width": v.get("width"), "height": v.get("height"), "http_headers": dict(IG_MEDIA_HDR)}])
+            seen, fm = set(), []
+            for x in sorted(vids, key=lambda x: (x.get("width") or 0) * (x.get("height") or 0)):
+                k = (x.get("width"), x.get("height"))
+                if x.get("url") and k not in seen:
+                    seen.add(k); fm.append({"url": x["url"], "ext": "mp4", "width": x.get("width"), "height": x.get("height"), "protocol": "https", "http_headers": dict(IG_MEDIA_HDR)})
+            e.update(url=v["url"], ext="mp4", width=v.get("width") or e["width"], height=v.get("height") or e["height"], duration=m.get("video_duration"), formats=fm)
         else:
             e["url"] = img.get("url")
         return e
@@ -217,7 +221,8 @@ def _ig_info(m):
     user = (m.get("user") or m.get("owner") or {}).get("username")
     ts = m.get("taken_at") or m.get("taken_at_timestamp")
     d = {"uploader": user, "channel": user, "description": cap or "", "title": None, "thumbnail": entries[0].get("thumbnail"),
-         "like_count": m.get("like_count") or (m.get("edge_media_preview_like") or {}).get("count"), "comment_count": m.get("comment_count"),
+         "like_count": m.get("like_count") or (m.get("edge_media_preview_like") or {}).get("count"), "comment_count": m.get("comment_count") or (m.get("edge_media_to_comment") or m.get("edge_media_preview_comment") or {}).get("count"),
+         "view_count": m.get("play_count") or m.get("ig_play_count") or m.get("view_count") or m.get("video_play_count") or m.get("video_view_count"),
          "upload_date": time.strftime("%Y%m%d", time.gmtime(int(ts))) if ts else None, "entries": entries}
     if len(entries) == 1:
         d["duration"] = entries[0].get("duration")
@@ -580,6 +585,21 @@ def _threads(url):
     return {"uploader": user or None, "description": re.sub(r"\s+", " ", cap).strip(), "thumbnail": entries[0].get("thumbnail"), "entries": entries}
 
 
+def _native(e):
+    """Ready-made MP4 files of one video, by short side (720 for 720 × 1280). Only real files the site offers."""
+    out = {}
+    for f in e.get("formats") or []:
+        w, h = f.get("width") or 0, f.get("height") or 0
+        if not (f.get("url") and w and h) or "m3u8" in _proto(f) or "dash" in _proto(f) or f.get("ext") not in ("mp4", None):
+            continue
+        if f.get("vcodec") == "none" or f.get("acodec") == "none":      # sound-only or picture-only parts are not whole videos
+            continue
+        k = min(w, h)
+        if k not in out or (f.get("tbr") or 0) > (out[k].get("tbr") or 0):
+            out[k] = f
+    return out
+
+
 def items_of(d):
     return list(d.get("entries") or [d])
 
@@ -740,16 +760,17 @@ def info(b: Req):
         q = _yt_choices(_yt_plans(d)[0])
     return {
         "site": site, "title": d.get("title") if site in PLAN_SITES else None, "qualities": q,
-        "uploader": d.get("uploader") or d.get("channel"),
+        "uploader": d.get("uploader") or d.get("channel"), "handle": g("uploader_id") if site == "x" else None,
         "thumb": d.get("thumbnail") or (its[0].get("thumbnail") if its else None),
         "caption": caption,
         "duration": d.get("duration") or (its[0].get("duration") if its else None),
         "hashtags": list(dict.fromkeys(re.findall(r"#\w+", caption))),
         "mentions": list(dict.fromkeys(re.findall(r"@[\w.]+", caption))),
-        "date": g("upload_date"), "views": g("view_count"), "likes": g("like_count"), "comments": g("comment_count"),
+        "date": g("upload_date"), "views": g("view_count"), "likes": g("like_count"), "comments": g("comment_count"), "reposts": g("repost_count"),
         "music": " - ".join(x for x in (g("track"), g("artist")) if x) or None,
         "items": [{"type": "video" if is_video(e) else "photo", "width": e.get("width"), "height": e.get("height"),
-                   "duration": e.get("duration"), "size": e.get("filesize") or e.get("filesize_approx")} for e in its],
+                   "duration": e.get("duration"), "size": e.get("filesize") or e.get("filesize_approx"),
+                   "qs": sorted(_native(e)) if site not in PLAN_SITES and is_video(e) else []} for e in its],
     }
 
 
@@ -912,6 +933,56 @@ def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: in
     return _send(r, out, "video/mp4", nice_name(d, "mp4", "small"), dl, "smaller video")
 
 
+CONVERT_MAX, ENHANCE_MAX = 180, 60   # seconds of video the free server converts / enhances
+
+
+@r_.get("/convert")
+def convert(url: str, index: int = 0, h: int = 720, enhance: int = 0, dl: int = 1):
+    """Re-encode one video to a chosen size. Enhance = light noise clean-up, sharper resize (lanczos) and an unsharp mask.
+    It makes the picture cleaner and crisper; it cannot add detail the original never had."""
+    if h not in (360, 480, 720, 1080):
+        raise HTTPException(400, "Choose 360p, 480p, 720p or 1080p.")
+    u = clean(url)
+    d = fetch_info(u)
+    if site_of(u) in PLAN_SITES:
+        plans, _ = _yt_plans(d)
+        if not plans:
+            raise HTTPException(422, "This post has no video to convert.")
+        p = plans[max(plans)]
+        inputs, dur = list(p[1:]), d.get("duration") or 0
+    else:
+        its = items_of(d); e = its[min(max(index, 0), len(its) - 1)]
+        if not is_video(e):
+            raise HTTPException(400, "This item is a photo, so there is no video to convert.")
+        nat = _native(e)
+        f = nat[max(nat)] if nat else {"url": e.get("url") or e["formats"][-1]["url"]}
+        inputs = [dict(f, http_headers=f.get("http_headers") or e.get("http_headers") or {})]
+        dur = e.get("duration") or d.get("duration") or 0
+    lim = ENHANCE_MAX if enhance else CONVERT_MAX
+    if dur > lim:
+        raise HTTPException(413, ("Enhance works for videos up to 1 minute" if enhance else "Converting works for videos up to 3 minutes")
+                            + " on this free server. Use the normal download for longer videos.")
+    cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
+    for f in inputs:
+        hd = _hd(f, d)
+        if hd:
+            cmd += ["-headers", "".join(f"{k}: {x}\r\n" for k, x in hd.items())]
+        cmd += ["-i", f["url"]]
+    cmd += ["-map", "0:v:0", "-map", "1:a:0"] if len(inputs) == 2 else ["-map", "0:v:0", "-map", "0:a:0?"]
+    size = f"scale='if(gte(iw,ih),-2,{h})':'if(gte(iw,ih),{h},-2)':flags=lanczos"
+    vf = f"hqdn3d=1.5:1.5:4:4,{size},unsharp=5:5:0.9:5:5:0.0,eq=contrast=1.04:saturation=1.08" if enhance else size
+    out = f"/tmp/c-{uuid.uuid4().hex}.mp4"
+    cmd += ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "19" if enhance else "23", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "160k" if enhance else "128k", "-movflags", "+faststart"] + CLEAN + [out]
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=170)
+    except subprocess.TimeoutExpired:
+        if os.path.exists(out):
+            os.remove(out)
+        raise HTTPException(504, "This took too long for the free server. Try a smaller size, or use the normal download.")
+    return _send(r, out, "video/mp4", nice_name(d, "mp4", f"{h}p-enhanced" if enhance else f"{h}p", index if len(items_of(d)) > 1 else None), dl, "video")
+
+
 def _video_only(vid):
     if not vid:
         raise HTTPException(400, "This item is a photo. Choose a video post.")
@@ -1001,6 +1072,13 @@ def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int
             raise HTTPException(413, f"HD downloads are limited to videos under {MAX_HD_SECONDS // 60} minutes on this free server. Choose {dflt}p instead.")
         return _ff_stream(d, list(p[1:]), h, inline, loud, privacy, nice_name(d, "mp4", f"{h}p"))
     src, hdrs, vid, d = media(u, index, info=True)
+    if q and vid and not inline:
+        its = items_of(d); e = its[min(max(index, 0), len(its) - 1)]; f = _native(e).get(q)
+        if f:
+            src, hdrs = f["url"], f.get("http_headers") or hdrs
+            if not (loud or privacy):
+                return stream(src, hdrs, nice_name(d, "mp4", f"{q}p", index), request.headers.get("range"))
+            return _ff_stream(d, [{"url": src, "http_headers": hdrs}], q, 0, loud, privacy, nice_name(d, "mp4", f"{q}p", index))
     if inline:
         return stream(src, hdrs, None, request.headers.get("range"))
     name = nice_name(d, "mp4" if vid else "jpg", "", index)

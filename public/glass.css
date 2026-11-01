@@ -783,3 +783,61 @@ html[data-theme=light] .dlc .tg.all{color:#8A5D00!important;border-color:#D9A43A
 .frc .btn .i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;margin-right:6px}
 .frm{order:-1;flex-basis:100%;text-align:center;padding:0}
 .frbar{gap:8px}
+
+/* =====================================================================
+   v30 – footer Shortcuts menu + Ask WaveRise help chat
+   ===================================================================== */
+footer .fwrap{padding:14px!important;display:flex;flex-direction:column;gap:10px}
+.fbar{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.fask{display:inline-flex!important;align-items:center;gap:8px;min-height:44px;padding:0 16px!important;border-radius:22px!important;border:0!important;background:var(--gold)!important;color:var(--ink)!important;font-weight:800;font-size:14px;cursor:pointer}
+.fask .i,.fmenu summary .i,.tshelp .i,#hbtn .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.fmenu{flex:1 1 180px;min-width:0;margin:0!important;padding:0!important;border-radius:22px!important;background:transparent!important}
+.fmenu summary{list-style:none;display:flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--fline);font-weight:800;font-size:14px;cursor:pointer;color:var(--text)}
+.fmenu summary::-webkit-details-marker{display:none}
+.fmenu summary .chev{margin-left:auto;transition:transform .2s}
+.fmenu[open] summary .chev{transform:rotate(180deg)}
+.fmenu[open]{flex-basis:100%}
+.fpanel{padding:12px 4px 4px;display:flex;flex-direction:column;gap:10px}
+.fpanel .flinks{display:grid!important;grid-template-columns:1fr 1fr;gap:8px!important;margin:0!important}
+.fpanel .flinks a{display:flex!important;align-items:center;min-height:42px;padding:0 12px!important;border-radius:12px;border:1px solid var(--fline);font-size:13.5px;font-weight:700;text-decoration:none;color:var(--text)!important;margin:0!important}
+.fpanel #inst{width:100%}
+.fpanel p{margin:0!important}
+footer .made{margin:0!important;font-size:12.5px}
+footer .fwrap>.note{font-size:11.5px!important}
+#hbtn{display:none}
+@media (min-width:400px){#hbtn{display:grid!important}}
+.tshelp{display:inline-flex!important;align-items:center;gap:8px;background:var(--gold)!important;color:var(--ink)!important;border:0!important;font-weight:800}
+/* the help chat */
+.hsheet{display:flex;flex-direction:column;overflow:hidden!important}
+.hsheet[hidden]{display:none!important}
+.hsheet .tsbar{flex:none}
+.hsheet .hav{position:relative;width:40px;height:40px;flex:none}
+.hsheet .hav .live{position:absolute;right:-1px;bottom:-1px;width:11px;height:11px;border-radius:50%;background:#5FD39A;border:2px solid #0A1834}
+html[data-theme=light] .hsheet .hav .live{border-color:#fff}
+.hsheet .htit{flex:1;min-width:0}.htit b{font-size:16px;font-weight:800}
+.hbody{flex:1;overflow-y:auto;width:100%;box-sizing:border-box;padding-bottom:16px!important;-webkit-overflow-scrolling:touch}
+.hbody .hm{max-width:88%;font-size:14.5px;line-height:1.55}
+.hbody .msg.me{max-width:80%;word-break:break-word}
+.hrich p{margin:0 0 6px}.hrich p:last-child{margin:0}
+.hrich ul,.hrich ol{margin:4px 0 6px;padding-left:20px}.hrich li{margin:2px 0}
+.hrich a{color:var(--gold);font-weight:700}
+html[data-theme=light] .hrich a{color:#8A5D00}
+.hgo,.hsug{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.hsug{margin:2px 0 0;max-width:640px}
+.hchip{display:inline-flex;align-items:center;min-height:36px;padding:0 14px!important;border-radius:18px!important;border:1px solid var(--gold)!important;background:transparent!important;color:var(--gold)!important;font-weight:700;font-size:13px;text-decoration:none;cursor:pointer}
+html[data-theme=light] .hchip{color:#8A5D00!important;border-color:#D9A43A!important}
+.htyping{display:flex!important;gap:5px;align-items:center;padding:14px 16px!important}
+.htyping i{width:7px;height:7px;border-radius:50%;background:var(--mute);animation:hdot 1s infinite ease-in-out}
+.htyping i:nth-child(2){animation-delay:.15s}.htyping i:nth-child(3){animation-delay:.3s}
+@keyframes hdot{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.hcomp{flex:none;display:flex!important;gap:8px;align-items:center;margin:0!important;padding:10px 12px calc(8px + env(safe-area-inset-bottom))!important;border-radius:0!important;border:0!important;border-top:1px solid var(--line)!important;background:#0A1834!important;max-width:none!important;width:100%;box-sizing:border-box}
+html[data-theme=light] .hcomp{background:#fff!important}
+.hcomp #hq{flex:1;min-width:0;height:48px;border-radius:24px!important;padding:0 18px!important;font-size:16px;border:1px solid var(--fline);background:var(--field);color:var(--text)}
+.hcomp #hgo{width:48px;height:48px;padding:0!important;border-radius:50%!important;display:grid;place-items:center;flex:none}
+.hcomp #hgo .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.hnote{flex:none;margin:0;padding:0 12px 8px;text-align:center;font-size:11px;color:var(--mute);background:#0A1834}
+html[data-theme=light] .hnote{background:#fff}
+@media (min-width:700px){.hcomp,.hnote{padding-left:calc(50% - 310px)!important;padding-right:calc(50% - 310px)!important}}
+@media (prefers-reduced-motion:reduce){.htyping i{animation:none}}
+.hsheet .hav{border-radius:50%;background:var(--gold);display:grid;place-items:center}
+.hsheet .hav svg{width:22px;height:22px;fill:none;stroke:#07122B;stroke-width:2.6;stroke-linecap:round}

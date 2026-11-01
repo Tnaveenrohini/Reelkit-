@@ -543,3 +543,135 @@ html[data-theme=light] #lang option{background:#fff;color:#0E1A33}
 html[data-theme=light] .good{color:#147A43!important}
 .brand .wv{color:var(--text)!important;-webkit-text-fill-color:currentColor!important;background:none!important}.brand .rs{color:var(--gold)!important;-webkit-text-fill-color:currentColor!important;background:none!important}html[data-theme=light] .brand .rs{color:#B07A00!important}
 .btn.filebtn,.btn.mp3b.filebtn{background:var(--gold)!important;color:var(--ink)!important;border:0!important}
+
+/* =====================================================================
+   Chat Flow (Blue & Gold): the tool area is a conversation. WaveRise
+   greets you, your link is a gold bubble, results come back as replies,
+   quick replies reuse the same link, and the link box is the composer.
+   ===================================================================== */
+.brand{gap:10px}
+.brand .bimg{position:relative;display:inline-flex;flex:none}
+.brand .live{position:absolute;right:-2px;bottom:-2px;width:12px;height:12px;border-radius:50%;background:#5FD39A;border:2px solid var(--bg)}
+.brand .bn{display:grid!important;grid-template-columns:max-content 1fr;justify-content:start;align-items:baseline;line-height:1.1;gap:0!important}
+.brand .bsub{grid-column:1/-1;font-size:11.5px;font-weight:600;color:var(--mute);letter-spacing:0;margin-top:2px;-webkit-text-fill-color:currentColor}
+.chat{display:flex!important;flex-direction:column;align-items:stretch;gap:12px;text-align:left!important;max-width:720px;margin-left:auto;margin-right:auto}
+.chat .msg{max-width:min(600px,90%);box-sizing:border-box}
+.chat .bot{align-self:flex-start;display:flex;gap:10px;align-items:flex-start;background:var(--card);border:1px solid var(--line);border-radius:6px 22px 22px 22px;padding:14px 16px}
+.chat .bot .av{flex:none;width:30px;height:30px;border-radius:50%;background:var(--gold) url(/icon.png?v=12) center/cover;border:2px solid var(--gold)}
+.chat .hi #h{font-size:clamp(20px,5.4vw,28px)!important;line-height:1.25!important;margin:0 0 6px!important;text-align:left!important}
+.chat .hi #p{margin:0!important;font-size:15px;line-height:1.55;text-align:left!important}
+.chat .me{align-self:flex-end;background:var(--gold);color:var(--ink);border-radius:22px 6px 22px 22px;padding:11px 16px;font-weight:700;font-size:14.5px;word-break:break-all;animation:chatIn .18s ease-out}
+.chat .me[hidden]{display:none}
+#out{display:flex;flex-direction:column;gap:12px;align-items:flex-start}
+#out:empty{display:none}
+#out>.card{align-self:stretch;border-radius:6px 22px 22px 22px!important;animation:chatIn .2s ease-out}
+#out>p.note,#out>p.err{align-self:flex-start;margin:0;background:var(--card);border:1px solid var(--line);border-radius:6px 22px 22px 22px;padding:11px 16px;text-align:left;animation:chatIn .18s ease-out}
+#out>p.err{border-color:rgba(255,122,107,.45)}
+.qr{display:flex;flex-wrap:wrap;gap:8px;animation:chatIn .2s ease-out}
+.qr[hidden]{display:none}
+.qr .qh{width:100%;flex:0 0 100%;max-width:none!important;text-align:left!important;margin:2px 0 0!important;font-size:13.5px;font-weight:700;color:var(--mute)}
+.qr button{min-height:42px;padding:0 16px;border-radius:21px!important;border:1px solid var(--gold)!important;background:transparent!important;color:var(--gold)!important;font-weight:700;font-size:14px;cursor:pointer}
+.qr button:hover{background:rgba(242,193,78,.1)!important}
+html[data-theme=light] .qr button{color:#8A5D00!important;border-color:#D9A43A!important}
+/* the composer */
+.chat #f[hidden],.chat .opt[hidden],.chat .opts[hidden]{display:none!important}
+.chat #f{display:flex!important;flex-wrap:nowrap!important;align-items:center;gap:8px;padding:8px!important;border-radius:30px!important;margin:4px 0 0}
+.chat #u{flex:1 1 auto;min-width:0;height:50px;border-radius:25px!important;padding:0 18px!important;font-size:16px}
+.chat #paste{flex:none;display:inline-flex;align-items:center;gap:6px;height:50px;padding:0 14px;border-radius:25px!important}
+.chat #paste .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.chat #clear{display:none}
+.chat #go{flex:none;height:50px;padding:0 20px;border-radius:25px!important;white-space:nowrap}
+.chat .opt,.chat .opts{align-self:flex-start;margin:0 6px}
+@media (max-width:520px){.chat #paste span{display:none}.chat #paste{width:50px;padding:0;justify-content:center}.chat #go{padding:0 16px}}
+@media (max-width:900px){
+  .chat #f{position:sticky;bottom:calc(var(--dock-h,64px) + 18px + env(safe-area-inset-bottom));z-index:30;box-shadow:0 -10px 28px rgba(3,8,20,.55)!important}
+  html[data-theme=light] .chat #f{box-shadow:0 -8px 22px rgba(14,26,51,.12)!important}
+}
+@keyframes chatIn{from{opacity:0;transform:translateY(6px)}}
+@media (prefers-reduced-motion:reduce){.chat .me,#out>.card,#out>p,.qr{animation:none}}
+.brand .bsub{max-width:150px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:379px){.brand .bsub{display:none}}
+@media (max-width:520px){.chat #go{max-width:44vw;white-space:normal;line-height:1.15;font-size:14.5px}}
+@media (max-width:359px){.chat #f{flex-wrap:wrap!important;border-radius:26px!important}.chat #u{flex:1 1 100%}.chat #go{flex:1 1 auto;max-width:none}}
+
+/* =====================================================================
+   Chat Flow v2 – the Blue & Gold chat template: avatar header, tools
+   sheet, composer fixed at the bottom on phones, analysis bubble and
+   the compact "Reel is ready" card.
+   ===================================================================== */
+.brand .bav{width:40px;height:40px;border-radius:50%;background:var(--gold);display:grid;place-items:center}
+.brand .bav svg{width:22px;height:22px;fill:none;stroke:#07122B;stroke-width:2.6;stroke-linecap:round}
+.brand .bimg img{display:none}
+.chat .hi #h{font-size:16px!important;font-weight:800;margin:0 0 4px!important;letter-spacing:0!important}
+.chat .hi #p{font-size:15px!important;color:var(--text)!important;opacity:.92}
+/* composer: round paste, pill field, round gold send */
+.chat #f{gap:8px!important}
+.chat #paste{width:48px;height:48px;padding:0!important;justify-content:center;border-radius:50%!important;background:var(--card)!important;border:1px solid var(--fline)!important}
+.chat #paste span{display:none}
+.chat #u{height:48px!important;border-radius:24px!important}
+.chat #go{height:48px;min-width:48px;padding:0 18px!important;border-radius:24px!important;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.chat #go .i{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+/* analysis bubble */
+.anz{display:flex!important;flex-direction:column;gap:6px;align-self:flex-start!important;max-width:320px;padding:12px 16px!important}
+.anz .al{display:flex;align-items:center;gap:8px;margin:0;font-size:14.5px;animation:chatIn .25s ease-out both}
+.anz .al.d1{animation-delay:.3s}.anz .al.d2{animation-delay:.6s}
+.anz .i.ok{width:18px;height:18px;fill:none;stroke:#5FD39A;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.anz .spin{flex:none}
+/* result card */
+.dlc{display:flex!important;flex-direction:column;gap:10px;max-width:340px;padding:10px!important;align-self:flex-start!important}
+.dlc .dlh{display:flex;gap:12px;align-items:flex-start}
+.dlc .pv{width:76px!important;height:102px!important;min-height:0!important;flex:none;border-radius:12px!important;overflow:hidden;margin:0!important;aspect-ratio:auto!important}
+.dlc .pv img{width:100%;height:100%;object-fit:cover}
+.dlc .pv .pbtn{width:40px!important;height:40px!important}
+.dlc .dlh:has(.pv.on){flex-direction:column}
+.dlc .pv.on{width:100%!important;height:auto!important;aspect-ratio:9/16!important;max-height:70vh}
+.dlc .dlm{display:flex;flex-direction:column;gap:3px;padding-top:2px;min-width:0}
+.dlc .dlm b{font-size:16px}
+.dlc .dlm span{font-size:13.5px;color:var(--mute)}
+.dlc .dlm .who{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dlc .dlb{display:flex;flex-direction:column;gap:8px}
+.dlc .dlb .btn{width:100%;min-height:48px;border-radius:14px!important;justify-content:center;display:inline-flex;align-items:center;gap:8px;box-sizing:border-box}
+.dlc .dlb .btn .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.dlc .dlb .btn.share{min-height:44px}
+.dlc .qs{gap:8px}.dlc .qs .btn{width:auto;flex:1 1 40%}
+.dlc .many{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+/* header tools button + sheet */
+#tsbtn{display:none}
+.tsheet{position:fixed;inset:0;z-index:80;background:var(--bg);overflow-y:auto;animation:tsIn .2s ease-out}
+.tsheet[hidden]{display:none}
+.tsbar{position:sticky;top:0;z-index:1;display:flex;align-items:center;gap:12px;height:72px;padding:0 14px;background:#0A1834;border-bottom:1px solid var(--line)}
+html[data-theme=light] .tsbar{background:#fff}
+.tsbar .ic{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;flex:none}
+.tsbar .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.tsbar div{display:flex;flex-direction:column}.tsname{font-size:17px;font-weight:800}.tsname span{color:var(--gold)}
+.tsbar small{font-size:12px;color:var(--mute)}
+.tsbody{max-width:640px;margin:0 auto;padding:14px 14px 40px;display:flex;flex-direction:column;gap:10px}
+.tsbody .msg{margin:0;padding:10px 14px;font-size:15px;max-width:85%}
+.tsbody .me{align-self:flex-end;background:var(--gold);color:var(--ink);font-weight:700;font-size:14px;border-radius:20px 6px 20px 20px}
+.tsbody .bot{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-radius:6px 20px 20px 20px}
+.tscard{background:var(--card)!important;border:1px solid var(--line)!important;border-radius:6px 20px 20px 20px!important;padding:14px!important;display:flex;flex-direction:column;gap:10px;position:static!important;height:auto!important;width:auto!important;grid-template-columns:none!important}
+.tsg{margin:4px 0 0;font-size:12px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--gold)}
+html[data-theme=light] .tsg{color:#8A5D00}
+.tsl{display:flex;flex-wrap:wrap;gap:8px}
+.tsl a{min-height:40px;padding:0 14px;border-radius:20px;background:#13295F;color:var(--text);font-size:14px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center}
+html[data-theme=light] .tsl a{background:#EEF1F7}
+.tsl a.on{background:var(--gold);color:var(--ink);font-weight:800}
+.tsfoot{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:6px;text-align:center}
+.tschip{min-height:40px;padding:0 16px;border-radius:20px!important}
+html.ts-open,html.ts-open body{overflow:hidden}
+@keyframes tsIn{from{opacity:0;transform:translateY(12px)}}
+@media (max-width:900px){
+  #nav{display:none!important}
+  #tsbtn{display:grid!important;place-items:center}
+  #theme{display:none!important}
+  body{padding-bottom:calc(84px + env(safe-area-inset-bottom))!important}
+  .chat #f{position:fixed!important;left:0;right:0;bottom:0;margin:0!important;border-radius:0!important;border:0!important;border-top:1px solid var(--line)!important;background:#0A1834!important;padding:12px 12px calc(14px + env(safe-area-inset-bottom))!important;z-index:35;box-shadow:none!important}
+  html[data-theme=light] .chat #f{background:#fff!important}
+  .chat #go{width:48px;padding:0!important;border-radius:50%!important}
+  .chat #go .gl{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+}
+@media (max-width:359px){.chat #f{flex-wrap:nowrap!important}.chat #u{flex:1 1 auto}.chat #go{flex:none}}
+@media (prefers-reduced-motion:reduce){.anz .al,.tsheet{animation:none}}
+.tsheet nav.tscard{order:0!important;display:flex!important;flex-direction:column!important;flex-wrap:nowrap!important;gap:10px!important;margin:0!important;padding:14px!important;border-radius:6px 20px 20px 20px!important;inset:auto!important;transform:none!important}
+.tsbody>*{order:0}
+html[data-theme=light] .tsl a.on{background:var(--gold);color:var(--ink)}

@@ -1152,6 +1152,91 @@ wr_admin.install(app)
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})
 
 
+# ---------- WaveRise Help (support chat) ----------
+class HelpReq(BaseModel):
+    q: str
+    lang: str = "en"
+    hist: list = []
+
+
+HELP_FACTS = """You are "WaveRise Help", the support assistant of WaveRise (waverise.in), a free website made in India.
+Answer only questions about WaveRise and how to use it. Be friendly, short (2-5 sentences or a few steps) and practical.
+Never invent features, prices, apps or promises. If you are not sure, say so and suggest emailing instavault8@gmail.com.
+Write links only as markdown with these exact site paths: [text](/path). Do not write any other links.
+
+WHAT WAVERISE DOES (free, no login, no account, never asks for an Instagram password):
+- Save public posts from a link: Instagram Reels, videos, photos and carousels (/), Facebook public videos and Reels (/facebook-video-downloader), X / Twitter videos (/twitter-video-downloader).
+- YouTube and Threads are "coming soon": not available yet.
+- NOT supported, on purpose, for privacy: Instagram Stories, Highlights, profile pictures, and anything from private accounts.
+- After a link is read, the result card shows the account, views/likes/comments when the site shares them, hashtags (tap to copy), the qualities the site offers, smaller sizes made on the server, and "Enhance to HD 1080p" (cleans and sharpens; it cannot add detail the original never had; videos up to 1 minute; smaller sizes up to 3 minutes). Photos have "Enhance photo (2x HD)" made on the phone.
+- Video & audio tools: Video to MP3 (/video-to-mp3), Reel to Ringtone (/reel-to-ringtone), Clip Trimmer (/video-trimmer), Make it small / video compressor for WhatsApp (/compress-video-for-whatsapp), GIF Maker (/gif-maker), HD Photo from Video: play, pause, capture a frame (/video-to-photo), WhatsApp Status Splitter: cut long videos into 15/30/60 s parts (/whatsapp-status-splitter), WhatsApp Status Saver (/whatsapp-status-saver), Caption & Hashtag Copier (/instagram-caption-copier).
+- Forms & documents (made on the phone, nothing uploaded): Photo MB to KB for exam/job/government forms (/photo-mb-to-kb), Passport Photo (/passport-photo-maker), Signature Maker (/signature-resizer), Photo + Name & Date (/photo-with-name-and-date), Photos to PDF (/photos-to-pdf).
+- Photos & greetings: Background Remover (/background-remover), Festival Frames (/festival-frames), Daily Status images (/daily-status-images), WhatsApp Sticker Maker (/whatsapp-sticker-maker).
+- Languages: English, Hindi, Tamil, Telugu (the EN button at the top). Light/dark mode and "auto-detect a copied link" are in the tools menu (top-right button).
+- Install: in Chrome tap the menu, then "Install app". After installing, Share a Reel from Instagram and choose WaveRise.
+- Files go to the phone's Downloads (Android) or Files app (iPhone); "Send to WhatsApp" shares directly when the phone supports it.
+- Common problems: the post is private or deleted; the link was copied wrong (use Share > Copy link); Instagram/Facebook is limiting requests (wait a few minutes and try again); very long videos may be too big for the free server.
+- Only save content you own or have permission to use. Copyright: /dmca. Pages: /about, /contact, /faq, /privacy-policy, /terms.
+- Human support: email instavault8@gmail.com.
+"""
+HELP_LANG = {"en": "English", "hi": "Hindi", "ta": "Tamil", "te": "Telugu"}
+HELP_MODELS = [m for m in [os.getenv("GEMINI_MODEL", "").strip(), "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"] if m]
+HELP_PER_IP, HELP_WINDOW, HELP_PER_DAY = 12, 600, int(os.getenv("HELP_DAILY_LIMIT", "400"))
+_help_hits, _help_day = {}, {"d": "", "n": 0}
+
+
+@r_.get("/help")
+def help_status():
+    return {"ai": bool(os.getenv("GEMINI_API_KEY", "").strip())}
+
+
+@r_.post("/help")
+def help_ask(b: HelpReq, request: Request):
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not key:
+        return {"ai": False}
+    q = re.sub(r"\s+", " ", str(b.q or "")).strip()[:500]
+    if not q:
+        return {"ai": True, "answer": None}
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "") or "?").split(",")[0].strip()
+    now = time.time()
+    hits = [t for t in _help_hits.get(ip, []) if now - t < HELP_WINDOW]
+    today = time.strftime("%Y-%m-%d")
+    if _help_day["d"] != today:
+        _help_day.update(d=today, n=0)
+    if len(hits) >= HELP_PER_IP or _help_day["n"] >= HELP_PER_DAY:
+        return {"ai": True, "answer": None, "busy": True}
+    hits.append(now); _help_hits[ip] = hits; _help_day["n"] += 1
+    if len(_help_hits) > 2000:
+        _help_hits.clear()
+    contents = []
+    for m in (b.hist or [])[-6:]:
+        if isinstance(m, dict) and m.get("t"):
+            contents.append({"role": "user" if m.get("me") else "model", "parts": [{"text": str(m["t"])[:600]}]})
+    contents.append({"role": "user", "parts": [{"text": q}]})
+    body = {"systemInstruction": {"parts": [{"text": HELP_FACTS + f"\nReply in {HELP_LANG.get(b.lang, 'English')} (keep tool names and site paths as they are)."}]},
+            "contents": contents, "generationConfig": {"temperature": 0.3, "maxOutputTokens": 450}}
+    for model in HELP_MODELS:
+        try:
+            r = httpx.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+                           headers={"x-goog-api-key": key, "Content-Type": "application/json"}, json=body, timeout=20)
+        except httpx.HTTPError as e:
+            print(f"[waverise] help: {model} unreachable ({type(e).__name__})")
+            continue
+        if r.status_code == 404:
+            continue                       # model name not available: try the next one
+        if r.status_code != 200:
+            print(f"[waverise] help: {model} answered {r.status_code}: {r.text[:200]}")
+            return {"ai": True, "answer": None, "busy": r.status_code == 429}
+        try:
+            parts = r.json()["candidates"][0]["content"]["parts"]
+            text = "".join(p.get("text", "") for p in parts).strip()
+        except (KeyError, IndexError, ValueError, TypeError):
+            text = ""
+        return {"ai": True, "answer": text[:1500] or None}
+    return {"ai": True, "answer": None}
+
+
 @r_.get("/health")
 def health():
     return {"ok": True, "version": 14, "coming_soon": sorted(SOON), "youtube_engine": next(iter(js_runtime()), None)}

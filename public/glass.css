@@ -898,7 +898,8 @@ html[data-theme=light] .gimg{background:#E8EDF7;color:#8A5D00}
 }
 /* guides */
 html[data-view=guide] .tool,html[data-view=guide] #hub{display:none!important}
-.gpage{max-width:720px;margin:0 auto 20px}
+.gpage{max-width:720px;margin:16px auto 20px}
+#hts:empty{display:none}
 .gpage h1{font-size:clamp(24px,5vw,34px);line-height:1.25;margin:6px 0 12px}
 .gpage h2{font-size:20px;margin:26px 0 10px;scroll-margin-top:90px}
 .gpage p,.gpage li{font-size:15.5px;line-height:1.7}

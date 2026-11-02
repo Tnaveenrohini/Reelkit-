@@ -885,18 +885,8 @@ def _ff(src, hdrs, ss, args, out, timeout=140):
     return r
 
 
-def _bug_report(kind, message, route, status=None, context=None):
-    try:
-        import wr_bugs
-        wr_bugs.report(kind, message, route, status, context=context)
-    except Exception:  # noqa: BLE001 – reporting must never break a download
-        pass
-
-
 def _send(r, out, mime, name, dl, what):
     if r.returncode or not os.path.exists(out) or os.path.getsize(out) < 500:
-        _bug_report("download", f"ffmpeg could not make the {what}: " + r.stderr.decode(errors="ignore")[-300:], f"/api/{what}", 422,
-                    context={"returncode": r.returncode})
         if os.path.exists(out):
             os.remove(out)
         raise HTTPException(422, f"Couldn't make the {what}. " + r.stderr.decode(errors="ignore")[-150:])
@@ -1124,7 +1114,6 @@ def _ff_stream(d, inputs, q, inline=0, loud=0, privacy=0, name=None):
         err = p.stderr.read().decode(errors="ignore")[-200:]
         p.wait()
         print("[waverise] video stream failed:", err)
-        _bug_report("download", f"ffmpeg stream failed: {err}", "/api/download", 422, context={"q": q, "inputs": len(inputs)})
         raise HTTPException(422, "Couldn't prepare this video. Try another quality.")
 
     def gen():
@@ -1161,11 +1150,6 @@ import wr_seo, wr_admin
 SEO = wr_seo.SEO
 wr_admin.install(app)
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})
-try:                                 # AI Bug Fixer: error capture + admin API (does nothing without DATABASE_URL)
-    import wr_bugs
-    wr_bugs.install(app)
-except Exception as _e:  # noqa: BLE001 – the website must keep working even if the bug fixer can't load
-    print("[waverise] AI Bug Fixer not loaded:", _e.__class__.__name__, _e, flush=True)
 
 
 # ---------- WaveRise Help (support chat) ----------

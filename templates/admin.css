@@ -83,15 +83,3 @@ details.exp summary{cursor:pointer;list-style:none}details.exp summary::-webkit-
   .status{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-
-/* AI Bug Fixer */
-.bf-bar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}
-.bf-head{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
-.bf-filters{margin:16px 0 12px;gap:10px}.bf-filters select{width:auto;min-width:160px}
-.bf-pre{white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto;background:#07122B;border:1px solid var(--line);border-radius:12px;padding:12px;font:12.5px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;color:#DCE2EF}
-.bf-pre.diff{max-height:520px}
-.bf-appr{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px;padding:12px 0;border-top:1px solid var(--line)}.bf-appr:first-of-type{border-top:0}
-.bf-checks{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
-.bf-check{display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:99px;border:1px solid var(--line);font-size:12.5px;color:var(--text);text-decoration:none}
-tr.lvl-error td{background:rgba(255,122,107,.05)}tr.lvl-warn td{background:rgba(242,193,78,.04)}
-h3{font-size:15px;margin:14px 0 6px}

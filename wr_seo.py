@@ -73,11 +73,6 @@ def _safe(loader, default):
         return loader()
     except StoreError as e:
         print("[waverise] store read failed, using defaults:", e, flush=True)
-        try:
-            import wr_bugs
-            wr_bugs.report("database", f"settings store read failed: {e}", "store", None)
-        except Exception:  # noqa: BLE001
-            pass
         return default
     except Exception as e:      # noqa: BLE001 - a broken value must never take the site down
         print("[waverise] store value unreadable:", e, flush=True)

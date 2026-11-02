@@ -29,7 +29,9 @@ def connect(url, timeout=5):
     try:
         return psycopg.connect(url, autocommit=True, row_factory=dict_row, prepare_threshold=None, connect_timeout=timeout)
     except psycopg.Error as e:
-        raise DBError(f"database unreachable: {e.__class__.__name__}") from None
+        from .redact import scrub
+        detail = scrub(str(e).strip().splitlines()[0] if str(e).strip() else "", [url])[:200]   # no password or URL in the message
+        raise DBError(f"database unreachable: {e.__class__.__name__}" + (f" ({detail})" if detail else "")) from None
 
 
 class DB:

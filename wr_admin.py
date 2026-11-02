@@ -631,6 +631,24 @@ def simple_page(title, body_html, status=200):
     return HTMLResponse(html, status_code=status, headers=ADMIN_HEADERS)
 
 
+def signin_problem(reason: str):
+    """Turn Google's answer into a message that says what to fix (Google's reasons contain no secrets)."""
+    r = (reason or "").lower()
+    if "invalid_client" in r or "unauthorized" in r or "client secret" in r:
+        return ("Google rejected the app's key. In Vercel, set GOOGLE_CLIENT_SECRET to the current secret (GOCSPX-…) of the same "
+                "Google client as GOOGLE_CLIENT_ID, with no spaces, then redeploy.")
+    if "redirect_uri" in r:
+        return f"Google doesn't allow this return address. Add {ADMIN_CALLBACK_HINT} to the client's Authorised redirect URIs."
+    if "invalid_grant" in r:
+        return "That Google sign-in expired or was already used. Tap Sign in with Google again."
+    if "could not be verified" in r:
+        return "Google couldn't confirm this account (the email may not be verified). Try another Google account."
+    return f"Google sign-in failed ({reason[:120]}). Please try again."
+
+
+ADMIN_CALLBACK_HINT = "https://www.waverise.in/admin/oauth/callback"
+
+
 def login_page(msg=""):
     note = f'<p style="color:#ffb4a8">{wr_seo.esc(msg)}</p>' if msg else ""
     return simple_page("Sign in", f'<h1>Admin sign in</h1><p>Only WaveRise administrators can open this area.</p>{note}'
@@ -708,7 +726,7 @@ def install(app):
             tok, email = exchange_code(request, code, st["v"])
         except (ValueError, httpx.HTTPError) as e:
             audit(request, "-", "login_failed", str(e)[:120])
-            return login_page("Google sign-in failed. Please try again.")
+            return login_page(signin_problem(str(e)))
         if st.get("p") == "connect":
             s = current_session(request)
             if not s:

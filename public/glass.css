@@ -943,3 +943,9 @@ nav.toc{padding:14px 16px!important;border-radius:16px!important;background:var(
 @media (min-width:901px){#nav{flex:0 0 auto!important;min-width:auto!important}}
 .page p a,.page li a{padding:9px 4px;margin:0 -4px}
 html[data-theme=light] .hubg{color:#8A5D00}
+/* v37 – the link box at the bottom of phones always sits above the footer, and the page ends above the box */
+@media (max-width:900px){
+  main.wrap{z-index:3}
+  body{padding-bottom:calc(var(--fh,84px) + 16px)!important}
+  footer .fwrap{margin-bottom:12px}
+}

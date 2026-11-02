@@ -96,7 +96,7 @@ def test_page_reports_a_real_javascript_error(browser, site):
         ctx.close()
 
 
-@pytest.mark.parametrize("path,width,height", [("/guides", 980, 2050), ("/about", 980, 2050), ("/", 960, 2000)])
+@pytest.mark.parametrize("path,width,height", [("/guides", 980, 2050), ("/about", 980, 2050), ("/", 960, 2600)])
 def test_footer_bar_sits_at_the_bottom_of_tall_screens(browser, site, path, width, height):
     """A short page on a tall screen (phones in desktop mode, tablets) must not leave an empty band under the footer."""
     ctx = browser.new_context(viewport={"width": width, "height": height})

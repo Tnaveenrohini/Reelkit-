@@ -637,7 +637,7 @@ function adsFor(ok){document.querySelectorAll('.adanchor').forEach(a=>{a.replace
  const fit=()=>{q=0;m.style.minHeight='';const gap=innerHeight-(document.body.getBoundingClientRect().bottom+scrollY);
   if(gap>1)m.style.minHeight=Math.floor(m.getBoundingClientRect().height+gap)+'px'},
   later=()=>{if(!q)q=requestAnimationFrame(fit)};
- if(window.ResizeObserver){const ro=new ResizeObserver(later);ro.observe(ft);[...m.children].forEach(c=>ro.observe(c))}
+ if(window.ResizeObserver){const ro=new ResizeObserver(later);const bb={box:'border-box'};[...document.body.children].forEach(c=>{if(c!==m)ro.observe(c,bb)});[...m.children].forEach(c=>ro.observe(c,bb))}
  addEventListener('resize',later);addEventListener('wr-route',later);addEventListener('load',later);ft.addEventListener('toggle',later,true);fit()}}
 /* guides list: topic filter */
 (()=>{const box=document.querySelector('.gfilt');if(!box)return;const set=c=>{box.querySelectorAll('.gf').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cat===c)));

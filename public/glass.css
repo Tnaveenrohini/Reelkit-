@@ -777,6 +777,7 @@ html[data-theme=light] .dlc .tg.all{color:#8A5D00!important;border-color:#D9A43A
 .frm{font-size:13px;color:var(--mute);padding:0 6px;white-space:nowrap}.frm b{color:var(--text);font-variant-numeric:tabular-nums}
 .frcap{width:100%;justify-content:center;display:flex!important;align-items:center;gap:8px}
 .frcap .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linejoin:round}
+.frcap .spin{margin:0;border-color:rgba(0,0,0,.22);border-top-color:currentColor}.frcap[aria-busy] .i{display:none}.frcap:disabled{opacity:.85;cursor:progress}
 .frl{display:flex;flex-direction:column;gap:12px;margin-top:12px}
 .frc{display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:1px solid var(--line)}
 .frc img{max-width:100%;max-height:52vh;align-self:center;border-radius:12px;border:2px solid var(--gold)}

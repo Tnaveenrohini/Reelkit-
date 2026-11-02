@@ -102,7 +102,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 
 </style>
 <script>try{if(sessionStorage.getItem("wr_intro")&&!/[?&]intro/.test(location.search))document.documentElement.classList.add("wr-seen")}catch(e){}</script>
-<link rel="stylesheet" href="/glass.css?v=36">
+<link rel="stylesheet" href="/glass.css?v=37">
 </head>
 <body>
 
@@ -471,7 +471,7 @@ function setMeta(k,title){const e=SEO[k]||{},href=location.origin+keyHref(k),set
 document.addEventListener('click',e=>{const a=e.target.closest&&e.target.closest('a[href^="/"]');if(!a||e.defaultPrevented||e.button||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey||a.target||a.hasAttribute('download'))return;
  const p=a.getAttribute('href').replace(/^\/+/,'');if(p!==''&&!S2K[p])return;e.preventDefault();if(location.pathname!==a.pathname||location.hash||location.search)history.pushState(null,'',a.getAttribute('href'));route()});
 addEventListener('popstate',route);
-function route(){chatReset();let raw=location.hash.slice(1);
+function route(){setTimeout(()=>dispatchEvent(new Event('wr-route')),0);chatReset();let raw=location.hash.slice(1);
  if(raw&&(M[raw]||PG.includes(raw))){history.replaceState(null,'',keyHref(raw)+location.search);raw=''}
  if(!raw)raw=pathKey();if(raw==='guide'&&!document.querySelector('.page[data-page=guide]')){location.reload();return}
  const R0=document.documentElement;R0.dataset.view=raw==='guide'?'guide':raw==='home'?'home':'';$('#hub').hidden=raw!=='home';
@@ -614,6 +614,8 @@ function adsFor(ok){document.querySelectorAll('.adanchor').forEach(a=>{a.replace
   a.append(h('span',{class:'adlab'},L('ad_lab')),ins);a.classList.add('on');try{(window.adsbygoogle=window.adsbygoogle||[]).push({})}catch(e){}})}
 {const b=$('#huball');if(b)b.onclick=()=>{const t=$('#tsbtn');if(t&&getComputedStyle(t).display!=='none')t.click();else{const tb=$('#toolbtn');if(tb)tb.click()}}}
 {const fm=document.querySelector('.fmenu');if(fm&&matchMedia('(min-width:901px)').matches)fm.open=true}
+/* keep the page's end clear of the link box fixed at the bottom of phones, whatever its real height (large text, gesture bar) */
+{const f=$('#f'),set=()=>{const fixed=getComputedStyle(f).position==='fixed'&&f.getClientRects().length>0;document.documentElement.style.setProperty('--fh',(fixed?f.offsetHeight:0)+'px')};if(window.ResizeObserver)new ResizeObserver(set).observe(f,{box:'border-box'});addEventListener('resize',set);set();addEventListener('wr-route',set)}
 /* guides list: topic filter */
 (()=>{const box=document.querySelector('.gfilt');if(!box)return;const set=c=>{box.querySelectorAll('.gf').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cat===c)));
   document.querySelectorAll('.gcard').forEach(a=>a.hidden=!!c&&a.dataset.cat!==c)};

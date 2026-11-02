@@ -128,6 +128,11 @@ class Store:
     def __init__(self):
         url = (os.getenv("KV_REST_API_URL") or os.getenv("UPSTASH_REDIS_REST_URL") or "").strip()
         tok = (os.getenv("KV_REST_API_TOKEN") or os.getenv("UPSTASH_REDIS_REST_TOKEN") or "").strip()
+        if not (url and tok):   # Vercel lets you pick a custom prefix when connecting Upstash (e.g. STORAGE_REST_API_URL)
+            for k in sorted(os.environ):
+                if k.endswith("_REST_API_URL") and os.getenv(k[:-4] + "TOKEN"):
+                    url, tok = os.environ[k].strip(), os.environ[k[:-4] + "TOKEN"].strip()
+                    break
         if url and tok:
             self.r, self.kind = _Redis(url, tok), "upstash"
         elif not os.getenv("VERCEL"):

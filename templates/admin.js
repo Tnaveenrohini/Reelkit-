@@ -400,7 +400,7 @@ function editMeta(p) {
 async function render(arg) {
   const key = (location.hash.slice(1) || 'overview'); CUR = SECTIONS[key] ? key : 'overview';
   document.querySelectorAll('.side a').forEach(a => a.classList.toggle('on', a.dataset.s === CUR));
-  $('#side').classList.remove('open'); $('#menuBtn').setAttribute('aria-expanded', 'false');
+  setMenu(false);
   const main = $('#main'); main.replaceChildren(h('p', { class: 'muted pad' }, h('span', { class: 'spin' }), ' Loading…'));
   try { const node = await SECTIONS[CUR](arg); if ((location.hash.slice(1) || 'overview') === key || !SECTIONS[key]) main.replaceChildren(node); }
   catch (e) { main.replaceChildren(sec('Something went wrong', null, errBox(e))); }
@@ -409,6 +409,17 @@ async function render(arg) {
 function go(k, arg) { if (location.hash.slice(1) === k) render(arg); else { cache.arg = arg; location.hash = k; } }
 async function refresh() { S = await api('/api/admin/state'); topStatus(); api('/api/admin/messages').then(d => { const b = $('#msgCount'); if (b) { b.textContent = d.unread || ''; b.hidden = !d.unread; } }).catch(() => {}); await render(); }
 window.addEventListener('hashchange', () => { const a = cache.arg; cache.arg = undefined; render(a); });
-$('#menuBtn').addEventListener('click', () => { const o = $('#side').classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded', String(o)); });
+/* phone menu: a panel under the top bar, closed with ✕, by tapping outside, Escape or choosing a page */
+function setMenu(open) {
+  $('#side').classList.toggle('open', open); $('#menuBtn').setAttribute('aria-expanded', String(open));
+  $('#menuBtn').setAttribute('aria-label', open ? 'Close menu' : 'Open menu'); document.body.classList.toggle('menu-open', open);
+  const bd = $('#sideBd'); if (bd) bd.hidden = !open;
+}
+{ const top = document.querySelector('.top'), fit = () => document.documentElement.style.setProperty('--top-h', top.getBoundingClientRect().height + 'px');
+  fit(); if (window.ResizeObserver) new ResizeObserver(fit).observe(top, { box: 'border-box' }); addEventListener('resize', fit); }
+$('#menuBtn').addEventListener('click', () => setMenu(!$('#side').classList.contains('open')));
+$('#sideBd').addEventListener('click', () => setMenu(false));
+$('#sideClose').addEventListener('click', () => setMenu(false));
+addEventListener('keydown', e => { if (e.key === 'Escape' && $('#side').classList.contains('open')) setMenu(false); });
 $('#logout').addEventListener('click', async () => { try { await api('/api/admin/logout', {}); } catch (e) { /* already signed out */ } location.href = '/admin'; });
 refresh().catch(e => $('#main').replaceChildren(errBox(e)));

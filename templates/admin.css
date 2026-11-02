@@ -99,3 +99,12 @@ html,body{overflow-x:clip}
 @media (max-width:1200px){.who span{display:none}.status{flex-wrap:nowrap;min-width:0;overflow:hidden}}
 /* space between a row of numbers and what follows it */
 .grid.g4+*{margin-top:14px}
+/* phone menu panel */
+.side-close{display:none}
+@media (max-width:900px){
+ .top{z-index:40}
+ .side{top:var(--top-h,66px)!important;bottom:auto!important;height:calc(100vh - var(--top-h,66px))!important;height:calc(100dvh - var(--top-h,66px))!important;overscroll-behavior:contain;padding-bottom:calc(24px + env(safe-area-inset-bottom))}
+ .side-bd{position:fixed;left:0;right:0;bottom:0;top:var(--top-h,66px);z-index:25;background:rgba(2,6,16,.55);backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px)}
+ .side-close{display:flex;align-items:center;gap:8px;width:100%;margin:0 0 10px;padding:10px 12px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--mute);font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+ body.menu-open{overflow:hidden}
+}

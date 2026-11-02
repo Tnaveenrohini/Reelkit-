@@ -32,7 +32,7 @@ const card = (...c) => h('div', { class: 'card' }, ...c);
 const stat = (k, v, sub, dot) => h('div', { class: 'card stat hover' }, h('div', { class: 'k' }, dot ? h('span', { class: 'dot ' + dot }) : null, k), h('div', { class: 'v' + (String(v).length > 14 ? ' long' : '') }, v), sub ? h('div', { class: 's' }, sub) : null);
 const tag = (txt, lvl) => h('span', { class: 'tag ' + (lvl || '') }, txt);
 const sec = (title, lead, ...c) => h('section', { class: 'sec' }, h('h1', {}, title), lead ? h('p', { class: 'lead' }, lead) : null, ...c);
-const table = (heads, rows, empty) => rows.length ? h('div', { class: 'tbl-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, heads.map(x => h('th', { class: x.endsWith('#') ? 'num' : '' }, x.replace(/#$/, ''))))), h('tbody', {}, rows))) : h('div', { class: 'empty card' }, empty || 'Nothing here yet.');
+const table = (heads, rows, empty) => (rows.forEach(r => [...r.children].forEach((td, i) => { if (heads[i]) td.setAttribute('data-l', heads[i].replace(/#$/, '')); })), rows.length) ? h('div', { class: 'tbl-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, heads.map(x => h('th', { class: x.endsWith('#') ? 'num' : '' }, x.replace(/#$/, ''))))), h('tbody', {}, rows))) : h('div', { class: 'empty card' }, empty || 'Nothing here yet.');
 const errBox = e => h('div', { class: 'note bad' }, e.message || String(e));
 const needGoogle = () => !S.google.connected ? h('div', { class: 'note warn' }, 'Google isn’t connected yet. ', h('a', { href: '#settings' }, 'Open Settings → Connect Google'), '.') : null;
 
@@ -226,10 +226,15 @@ const SECTIONS = {
     const done = S.pages.filter(p => p.inspect), yes = done.filter(p => p.inspect.verdict === 'PASS').length;
     out.append(h('div', { class: 'grid g4', style: 'margin:14px 0' }, stat('Indexed', done.length ? yes : '–', done.length ? `of ${done.length} checked` : 'Not checked yet', done.length ? (yes === done.length ? 'ok' : 'warn') : ''),
       stat('Not indexed', done.length ? done.length - yes : '–', 'Discovered or crawled but not in Google yet')), h('div', { class: 'row', style: 'margin-bottom:12px' }, runAll));
+    const unknown = done.filter(p => /unknown to Google/i.test(p.inspect.coverageState || '')).length;
+    if (unknown) out.append(h('div', { class: 'note warn', style: 'margin-bottom:14px' }, h('b', {}, `Google hasn’t found ${unknown} page${unknown > 1 ? 's' : ''} yet. `),
+      'This is normal for a new site and is not an error on the pages. To help Google find them: ', h('a', { href: '#sitemap' }, 'Sitemap Manager → Submit to Google'),
+      ', then in ', h('a', { href: 'https://search.google.com/search-console', target: '_blank', rel: 'noopener' }, 'Search Console ↗'),
+      ' paste a page address in the top search box and tap “Request indexing” for your most important pages. Google decides when to index; it usually takes a few days to a few weeks.'));
     const lvl = v => v === 'PASS' ? 'ok' : v === 'NEUTRAL' ? 'warn' : v ? 'bad' : '';
     out.append(table(['Page', 'Google says', 'Coverage', 'Last crawl', 'Google canonical', ''], S.pages.map(p => { const r = p.inspect || {};
       return h('tr', {}, h('td', {}, h('b', {}, p.name), h('div', { class: 'mono muted' }, p.path)), h('td', {}, r.verdict ? tag(r.verdict === 'PASS' ? 'Indexed' : r.verdict === 'NEUTRAL' ? 'Not indexed' : 'Problem', lvl(r.verdict)) : tag('Not checked')),
-        h('td', { class: 'small' }, r.coverageState || '–', r.robotsTxtState && r.robotsTxtState !== 'ALLOWED' ? h('div', { class: 'count bad' }, 'robots.txt: ' + r.robotsTxtState) : null),
+        h('td', { class: 'small' }, r.coverageState ? (/unknown to Google/i.test(r.coverageState) ? 'Google hasn’t found this page yet' : r.coverageState) : '–', r.robotsTxtState === 'DISALLOWED' ? h('div', { class: 'count bad' }, 'Blocked by robots.txt') : null),
         h('td', { class: 'small' }, r.lastCrawlTime ? new Date(r.lastCrawlTime).toLocaleDateString('en-IN') : '–'), h('td', { class: 'mono small' }, r.googleCanonical ? r.googleCanonical.replace(/^https?:\/\/[^/]+/, '') : '–'),
         h('td', {}, S.google.connected && S.settings.gsc_site ? h('button', { class: 'btn ghost sm', onclick: async e => { busy(e.target, true, '…'); try { const j = await api('/api/admin/gsc/inspect', { keys: [p.key] }); p.inspect = j.results[p.key]; render(); } catch (er) { toast(er.message, true); busy(e.target, false); } } }, 'Check') : null)); })));
     return out;

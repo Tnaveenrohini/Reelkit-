@@ -667,7 +667,7 @@ function showFrame(d,url){const v=vidOf(d);if(v<0)return msg('This post has no v
  const U=encodeURIComponent(url),base=((d.uploader||'waverise')+'').replace(/[^\w.-]+/g,'-'),it=d.items[v]||{};
  const pl=vplayer({src:`${API}/api/download?url=${U}&index=${v}&inline=1`,poster:d.thumb}),vd=pl.video,list=h('div',{class:'frl'});
  const at=h('b',{class:'frt'},'0:00.0'),T1=x=>{x=Math.max(0,x||0);return Math.floor(x/60)+':'+(x%60).toFixed(1).padStart(4,'0')};
- const tick=()=>at.textContent=T1(vd.currentTime);vd.addEventListener('timeupdate',tick);vd.addEventListener('seeked',tick);
+ const tick=()=>at.textContent=T1(vd.currentTime);vd.addEventListener('timeupdate',tick);vd.addEventListener('seeked',tick);vd.addEventListener('seeking',tick);
  const wrap=h('div',{class:'frv'+(it.width&&it.height&&it.width>it.height*1.1?' land':'')},pl);
  vd.addEventListener('error',()=>{wrap.replaceChildren(h('p',{class:'note',style:'padding:14px;margin:0'},L('fr_noplay')))});
  const step=(dt,lab,aria)=>h('button',{type:'button',class:'qc frs','aria-label':aria,onclick:()=>{vd.pause();if(vd.duration)vd.currentTime=Math.max(0,Math.min(vd.duration-0.01,vd.currentTime+dt))}},lab);
@@ -680,14 +680,22 @@ function showFrame(d,url){const v=vidOf(d);if(v<0)return msg('This post has no v
   try{const r=await fetch(`${API}/api/frame?url=${U}&index=${v}&at=${t<0?-1:t.toFixed(2)}`);if(!r.ok)throw 0;const bl=await r.blob(),im=await loadImg(bl),[w,ht]=dims(im);wait.remove();add(bl,w,ht,t<0?null:t)}
   catch(e){wait.replaceWith(h('p',{class:'err',style:'margin:0'},L('fr_err')))}btn.disabled=false};
  const cap=h('button',{type:'button',class:'btn big frcap'},svgI('<path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>'),L('fr_cap'));
- cap.onclick=async()=>{vd.pause();const t=vd.currentTime;
-  if(!vd.videoWidth||vd.readyState<2){if(!vd.src)return;return server(t,cap)}
-  try{const cv=document.createElement('canvas');cv.width=vd.videoWidth;cv.height=vd.videoHeight;cv.getContext('2d').drawImage(vd,0,0);const bl=await toBlob(cv,'image/jpeg',.95);if(!bl)throw 0;add(bl,cv.width,cv.height,t)}
-  catch(e){server(t,cap)}};
+ /* wait until the picture at the chosen moment is really on screen (phones load only the video's details at first, and a seek takes time) */
+ const frameReady=()=>new Promise(res=>{const ok=()=>vd.readyState>=2&&!vd.seeking&&vd.videoWidth>0;if(ok())return res(true);
+  let tm;const evs=['seeked','loadeddata','canplay'],chk=()=>{if(ok())fin(true)},bad=()=>fin(false),
+   fin=r=>{clearTimeout(tm);evs.forEach(e=>vd.removeEventListener(e,chk));vd.removeEventListener('error',bad);res(r)};
+  evs.forEach(e=>vd.addEventListener(e,chk));vd.addEventListener('error',bad);tm=setTimeout(()=>fin(ok()),12000);
+  if(vd.readyState<2&&!vd.seeking){vd.preload='auto';try{vd.currentTime=vd.currentTime}catch(e){}}});
+ cap.onclick=async()=>{if(cap.disabled)return;vd.pause();if(!vd.src)return;cap.disabled=true;cap.setAttribute('aria-busy','true');const sp=h('span',{class:'spin'});cap.prepend(sp);
+  const done=()=>{sp.remove();cap.disabled=false;cap.removeAttribute('aria-busy')};
+  const got=await frameReady(),t=vd.currentTime;
+  if(!got){done();return server(t,cap)}
+  try{const cv=document.createElement('canvas');cv.width=vd.videoWidth;cv.height=vd.videoHeight;cv.getContext('2d').drawImage(vd,0,0);const bl=await toBlob(cv,'image/jpeg',.95);if(!bl)throw 0;done();add(bl,cv.width,cv.height,t)}
+  catch(e){done();server(t,cap)}};
  const pick=h('button',{type:'button',class:'qc'},L('fr_pick'));pick.onclick=()=>server(-1,pick);
  card(h('p',{style:'margin:0 0 12px'},L('fr_g')),wrap,
   h('div',{class:'frbar'},step(-1,'−1s','Back 1 second'),step(-1/30,'◀','Back one frame'),h('span',{class:'frm'},L('fr_at'),' ',at),step(1/30,'▶','Forward one frame'),step(1,'+1s','Forward 1 second')),
-  cap,h('div',{class:'qrow',style:'justify-content:center'},pick),list)}
+  cap,h('div',{class:'qrow',style:'justify-content:center;margin-top:12px'},pick),list)}
 
 function showSplit(d,url){const v=vidOf(d);if(v<0)return msg('This post has no video to split.',true);const dur=Math.ceil(d.items[v].duration||d.duration||0);
  if(!dur)return msg('Couldn’t tell how long this video is, so it can’t be split.',true);

@@ -1,0 +1,73 @@
+# WaveRise AI Bug Fixer – the persistent worker, hosted free on GitHub Actions (this repository is public, so standard
+# runners cost nothing). Each run works for up to ~5 h 45 min; a new run is queued every hour, so one worker is always
+# active. Only one runs at a time. Secrets come from repository secrets and are never printed.
+#
+# Activate: add the repository secrets listed in docs/BUGFIXER.md (Settings → Secrets and variables → Actions).
+# Until the required ones exist, every run just says what is missing and stops (green, no error).
+name: bugfixer-worker
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      selftest:
+        description: "Only run the self-test (checks every connection)"
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: bugfixer-worker
+  cancel-in-progress: false
+
+jobs:
+  worker:
+    name: worker
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    env:
+      PYTHONUNBUFFERED: "1"
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      GITHUB_TOKEN: ${{ secrets.BUGFIXER_GITHUB_TOKEN }}
+      GITHUB_REPO: ${{ github.repository }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      VERCEL_PROTECTION_BYPASS: ${{ secrets.VERCEL_PROTECTION_BYPASS }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      BUGFIXER_WORKER_ID: gha-${{ github.run_id }}
+      BUGFIXER_CACHE_DIR: ${{ runner.temp }}/bugfixer-cache
+    steps:
+      - name: Check the settings
+        id: cfg
+        run: |
+          missing=""
+          for v in DATABASE_URL ANTHROPIC_API_KEY GITHUB_TOKEN VERCEL_TOKEN; do
+            [ -n "${!v}" ] || missing="$missing $v"
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice title=AI Bug Fixer not active::Missing repository secrets:${missing/GITHUB_TOKEN/BUGFIXER_GITHUB_TOKEN}. See docs/BUGFIXER.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v5
+        if: steps.cfg.outputs.ready == 'true'
+        with:
+          ref: main
+          persist-credentials: false        # the worker sends its own token; never the workflow's
+      - uses: actions/setup-python@v6
+        if: steps.cfg.outputs.ready == 'true'
+        with: { python-version: "3.12", cache: pip, cache-dependency-path: requirements-worker.txt }
+      - if: steps.cfg.outputs.ready == 'true'
+        run: pip install -r requirements-worker.txt
+      - name: Self-test
+        if: steps.cfg.outputs.ready == 'true'
+        run: python -m bugfixer.selftest ${{ inputs.selftest && '--write' || '--only db,github' }}
+      - name: Run the worker
+        if: steps.cfg.outputs.ready == 'true' && !inputs.selftest
+        # stops gracefully (finishes the current step) before the job limit; the next queued run takes over
+        run: timeout --signal=TERM --kill-after=8m 345m python -m bugfixer.worker || [ $? -eq 124 ]

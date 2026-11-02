@@ -9,7 +9,7 @@ It has two parts:
 | Part | Where it runs | What it does |
 |---|---|---|
 | **Website side** (`wr_bugs.py`, the reporter script in `templates/index.html`, the admin dashboard) | Vercel, with the site | Records errors and serves the private admin dashboard and API. **Without `DATABASE_URL` it does nothing and the site works as before.** |
-| **Worker** (`bugfixer/`) | An always-on machine (Docker) | Runs all the time: imports Sentry issues, checks the live site, analyses, repairs, waits for tests, deploys, verifies, rolls back. |
+| **Worker** (`bugfixer/`) | GitHub Actions (free for this public repository), or any always-on machine with Docker | Runs all the time: imports Sentry issues, checks the live site, analyses, repairs, waits for tests, deploys, verifies, rolls back. |
 
 Both use one PostgreSQL database (Supabase).
 
@@ -46,7 +46,7 @@ the bug is marked `failed`.
 - **GitHub** fine-grained token for `Tnaveenrohini/Reelkit-`.
 - **Vercel** access token (the site is already on Vercel).
 - **Sentry** project (optional but recommended).
-- An **always-on machine** for the worker that can run Docker or Python 3.12 with `git` and `node`, such as a free-tier cloud VM, a home server or a Raspberry Pi. Free-tier terms change, so check the provider's current limits. The worker needs about 256 MB of RAM.
+- Somewhere to run the worker: **GitHub Actions** (built in, free for public repositories, nothing to install — Step 6A), or an always-on machine with Docker (Step 6B).
 
 ## Step 1 — Database (Supabase)
 
@@ -137,9 +137,34 @@ The admin variables you already have (`SESSION_SECRET`, `ADMIN_EMAILS`, `GOOGLE_
 
 Secrets are only read from the environment. They are never written to the database, the logs, a pull request or the dashboard; the dashboard shows only "configured: yes/no".
 
-## Step 6 — Run the worker
+## Step 6A — Run the worker on GitHub Actions (free, no server)
 
-**Docker** (recommended):
+The workflow `.github/workflows/bugfixer-worker.yml` is the worker. A run starts every hour and works for up to 5 h 45 min;
+runs queue behind each other, so one worker is always active. Until the secrets below exist, each run only prints which ones
+are missing and stops.
+
+1. GitHub → the repository → **Settings → Secrets and variables → Actions → New repository secret**. Add:
+
+   | Secret | Required | Value |
+   |---|---|---|
+   | `DATABASE_URL` | yes | Supabase session-pooler or direct URL (port 5432) |
+   | `ANTHROPIC_API_KEY` | yes | Claude API key |
+   | `BUGFIXER_GITHUB_TOKEN` | yes | the fine-grained token from Step 2 (GitHub doesn't allow secret names starting with `GITHUB_`) |
+   | `VERCEL_TOKEN` | yes | Vercel token |
+   | `VERCEL_TEAM_ID`, `VERCEL_PROTECTION_BYPASS` | if needed | see Step 3 |
+   | `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` | recommended | see Step 4 |
+   | `SESSION_SECRET` | recommended | same value as on Vercel |
+
+2. **Actions → bugfixer-worker → Run workflow**, tick **Only run the self-test**, and run it. Every line should show ✓.
+3. Run it again without the tick (or wait for the hourly start). The dashboard's top bar then shows **Worker running**.
+
+The secrets are only available to this scheduled workflow on `main`; pull requests (including forks) never see them, and the
+bug fixer's own patches can't change anything under `.github/`. GitHub pauses scheduled workflows in a public repository after
+60 days without any commits; press **Enable workflow** on the Actions tab if that happens.
+
+## Step 6B — Run the worker on your own machine
+
+**Docker**:
 
 ```bash
 git clone https://github.com/Tnaveenrohini/Reelkit-.git && cd Reelkit-

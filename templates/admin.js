@@ -283,6 +283,31 @@ const SECTIONS = {
     return out;
   },
 
+  async messages() {
+    const out = sec('Messages', 'Messages people sent from the Contact page. They arrive here only; nobody is sent to an email app. Newest first.');
+    try {
+      const d = await api('/api/admin/messages');
+      const badge = $('#msgCount'); if (badge) { badge.textContent = d.unread || ''; badge.hidden = !d.unread; }
+      const act = async (m, action, btn) => {
+        if (action === 'delete' && !confirm('Delete this message? This can’t be undone.')) return;
+        busy(btn, true); try { await api('/api/admin/messages/' + encodeURIComponent(m.id), { action }); toast(action === 'delete' ? 'Message deleted.' : 'Saved.'); render(); }
+        catch (e) { busy(btn, false); toast(e.message, true); } };
+      const lvl = t => /Bug/.test(t) ? 'bad' : /DMCA/.test(t) ? 'warn' : /Feature/.test(t) ? 'ok' : '';
+      const replyLink = r => !r ? h('span', { class: 'muted' }, 'No reply address') : /@/.test(r) ? h('a', { href: 'mailto:' + r + '?subject=' + encodeURIComponent('Re: your message to WaveRise') }, r) : h('a', { href: 'tel:' + r.replace(/[^\d+]/g, '') }, r);
+      out.append(h('p', { class: 'muted small' }, `${d.rows.length} message(s) · ${d.unread} unread`));
+      if (!d.rows.length) out.append(h('div', { class: 'empty card' }, 'No messages yet.'));
+      d.rows.forEach(m => out.append(card(
+        h('div', { class: 'row', style: 'justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap' },
+          h('div', {}, m.read ? null : tag('New', 'ok'), ' ', tag(m.topic, lvl(m.topic)), ' ', h('span', { class: 'muted small' }, when(m.t) + (m.lang ? ' · ' + m.lang.toUpperCase() : ''))),
+          h('div', { class: 'row' },
+            h('button', { class: 'btn ghost sm', onclick: e => act(m, m.read ? 'unread' : 'read', e.target) }, m.read ? 'Mark unread' : 'Mark read'),
+            h('button', { class: 'btn danger sm', onclick: e => act(m, 'delete', e.target) }, 'Delete'))),
+        h('p', { style: 'white-space:pre-wrap;overflow-wrap:anywhere;margin:12px 0' }, m.message),
+        h('p', { class: 'muted small', style: 'margin:0' }, h('b', {}, m.name || 'No name'), ' · ', replyLink(m.reply)))));
+    } catch (e) { out.append(errBox(e)); }
+    return out;
+  },
+
   async audit() {
     const out = sec('Security Logs', 'Every sign-in, refused sign-in and admin change, with time, account and IP address. Kept for the latest 2,000 events.');
     try {
@@ -377,7 +402,7 @@ async function render(arg) {
   document.title = (document.querySelector('.side a.on') || {}).textContent + ' · WaveRise Admin';
 }
 function go(k, arg) { if (location.hash.slice(1) === k) render(arg); else { cache.arg = arg; location.hash = k; } }
-async function refresh() { S = await api('/api/admin/state'); topStatus(); await render(); }
+async function refresh() { S = await api('/api/admin/state'); topStatus(); api('/api/admin/messages').then(d => { const b = $('#msgCount'); if (b) { b.textContent = d.unread || ''; b.hidden = !d.unread; } }).catch(() => {}); await render(); }
 window.addEventListener('hashchange', () => { const a = cache.arg; cache.arg = undefined; render(a); });
 $('#menuBtn').addEventListener('click', () => { const o = $('#side').classList.toggle('open'); $('#menuBtn').setAttribute('aria-expanded', String(o)); });
 $('#logout').addEventListener('click', async () => { try { await api('/api/admin/logout', {}); } catch (e) { /* already signed out */ } location.href = '/admin'; });

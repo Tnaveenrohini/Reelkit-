@@ -1,0 +1,8 @@
+# Tests and checks (CI)
+pytest>=8
+ruff>=0.6
+bandit>=1.7
+playwright>=1.45
+anthropic>=0.40
+Pillow>=10
+uvicorn>=0.30

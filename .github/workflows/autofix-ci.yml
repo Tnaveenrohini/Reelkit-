@@ -1,0 +1,102 @@
+# WaveRise CI. Runs on every pull request (including the AI Bug Fixer's autofix/ pull requests) on a fresh, isolated machine.
+# The job names are the required checks the bug fixer waits for: lint, unit, integration, regression, security.
+name: autofix-ci
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  lint:
+    name: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install ruff
+      - name: Python (syntax errors, undefined names, unused imports in the bug fixer)
+        run: |
+          ruff check . --select E9,F63,F7,F82
+          ruff check bugfixer wr_bugs.py tests --select E9,F63,F7,F82,F401,F811
+      - name: Page scripts and data blocks parse
+        run: python tests/tools/check_page.py
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: pytest tests/unit tests/regression_fixes -q
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_USER: wr, POSTGRES_PASSWORD: wr, POSTGRES_DB: bugfixer_test }
+        ports: ["5432:5432"]
+        options: --health-cmd "pg_isready -U wr" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql://wr:wr@localhost:5432/bugfixer_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: git config --global user.email ci@waverise.in && git config --global user.name CI
+      - run: pytest tests/integration -q
+
+  regression:
+    name: regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12", cache: pip }
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - run: python -m playwright install --with-deps chromium
+      - run: pytest tests/regression -q
+
+  security:
+    name: security
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install bandit
+      - name: Static security analysis (high severity)
+        run: bandit -q -r app.py wr_admin.py wr_bugs.py wr_seo.py wr_guides.py wr_store.py bugfixer -lll -iii
+      - name: No secrets or credentials added
+        run: python tests/tools/secret_scan.py "${{ github.event.pull_request.base.sha || 'HEAD~1' }}"
+
+  audit:
+    # informational: known vulnerabilities in dependencies (not caused by a patch, so not a required check)
+    name: dependency-audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pip-audit && pip-audit -r requirements.txt || true

@@ -16,6 +16,22 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;600;800&display=swap" rel="stylesheet">
 <script>try{if(localStorage.getItem("rk_theme")==="light")document.documentElement.dataset.theme="light"}catch(e){}</script>
+<script>/* WaveRise error reporting for the AI Bug Fixer: page errors, failed API calls, failed uploads/downloads. No personal data; at most 8 per page view. */
+(()=>{let n=0;const seen=new Set(),api=/\/api\/(?!errors|help)/,dl=/\/api\/(download|convert|mp3|clip|gif|shrink|frame|status|sticker|ringtone)/;
+ const route=u=>{try{return new URL(u,location.href).pathname}catch(e){return ''}};
+ const send=o=>{try{if(n>=8||!navigator.onLine)return;const k=(o.kind||'')+'|'+(o.message||'').slice(0,120);if(seen.has(k))return;seen.add(k);n++;
+  o.url=location.origin+location.pathname;o.context=Object.assign({lang:document.documentElement.lang,tool:location.pathname,ua_mobile:/Mobi/.test(navigator.userAgent)},o.context||{});
+  const b=JSON.stringify(o).slice(0,12000);if(!(navigator.sendBeacon&&navigator.sendBeacon('/api/errors',new Blob([b],{type:'application/json'}))))fetch('/api/errors',{method:'POST',body:b,headers:{'Content-Type':'application/json'},keepalive:true}).catch(()=>{})}catch(e){}};
+ window.wrReport=send;
+ addEventListener('error',e=>{if(!e.message&&!e.error)return;const er=e.error||{};send({kind:'frontend',error_type:er.name||'Error',message:String(e.message||er.message||'').slice(0,500),stack:String(er.stack||'').slice(0,4000),context:{file:e.filename,line:e.lineno,col:e.colno}})});
+ addEventListener('unhandledrejection',e=>{const r=e.reason||{};if(r&&r.name==='AbortError')return;send({kind:'frontend',error_type:r.name||'UnhandledRejection',message:String(r.message||r).slice(0,500),stack:String(r.stack||'').slice(0,4000)})});
+ const F=window.fetch;if(F)window.fetch=async function(i,o){const u=String((i&&i.url)||i);let r;
+  try{r=await F.apply(this,arguments)}catch(err){if(api.test(u)&&!(err&&err.name==='AbortError'))send({kind:dl.test(u)?'download':'api',error_type:'NetworkError',message:'Request failed: '+String(err&&err.message||err).slice(0,200),route:route(u),status_code:0});throw err}
+  if(r.status>=500&&api.test(u)){let d='';try{d=(await r.clone().json()).detail||''}catch(e){}send({kind:dl.test(u)?'download':'api',error_type:'HTTP'+r.status,message:String(d||('HTTP '+r.status)).slice(0,300),route:route(u),status_code:r.status})}
+  return r};
+ addEventListener('DOMContentLoaded',()=>{const out=document.getElementById('out');if(!out||!window.MutationObserver)return;
+  new MutationObserver(ms=>{for(const m of ms)for(const x of m.addedNodes){const el=x.nodeType===1&&(x.matches('.err')?x:x.querySelector&&x.querySelector('.err'));
+   if(el&&el.textContent.trim())send({kind:/photo|kb|passport|signature|pdf|background|festival|sticker|name-and-date/.test(location.pathname)?'upload':'frontend',error_type:'visible_error',message:el.textContent.trim().slice(0,300),route:location.pathname})}}).observe(out,{childList:true,subtree:true})})})();</script>
 <style>
 :root{--bg:#0a0910;--card:rgba(255,255,255,.045);--line:rgba(255,255,255,.1);--gold:#2f8bff;--amber:#ff8a1f;--rose:#ff5d8f;--text:#f6f3ec;--mute:#a9a5b6;--r:16px}
 *{box-sizing:border-box}[hidden]{display:none!important}

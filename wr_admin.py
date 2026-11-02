@@ -664,12 +664,12 @@ def install(app):
     def admin_asset(asset: str, request: Request):
         if asset in ("login", "connect-google", "logout"):
             return admin_actions(asset, request)
-        if asset not in ("app.js", "app.css"):
+        if asset not in ("app.js", "app.css", "bugs.js"):
             return wr_seo.not_found(request)
         if not current_session(request):
             return Response("Sign in first.", status_code=401, headers=ADMIN_HEADERS)
-        body = _page("admin.js" if asset == "app.js" else "admin.css")
-        return Response(body, media_type="application/javascript" if asset == "app.js" else "text/css", headers=ADMIN_HEADERS)
+        body = _page({"app.js": "admin.js", "app.css": "admin.css", "bugs.js": "admin_bugs.js"}[asset])
+        return Response(body, media_type="text/css" if asset == "app.css" else "application/javascript", headers=ADMIN_HEADERS)
 
     def admin_actions(action, request):
         r = canonical_host(request)

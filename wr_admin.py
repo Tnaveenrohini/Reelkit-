@@ -744,7 +744,7 @@ def install(app):
             return resp
         if email not in cfg()["admins"]:
             audit(request, email, "login_denied")
-            return login_page("This Google account isn’t a WaveRise admin.")
+            return login_page(f"{email} isn’t a WaveRise admin. Put exactly this address in ADMIN_EMAILS in Vercel and redeploy, or sign in with the account that is listed there.")
         resp = RedirectResponse("/admin", 302)
         try:
             new_session(request, resp, email)

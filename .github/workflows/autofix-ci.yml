@@ -9,7 +9,8 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # one run per commit: a re-run of an older commit never cancels the checks of a newer one
+  group: ci-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: true
 env:
   PYTHONUNBUFFERED: "1"

@@ -126,6 +126,7 @@ def test_ci_evaluation():
     assert testing.evaluate([run("lint", "completed", "success"), run("unit", "in_progress", None)], req)[0] == "pending"
     assert testing.evaluate([run("lint", "completed", "success"), run("unit", "completed", "failure")], req)[0] == "failed"
     assert testing.evaluate([run("lint", "completed", "success"), run("unit", "completed", "success"), run("audit", "completed", "failure")], req)[0] == "passed"
+    assert testing.evaluate([run("lint", "completed", "success"), run("unit", "completed", "cancelled")], req)[0] == "pending"
     rerun = [run("unit", "completed", "failure", "2026-01-01T00:00:00Z"), run("unit", "completed", "success", "2026-01-01T01:00:00Z"), run("lint", "completed", "success")]
     assert testing.evaluate(rerun, req)[0] == "passed"
 

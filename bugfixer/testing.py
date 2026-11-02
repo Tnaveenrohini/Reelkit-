@@ -16,9 +16,10 @@ def evaluate(runs, required):
                "required": n in required, "id": r.get("id"), "summary": ((r.get("output") or {}).get("summary") or "")[:500]}
               for n, r in sorted(latest.items())]
     req = {c["name"]: c for c in checks if c["required"]}
-    if any(c["status"] == "completed" and c["conclusion"] not in ("success", "skipped", "neutral") for c in req.values()):
+    # a cancelled check is not a test result (superseded or re-run): keep waiting; the checks timeout still applies
+    if any(c["status"] == "completed" and c["conclusion"] not in ("success", "skipped", "neutral", "cancelled") for c in req.values()):
         return "failed", checks
-    if len(req) < len(required) or any(c["status"] != "completed" for c in req.values()):
+    if len(req) < len(required) or any(c["status"] != "completed" or c["conclusion"] == "cancelled" for c in req.values()):
         return "pending", checks
     return "passed", checks
 

@@ -22,7 +22,9 @@ footer .wrap{border-radius:26px;padding:22px 18px;margin-bottom:22px}footer{bord
 .page p,.page li{color:#d5d1de;font-size:15px}.page ul{padding-left:20px}.page a{color:var(--ac)}
 .page .upd{color:var(--mute);font-size:13px;margin:0 0 14px}
 .page details{margin:10px 0;border-radius:16px;padding:12px 16px}.page summary{font-weight:700}
-.page select,.page textarea{width:100%;padding:12px;margin:8px 0}
+.page select,.page textarea,.cform input[type=text]{width:100%;padding:12px;margin:8px 0}
+.cform textarea{min-height:130px;resize:vertical}.cform .hp{position:absolute!important;left:-9999px;width:1px;height:1px;opacity:0}
+#cnote.ok{color:#3ecf8e}#cnote.bad{color:#ff8a8a}
 
 /* ============ WaveRise design system: Liquid Glass + Dashavatara (no RGB) ============ */
 :root{--bg:#03050c;--card:rgba(255,255,255,.06);--line:rgba(255,255,255,.12);--ac:#2f8bff;--ac2:#6fc3ff;--gold:#ffb84a;--text:#fff;--mute:rgba(255,255,255,.65);--bl:24px;--r:22px}

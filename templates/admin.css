@@ -83,3 +83,4 @@ details.exp summary{cursor:pointer;list-style:none}details.exp summary::-webkit-
   .status{display:none}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.mcount{display:inline-block;min-width:20px;padding:1px 7px;margin-left:6px;border-radius:99px;background:#F2C14E;color:#1a1300;font-size:12px;font-weight:700;text-align:center}

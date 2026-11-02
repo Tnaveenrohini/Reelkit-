@@ -95,6 +95,7 @@ def host_of(request: Request):
 
 
 _mem_rl = {}
+CONTACT_TOPICS = ("General question", "Bug report", "Feature request", "Copyright / DMCA")
 
 
 def rate_limit(bucket: str, limit: int, window: int):
@@ -890,6 +891,72 @@ def install(app):
         s = require(request, True); need_store()
         STORE.cmd("DEL", STORE.k("404"), STORE.k("404meta"), STORE.k("404_scanners"))
         audit(request, s["email"], "404_log_cleared")
+        return admin_json({"ok": True})
+
+    # ---------------- Contact messages (sent from the Contact page, read here; no email app involved) ----------------
+    @app.post("/api/contact", include_in_schema=False)
+    async def contact_send(request: Request):
+        body = await request.body()
+        if len(body) > 8000:
+            raise HTTPException(413, "Your message is too long. Please keep it under 3,000 characters.")
+        src = request.headers.get("origin") or request.headers.get("referer") or ""
+        if src and (urlparse(src).netloc or "").lower() != host_of(request):
+            raise HTTPException(403, "Please send your message from the WaveRise Contact page.")
+        try:
+            d = json.loads(body or b"{}")
+        except ValueError:
+            raise HTTPException(400, "Something went wrong. Please try again.")
+        if not isinstance(d, dict):
+            raise HTTPException(400, "Something went wrong. Please try again.")
+        if str(d.get("website") or "").strip():          # hidden field only bots fill in
+            return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
+        msg = re.sub(r"[ \t]+\n", "\n", str(d.get("message") or "")).strip()
+        if len(msg) < 10:
+            raise HTTPException(400, "Please write your message (at least 10 characters).")
+        if len(msg) > 3000:
+            raise HTTPException(400, "Your message is too long. Please keep it under 3,000 characters.")
+        topic = d.get("topic") if d.get("topic") in CONTACT_TOPICS else CONTACT_TOPICS[0]
+        name = re.sub(r"\s+", " ", str(d.get("name") or "")).strip()[:80]
+        reply = str(d.get("reply") or "").strip()[:120]
+        if reply and not (re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", reply) or re.fullmatch(r"\+?[\d\s()-]{7,20}", reply)):
+            raise HTTPException(400, "Enter a valid email or phone number, or leave that box empty.")
+        if not STORE.ok:
+            raise HTTPException(503, "Messages can’t be received right now. Please try again later.")
+        ip = client_ip(request)
+        rate_limit("contact:" + hashlib.sha256(ip.encode()).hexdigest()[:16], 5, 3600)
+        rate_limit("contact:all", 300, 3600)
+        try:
+            if int(STORE.cmd("HLEN", STORE.k("contact")) or 0) >= 3000:
+                raise HTTPException(503, "Our inbox is full right now. Please try again in a few days.")
+            mid = f"{int(time.time() * 1000)}-{secrets.token_hex(3)}"
+            STORE.hset("contact", mid, {"id": mid, "t": int(time.time()), "topic": topic, "message": msg, "name": name, "reply": reply,
+                                        "lang": str(d.get("lang") or "")[:5], "from": hashlib.sha256(("wr|" + ip).encode()).hexdigest()[:10],
+                                        "read": False})
+        except StoreError:
+            raise HTTPException(503, "Messages can’t be received right now. Please try again later.")
+        return JSONResponse({"ok": True}, headers={"Cache-Control": "no-store"})
+
+    @app.get("/api/admin/messages", include_in_schema=False)
+    def a_messages(request: Request):
+        require(request); need_store()
+        rows = sorted(STORE.hall("contact").values(), key=lambda r: (r.get("t", 0), r.get("id", "")), reverse=True)
+        return admin_json({"rows": rows, "unread": sum(1 for r in rows if not r.get("read"))})
+
+    @app.post("/api/admin/messages/{mid}", include_in_schema=False)
+    async def a_message_action(mid: str, request: Request):
+        s = require(request, True); need_store()
+        body = await request.json()
+        row = STORE.hall("contact").get(mid)
+        if not row:
+            raise HTTPException(404, "That message no longer exists.")
+        if body.get("action") == "delete":
+            STORE.hdel("contact", mid)
+            audit(request, s["email"], "message_deleted", {"topic": row.get("topic")})
+        elif body.get("action") in ("read", "unread"):
+            row["read"] = body["action"] == "read"
+            STORE.hset("contact", mid, row)
+        else:
+            raise HTTPException(400, "Unknown action")
         return admin_json({"ok": True})
 
     @app.get("/api/admin/audit", include_in_schema=False)

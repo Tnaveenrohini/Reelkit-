@@ -79,6 +79,8 @@ class _Memory:
             if op == "HDEL":
                 h = self.d.get(k) or {}
                 return sum(1 for f in a[1:] if h.pop(f, None) is not None)
+            if op == "HLEN":
+                return len(self.d.get(k) or {})
             if op == "HGETALL":
                 out = []
                 for f, v in (self.d.get(k) or {}).items():

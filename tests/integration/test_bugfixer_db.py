@@ -39,7 +39,8 @@ def test_same_error_is_one_bug_and_comes_back_as_regressed(pg):
 
 def test_expected_answers_are_not_stored_and_secrets_are_scrubbed(pg):
     assert detection.ingest(pg, {"source": "client", "kind": "api", "status_code": 422, "message": "This post is private"}) == {"ignored": "expected"}
-    r = detection.ingest(pg, ev(message="token=ghp_abcdefghijklmnopqrstuvwxyz0123456789 for me@x.com", url="https://www.waverise.in/?u=secret"))
+    fake_token = "ghp_" + "a1b2c3d4e5" * 4                       # built at run time so the secret scanner doesn't flag the test
+    r = detection.ingest(pg, ev(message=f"token={fake_token} for me@x.com", url="https://www.waverise.in/?u=secret"))
     e = pg.one("select * from bf_events where bug_id = %s", (r["bug_id"],))
     assert "ghp_" not in e["message"] and "me@x.com" not in e["message"] and e["url"] == "https://www.waverise.in/"
 

@@ -1,0 +1,6 @@
+tests/
+docs/
+.github/
+Dockerfile.worker
+requirements-worker.txt
+requirements-dev.txt

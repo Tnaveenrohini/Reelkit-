@@ -1,0 +1,11 @@
+# WaveRise AI Bug Fixer – persistent worker. It never runs the website's code: tests run in GitHub Actions.
+FROM python:3.12-slim
+RUN apt-get update && apt-get install -y --no-install-recommends git nodejs ca-certificates && rm -rf /var/lib/apt/lists/* \
+ && useradd -m -u 10001 bugfixer
+WORKDIR /app
+COPY requirements-worker.txt .
+RUN pip install --no-cache-dir -r requirements-worker.txt
+COPY bugfixer ./bugfixer
+USER bugfixer
+ENV PYTHONUNBUFFERED=1 BUGFIXER_CACHE_DIR=/tmp/bugfixer-cache
+CMD ["python", "-m", "bugfixer.worker"]

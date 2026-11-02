@@ -72,6 +72,19 @@ function topStatus() {
 }
 
 /* ---------- sections ---------- */
+/* Request indexing: Google offers this only inside Search Console (there is no API for normal pages), so the button opens
+   Search Console's URL Inspection for this exact page, where one tap on “Request indexing” sends it to Google. */
+const reqKey = 'wr_req_idx';
+const reqLog = () => { try { return JSON.parse(localStorage.getItem(reqKey) || '{}'); } catch (e) { return {}; } };
+function reqIndexBtn(p) {
+  const at = reqLog()[p.url];
+  const b = h('a', { class: 'btn sm', target: '_blank', rel: 'noopener', href: 'https://search.google.com/search-console/inspect?resource_id=' + encodeURIComponent(S.settings.gsc_site) + '&id=' + encodeURIComponent(p.url),
+    title: 'Opens Google Search Console for this page. Tap “Request indexing” there.', onclick: () => {
+      try { const l = reqLog(); l[p.url] = Date.now(); localStorage.setItem(reqKey, JSON.stringify(l)); } catch (e) { /* private mode */ }
+      toast('Search Console opened. Wait for the check, then tap “Request indexing”.'); setTimeout(() => render(), 1500); } }, 'Request indexing ↗');
+  return h('div', {}, b, at ? h('div', { class: 'muted small', style: 'margin-top:4px' }, 'Requested ' + new Date(at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })) : null);
+}
+
 const SECTIONS = {
   async overview() {
     const st = S.settings, pages = S.pages, idx = pages.filter(p => p.inspect), indexed = idx.filter(p => p.inspect.verdict === 'PASS').length;
@@ -226,17 +239,18 @@ const SECTIONS = {
     const done = S.pages.filter(p => p.inspect), yes = done.filter(p => p.inspect.verdict === 'PASS').length;
     out.append(h('div', { class: 'grid g4', style: 'margin:14px 0' }, stat('Indexed', done.length ? yes : '–', done.length ? `of ${done.length} checked` : 'Not checked yet', done.length ? (yes === done.length ? 'ok' : 'warn') : ''),
       stat('Not indexed', done.length ? done.length - yes : '–', 'Discovered or crawled but not in Google yet')), h('div', { class: 'row', style: 'margin-bottom:12px' }, runAll));
-    const unknown = done.filter(p => /unknown to Google/i.test(p.inspect.coverageState || '')).length;
-    if (unknown) out.append(h('div', { class: 'note warn', style: 'margin-bottom:14px' }, h('b', {}, `Google hasn’t found ${unknown} page${unknown > 1 ? 's' : ''} yet. `),
-      'This is normal for a new site and is not an error on the pages. To help Google find them: ', h('a', { href: '#sitemap' }, 'Sitemap Manager → Submit to Google'),
-      ', then in ', h('a', { href: 'https://search.google.com/search-console', target: '_blank', rel: 'noopener' }, 'Search Console ↗'),
-      ' paste a page address in the top search box and tap “Request indexing” for your most important pages. Google decides when to index; it usually takes a few days to a few weeks.'));
+    const waiting = done.length - yes;
+    if (waiting) out.append(h('div', { class: 'note warn', style: 'margin-bottom:14px' }, h('b', {}, `${waiting} page${waiting > 1 ? 's are' : ' is'} not in Google yet. `),
+      'This is normal for a new site and is not an error on the pages. 1) ', h('a', { href: '#sitemap' }, 'Sitemap Manager → Submit to Google'),
+      '. 2) Tap “Request indexing ↗” next to a page: Search Console opens on that page; when its check finishes, tap “Request indexing” there. Google allows about 10 requests a day, so start with your most important pages. Google decides when to index; it usually takes a few days to a few weeks.'));
     const lvl = v => v === 'PASS' ? 'ok' : v === 'NEUTRAL' ? 'warn' : v ? 'bad' : '';
     out.append(table(['Page', 'Google says', 'Coverage', 'Last crawl', 'Google canonical', ''], S.pages.map(p => { const r = p.inspect || {};
       return h('tr', {}, h('td', {}, h('b', {}, p.name), h('div', { class: 'mono muted' }, p.path)), h('td', {}, r.verdict ? tag(r.verdict === 'PASS' ? 'Indexed' : r.verdict === 'NEUTRAL' ? 'Not indexed' : 'Problem', lvl(r.verdict)) : tag('Not checked')),
         h('td', { class: 'small' }, r.coverageState ? (/unknown to Google/i.test(r.coverageState) ? 'Google hasn’t found this page yet' : r.coverageState) : '–', r.robotsTxtState === 'DISALLOWED' ? h('div', { class: 'count bad' }, 'Blocked by robots.txt') : null),
         h('td', { class: 'small' }, r.lastCrawlTime ? new Date(r.lastCrawlTime).toLocaleDateString('en-IN') : '–'), h('td', { class: 'mono small' }, r.googleCanonical ? r.googleCanonical.replace(/^https?:\/\/[^/]+/, '') : '–'),
-        h('td', {}, S.google.connected && S.settings.gsc_site ? h('button', { class: 'btn ghost sm', onclick: async e => { busy(e.target, true, '…'); try { const j = await api('/api/admin/gsc/inspect', { keys: [p.key] }); p.inspect = j.results[p.key]; render(); } catch (er) { toast(er.message, true); busy(e.target, false); } } }, 'Check') : null)); })));
+        h('td', {}, S.google.connected && S.settings.gsc_site ? h('div', { class: 'idx-acts' },
+          h('button', { class: 'btn ghost sm', onclick: async e => { busy(e.target, true, '…'); try { const j = await api('/api/admin/gsc/inspect', { keys: [p.key] }); p.inspect = j.results[p.key]; render(); } catch (er) { toast(er.message, true); busy(e.target, false); } } }, 'Check'),
+          r.verdict !== 'PASS' ? reqIndexBtn(p) : null) : null)); })));
     return out;
   },
 

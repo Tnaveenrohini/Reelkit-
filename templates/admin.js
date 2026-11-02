@@ -29,7 +29,7 @@ async function api(path, body, method) {
 }
 const busy = (btn, on, label) => { if (!btn) return; if (on) { btn._l = btn.textContent; btn.disabled = true; btn.replaceChildren(h('span', { class: 'spin' }), ' ', label || 'Working…'); } else { btn.disabled = false; btn.textContent = btn._l; } };
 const card = (...c) => h('div', { class: 'card' }, ...c);
-const stat = (k, v, sub, dot) => h('div', { class: 'card stat hover' }, h('div', { class: 'k' }, dot ? h('span', { class: 'dot ' + dot }) : null, k), h('div', { class: 'v' }, v), sub ? h('div', { class: 's' }, sub) : null);
+const stat = (k, v, sub, dot) => h('div', { class: 'card stat hover' }, h('div', { class: 'k' }, dot ? h('span', { class: 'dot ' + dot }) : null, k), h('div', { class: 'v' + (String(v).length > 14 ? ' long' : '') }, v), sub ? h('div', { class: 's' }, sub) : null);
 const tag = (txt, lvl) => h('span', { class: 'tag ' + (lvl || '') }, txt);
 const sec = (title, lead, ...c) => h('section', { class: 'sec' }, h('h1', {}, title), lead ? h('p', { class: 'lead' }, lead) : null, ...c);
 const table = (heads, rows, empty) => rows.length ? h('div', { class: 'tbl-wrap' }, h('table', {}, h('thead', {}, h('tr', {}, heads.map(x => h('th', { class: x.endsWith('#') ? 'num' : '' }, x.replace(/#$/, ''))))), h('tbody', {}, rows))) : h('div', { class: 'empty card' }, empty || 'Nothing here yet.');

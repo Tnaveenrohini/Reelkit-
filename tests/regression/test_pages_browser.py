@@ -94,3 +94,20 @@ def test_page_reports_a_real_javascript_error(browser, site):
         assert sent and "Cannot read properties of null" in sent[0] and '"kind":"frontend"' in sent[0].replace(" ", "")
     finally:
         ctx.close()
+
+
+@pytest.mark.parametrize("path,width,height", [("/guides", 980, 2050), ("/about", 980, 2050), ("/", 960, 2600)])
+def test_footer_bar_sits_at_the_bottom_of_tall_screens(browser, site, path, width, height):
+    """A short page on a tall screen (phones in desktop mode, tablets) must not leave an empty band under the footer."""
+    ctx = browser.new_context(viewport={"width": width, "height": height})
+    page = ctx.new_page()
+    page.route("**/*", lambda route: route.continue_() if route.request.url.startswith(site) else route.abort())
+    try:
+        page.goto(site + path, wait_until="load")
+        page.wait_for_timeout(400)
+        gap = page.evaluate("innerHeight - document.querySelector('footer').getBoundingClientRect().bottom")
+        link_box = page.evaluate("(() => { const f = document.querySelector('#f'); return f && getComputedStyle(f).position === 'fixed' ? f.offsetHeight : 0 })()")
+        assert gap <= link_box + 40, f"{gap}px empty under the footer on {path}"
+        assert page.evaluate("document.documentElement.scrollHeight - innerHeight") <= 1, "a short page must not scroll"
+    finally:
+        ctx.close()

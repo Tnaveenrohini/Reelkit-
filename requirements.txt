@@ -5,5 +5,3 @@ imageio-ffmpeg
 deno
 python-multipart
 cryptography
-psycopg[binary]>=3.2
-sentry-sdk[fastapi]>=2.0

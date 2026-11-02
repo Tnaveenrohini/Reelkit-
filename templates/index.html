@@ -632,6 +632,13 @@ function adsFor(ok){document.querySelectorAll('.adanchor').forEach(a=>{a.replace
 {const fm=document.querySelector('.fmenu');if(fm&&matchMedia('(min-width:901px)').matches)fm.open=true}
 /* keep the page's end clear of the link box fixed at the bottom of phones, whatever its real height (large text, gesture bar) */
 {const f=$('#f'),set=()=>{const fixed=getComputedStyle(f).position==='fixed'&&f.getClientRects().length>0;document.documentElement.style.setProperty('--fh',(fixed?f.offsetHeight:0)+'px')};if(window.ResizeObserver)new ResizeObserver(set).observe(f,{box:'border-box'});addEventListener('resize',set);set();addEventListener('wr-route',set)}
+/* short pages: keep the footer bar at the bottom of the screen instead of leaving an empty band under it */
+{const m=document.querySelector('main'),ft=document.querySelector('footer');if(m&&ft){let q=0;
+ const fit=()=>{q=0;m.style.minHeight='';const gap=innerHeight-(document.body.getBoundingClientRect().bottom+scrollY);
+  if(gap>1)m.style.minHeight=Math.floor(m.getBoundingClientRect().height+gap)+'px'},
+  later=()=>{if(!q)q=requestAnimationFrame(fit)};
+ if(window.ResizeObserver){const ro=new ResizeObserver(later);ro.observe(ft);[...m.children].forEach(c=>ro.observe(c))}
+ addEventListener('resize',later);addEventListener('wr-route',later);addEventListener('load',later);ft.addEventListener('toggle',later,true);fit()}}
 /* guides list: topic filter */
 (()=>{const box=document.querySelector('.gfilt');if(!box)return;const set=c=>{box.querySelectorAll('.gf').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.cat===c)));
   document.querySelectorAll('.gcard').forEach(a=>a.hidden=!!c&&a.dataset.cat!==c)};

@@ -8,6 +8,7 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 from wr_store import STORE, StoreError
+import wr_guides as WG
 
 ROOT = Path(__file__).parent
 TEMPLATE_PATH = ROOT / "templates" / "index.html"
@@ -33,6 +34,20 @@ try:
     SEO = json.loads(re.search(r'<script type="application/json" id="wr-seo">(.*?)</script>', TEMPLATE, re.S).group(1).replace("<\\/", "</"))
 except Exception:
     SEO = {}
+try:
+    GUIDE = json.loads(re.search(r'<script type="application/json" id="wr-guide">(.*?)</script>', TEMPLATE, re.S).group(1).replace("<\\/", "</"))
+except Exception:
+    GUIDE = {}
+DOWNLOADERS = ("video", "photo", "reels", "carousel", "facebook", "x")
+ADS_PAGES = ("home", "reduce", "passport", "signature", "namedate", "topdf", "daily", "festival", "bgremove")   # never the pages that save from a link
+ADS_CLIENT_RX, ADS_SLOT_RX = re.compile(r"^ca-pub-\d{10,20}$"), re.compile(r"^\d{6,14}$")
+
+
+def adsense():
+    c, sl = (os.getenv("ADSENSE_CLIENT") or "").strip(), (os.getenv("ADSENSE_SLOT") or "").strip()
+    return (c if ADS_CLIENT_RX.match(c) else ""), (sl if ADS_SLOT_RX.match(sl) else "")
+
+
 try:
     _mt = os.path.getmtime(TEMPLATE_PATH)
     BUILT = time.strftime("%Y-%m-%d", time.gmtime(_mt)) if _mt > 1.6e9 else None
@@ -88,7 +103,7 @@ def site_base(request: Request = None):
 
 
 def path_of(key):
-    return "/" if key == "video" else "/" + SEO[key]["s"]
+    return "/" if key == "home" or not SEO.get(key, {}).get("s") else "/" + SEO[key]["s"]
 
 
 def effective(key):
@@ -109,11 +124,17 @@ def auto_schema(key, base, eff):
         if items:
             return {"@context": "https://schema.org", "@type": "FAQPage", "url": url, "mainEntity": [
                 {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in items]}
+    if key == "home":
+        return {"@context": "https://schema.org", "@graph": [site, org, {"@type": "WebPage", "name": eff["t"], "url": url, "description": eff["d"], "isPartOf": {"@id": base + "/#website"}}]}
     if e.get("h"):
         app = {"@type": "WebApplication", "name": e["h"], "url": url, "description": eff["d"], "applicationCategory": "MultimediaApplication",
                "operatingSystem": "Any", "isPartOf": {"@id": base + "/#website"}, "publisher": {"@id": base + "/#org"},
                "offers": {"@type": "Offer", "price": "0", "priceCurrency": "INR"}}
-        return {"@context": "https://schema.org", "@graph": [site, org, app] if key == "video" else [app]}
+        graph = [app]
+        g = GUIDE.get(key) or {}
+        if g.get("q"):
+            graph.append({"@type": "FAQPage", "url": url, "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in g["q"]]})
+        return {"@context": "https://schema.org", "@graph": graph}
     return {"@context": "https://schema.org", "@type": "WebPage", "name": eff["t"], "url": url, "description": eff["d"], "isPartOf": {"@id": base + "/#website"}}
 
 
@@ -147,7 +168,8 @@ def render(key, request: Request):
     page = page.replace('content="/og-image.jpg?v=12"', f'content="{esc(og)}"')
     if e.get("h"):
         page = page.replace('<h1 id="h"></h1><p id="p"></p>', f'<h1 id="h">{esc(e["h"])}</h1><p id="p">{esc(e["p"])}</p>', 1)
-        page = page.replace('<h2 id="ah"></h2><p id="ap"></p>', f'<h2 id="ah">About {esc(e["h"])}</h2><p id="ap">{esc(e["a"])}</p>', 1)
+        page = page.replace('<h2 id="ah"></h2><p id="ap"></p>', f'<h2 id="ah">About {esc("WaveRise" if key == "home" else e["h"])}</h2><p id="ap">{esc(e["a"])}</p>', 1)
+    page = body_for(page, key)
     ld = schema_for(key, base, eff)
     ld_html = "" if ld is None else '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>"
     page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>', lambda _: ld_html, page, count=1, flags=re.S)
@@ -166,8 +188,88 @@ def render(key, request: Request):
     if GA_RX.match(ga):
         head.append(f'<script async src="https://www.googletagmanager.com/gtag/js?id={ga}"></script>'
                     f"<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments)}}gtag('js',new Date());gtag('config','{ga}',{{anonymize_ip:true}});</script>")
-    page = page.replace("</head>", "\n".join(head) + "\n</head>", 1)
+    page = page.replace("</head>", "\n".join(head + ads_head(key in ADS_PAGES)) + "\n</head>", 1)
+    page = ads_body(page, key in ADS_PAGES)
     return page, eff["noindex"]
+
+
+def body_for(page, key):
+    """The page body for one address: the tools hub on the home page, each tool's own guide on tool pages."""
+    if key == "home":
+        page = page.replace('<section id="hub" class="hub" hidden', '<section id="hub" class="hub"', 1)
+        page = page.replace('<html lang="en"', '<html lang="en" data-view="home"', 1)
+        page = page.replace('<section class="tool tguide" id="tguide">', '<section class="tool tguide" id="tguide" hidden>', 1)
+    g = GUIDE.get(key)
+    if g and key in SEO:
+        name = lambda k: SEO.get(k, {}).get("h") or k
+        page = page.replace('<h2 id="tgh"></h2><ol id="tgs"></ol>', f'<h2 id="tgh">How to use {esc(SEO[key]["h"])}</h2><ol id="tgs">' + "".join(f"<li>{esc(t)}</li>" for t in g["st"]) + "</ol>", 1)
+        page = page.replace('<div id="tgq"></div>', '<div id="tgq">' + "".join(f"<details><summary>{esc(q)}</summary><p>{esc(a)}</p></details>" for q, a in g["q"]) + "</div>", 1)
+        page = page.replace('<div id="tgr" class="tgr"></div>', '<div id="tgr" class="tgr">' + "".join(f'<a class="hchip" href="{esc(path_of(k))}">{esc(name(k))}</a>' for k in g["r"] if k in SEO) + "</div>", 1)
+    elif key != "home":
+        page = page.replace('<section class="tool tguide" id="tguide">', '<section class="tool tguide" id="tguide" hidden>', 1)
+    if key not in DOWNLOADERS:
+        page = page.replace('<section id="sharehelp" class="tool">', '<section id="sharehelp" class="tool" hidden>', 1)
+    return page
+
+
+def ads_head(on_this_page):
+    c, _ = adsense()
+    if not c:
+        return []
+    out = [f'<meta name="google-adsense-account" content="{esc(c)}">']        # lets AdSense verify the site on every page
+    if on_this_page:
+        out.append(f'<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client={esc(c)}" crossorigin="anonymous"></script>')
+    return out
+
+
+def ads_body(page, _on):
+    c, sl = adsense()
+    if not c:
+        return page
+    cfg = json.dumps({"c": c, "s": sl})
+    return page.replace('<script type="application/json" id="wr-ads">{}</script>', f'<script type="application/json" id="wr-ads">{cfg}</script>', 1)
+
+
+def render_guide(slug, request: Request):
+    """/guides and /guides/<slug>: the same page and header, with the article in place of the tool."""
+    page = TEMPLATE
+    g = WG.BY_SLUG.get(slug) if slug else None
+    if not page or (slug and not g):
+        return None
+    base, st = site_base(request), settings()
+    path = f"/guides/{slug}" if g else "/guides"
+    title = f"{g['title']} – WaveRise Guides" if g else "Guides – Step-by-step help for forms, photos and WhatsApp | WaveRise"
+    desc = g["desc"] if g else "Free step-by-step guides from WaveRise: photo sizes for exam forms, signatures, passport photos, WhatsApp Status, festival greetings and more."
+    ov = overrides("meta").get("guide:" + (slug or "index"), {})
+    title, desc = (ov.get("t") or title).strip(), (ov.get("d") or desc).strip()
+    noindex = bool(ov.get("noindex")) or not st.get("visibility", True)
+    url, t, d = base + path, esc(title), esc(desc)
+    og = (ov.get("og") or st.get("default_og") or "").strip() or base + "/og-image.jpg?v=12"
+    page = re.sub(r"<title>.*?</title>", lambda _: f"<title>{t}</title>", page, count=1, flags=re.S)
+    page = re.sub(r'<meta name="description" content="[^"]*">', lambda _: f'<meta name="description" content="{d}">', page, count=1)
+    page = re.sub(r'<link rel="canonical" href="[^"]*">', lambda _: f'<link rel="canonical" href="{esc(url)}">', page, count=1)
+    page = re.sub(r'<meta property="og:title" content="[^"]*">', lambda _: f'<meta property="og:title" content="{t}">', page, count=1)
+    page = re.sub(r'<meta property="og:description" content="[^"]*">', lambda _: f'<meta property="og:description" content="{d}">', page, count=1)
+    page = re.sub(r'<meta property="og:url" content="[^"]*">', lambda _: f'<meta property="og:url" content="{esc(url)}">', page, count=1)
+    page = page.replace('content="/og-image.jpg?v=12"', f'content="{esc(og)}"')
+    ld = WG.article_ld(g, base) if g else {"@context": "https://schema.org", "@type": "CollectionPage", "name": "WaveRise Guides", "url": url, "description": desc,
+                                           "hasPart": [{"@type": "Article", "headline": x["title"], "url": f"{base}/guides/{x['slug']}"} for x in WG.GUIDES]}
+    page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>',
+                  lambda _: '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>", page, count=1, flags=re.S)
+    page = page.replace('<html lang="en"', '<html lang="en" data-view="guide"', 1)
+    page = page.replace('<div id="pages">', '<div id="pages">' + (WG.article_html(g) if g else WG.index_html()), 1)
+    page = page.replace('<section class="tool tguide" id="tguide">', '<section class="tool tguide" id="tguide" hidden>', 1)
+    head = [f'<meta name="twitter:title" content="{t}">', f'<meta name="twitter:description" content="{d}">',
+            '<meta name="robots" content="' + ("noindex, nofollow" if noindex else "index, follow, max-image-preview:large") + '">']
+    v = (st.get("gsc_verification") or "").strip()
+    if v and VERIFY_RX.match(v):
+        head.append(f'<meta name="google-site-verification" content="{esc(v)}">')
+    ga = (st.get("ga_id") or "").strip().upper()
+    if GA_RX.match(ga):
+        head.append(f'<script async src="https://www.googletagmanager.com/gtag/js?id={ga}"></script>'
+                    f"<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments)}}gtag('js',new Date());gtag('config','{ga}',{{anonymize_ip:true}});</script>")
+    page = page.replace("</head>", "\n".join(head + ads_head(True)) + "\n</head>", 1)
+    return ads_body(page, True), noindex
 
 
 def page_response(key, request: Request):
@@ -196,7 +298,10 @@ def sitemap_urls(base):
         if effective(k)["noindex"]:
             continue
         lm = lastmod.get(k) if isinstance(lastmod.get(k), str) else BUILT
-        out.append((base + path_of(k), lm, "1.0" if k == "video" else "0.3" if k in INFO_PAGES else "0.8"))
+        out.append((base + path_of(k), lm, "1.0" if k == "home" else "0.3" if k in INFO_PAGES else "0.8"))
+    if settings().get("visibility", True):
+        out.append((base + "/guides", WG.UPDATED, "0.7"))
+        out += [(f"{base}/guides/{g['slug']}", WG.UPDATED, "0.7") for g in WG.GUIDES]
     return out
 
 
@@ -279,7 +384,7 @@ def not_found(request: Request):
             except StoreError:
                 pass
     body = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=22"></head>'
+            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=36"></head>'
             '<body style="background:#07122B;color:#F4F1EA;font-family:Sora,system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;padding:0 20px;text-align:center">'
             '<main><h1 style="font-size:28px;margin:0 0 8px">Page not found</h1><p style="color:#AEB8D0;margin:0 0 20px">This page doesn’t exist or has moved.</p>'
             '<a href="/" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#F2C14E;color:#1A1405;font-weight:800;text-decoration:none">Open WaveRise</a></main></body></html>')
@@ -296,13 +401,44 @@ def install(app, taken_paths):
             return page_response(key, request)
         return handler
 
-    app.add_api_route("/", page_route("video"), methods=["GET", "HEAD"], include_in_schema=False)
+    app.add_api_route("/", page_route("home"), methods=["GET", "HEAD"], include_in_schema=False)
     for k, e in SEO.items():
+        if not e.get("s"):
+            continue
         p = "/" + e["s"]
         if p in taken_paths:
             continue
         app.add_api_route(p, page_route(k), methods=["GET", "HEAD"], include_in_schema=False)
         app.add_api_route(p + "/", (lambda s: (lambda: RedirectResponse("/" + s, status_code=301)))(e["s"]), methods=["GET", "HEAD"], include_in_schema=False)
+
+    def guide_page(slug, request):
+        try:
+            r = render_guide(slug, request)
+        except Exception as e:      # noqa: BLE001
+            print("[waverise] guide render failed:", slug, e, flush=True)
+            r = None
+        if r is None:
+            return not_found(request)
+        body, noindex = r
+        h = dict(CACHE)
+        if noindex:
+            h["X-Robots-Tag"] = "noindex, nofollow"
+        return HTMLResponse(body, headers=h)
+
+    @app.api_route("/guides", methods=["GET", "HEAD"], include_in_schema=False)
+    def guides_index(request: Request):
+        return guide_page(None, request)
+
+    @app.api_route("/guides/{slug}", methods=["GET", "HEAD"], include_in_schema=False)
+    def guides_article(slug: str, request: Request):
+        return guide_page(slug, request)
+
+    @app.get("/ads.txt", include_in_schema=False)
+    def ads_txt(request: Request):
+        c, _ = adsense()
+        if not c:
+            return not_found(request)
+        return Response(f"google.com, {c[3:]}, DIRECT, f08c47fec0942fa0\n", media_type="text/plain", headers=CACHE)
 
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap(request: Request):

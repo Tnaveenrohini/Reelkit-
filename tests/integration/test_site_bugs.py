@@ -149,3 +149,24 @@ def test_dashboard_script_is_served_only_to_admins(monkeypatch):
     signed_in(c)
     mine = c.get("/admin/bugs.js")
     assert mine.status_code == 200 and "bfpriority" in mine.text and "noindex" in mine.headers.get("x-robots-tag", "noindex")
+
+
+def test_site_still_starts_if_the_bug_fixer_cannot_load(monkeypatch):
+    """If a bug fixer dependency is missing on the server, the website must still work."""
+    import builtins
+    import importlib
+    import sys
+    admin_env(monkeypatch)
+    real_import = builtins.__import__
+
+    def no_psycopg(name, *a, **k):
+        if name == "psycopg" or name.startswith("psycopg."):
+            raise ImportError("psycopg missing")
+        return real_import(name, *a, **k)
+    for m in [m for m in sys.modules if m in ("app", "wr_bugs") or m.startswith(("bugfixer", "psycopg"))]:
+        monkeypatch.delitem(sys.modules, m)
+    monkeypatch.setattr(builtins, "__import__", no_psycopg)
+    site = importlib.import_module("app")
+    monkeypatch.setattr(builtins, "__import__", real_import)
+    c = TestClient(site.app)
+    assert c.get("/").status_code == 200 and c.get("/health").status_code == 200

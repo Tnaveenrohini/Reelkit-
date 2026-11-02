@@ -1161,8 +1161,11 @@ import wr_seo, wr_admin
 SEO = wr_seo.SEO
 wr_admin.install(app)
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})
-import wr_bugs                       # AI Bug Fixer: error capture + admin API (does nothing without DATABASE_URL)
-wr_bugs.install(app)
+try:                                 # AI Bug Fixer: error capture + admin API (does nothing without DATABASE_URL)
+    import wr_bugs
+    wr_bugs.install(app)
+except Exception as _e:  # noqa: BLE001 – the website must keep working even if the bug fixer can't load
+    print("[waverise] AI Bug Fixer not loaded:", _e.__class__.__name__, _e, flush=True)
 
 
 # ---------- WaveRise Help (support chat) ----------

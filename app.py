@@ -1,5 +1,5 @@
 """WaveRise backend: public Instagram and X (Twitter) posts, MP3, clips, ringtones, GIFs, smaller videos, stickers, Reels and captions. No login is used.
-Threads and YouTube code stays in place but is switched off (SOON_SITES) until it works reliably from a cloud server."""
+YouTube code stays in place but is switched off (SOON_SITES) until it works reliably from a cloud server. Threads is on (add it to SOON_SITES to switch it off)."""
 import html as _html, json, math, os, re, shutil, subprocess, time, unicodedata, uuid
 from urllib.parse import quote
 from urllib.parse import urlparse
@@ -17,7 +17,7 @@ YT_ID = re.compile(r"^https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v
 TH_URL = re.compile(r"^https?://(?:www\.)?threads\.(?:net|com)/(?:(@[A-Za-z0-9._]{1,30})/post|t)/([A-Za-z0-9_-]{5,24})", re.I)
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 CDN = ("cdninstagram.com", "fbcdn.net")
-SOON = {x.strip().lower() for x in os.getenv("SOON_SITES", "youtube,threads").split(",") if x.strip()}  # sites shown as "coming soon"; set SOON_SITES to empty to switch them on
+SOON = {x.strip().lower() for x in os.getenv("SOON_SITES", "youtube").split(",") if x.strip()}  # sites shown as "coming soon"; set SOON_SITES to empty to switch them on
 MAX_HD_SECONDS = 20 * 60  # longest video the free server will join into 720p/1080p
 X_URL = re.compile(r"^https?://(www\.|mobile\.)?(x|twitter)\.com/(i/(web/)?|[A-Za-z0-9_]{1,15}/)status/\d+", re.I)
 FB_URL = re.compile(r"^https?://(?:(?:www|m|web|mbasic|touch)\.)?facebook\.com/(?:watch/?\?|watch/live/?\?|reel/\d|share/(?:v|r|p)/|[^/?#]+/videos/|video\.php\?|story\.php\?|permalink\.php\?|[^/?#]+/posts/|groups/[^/]+/(?:posts|permalink)/)|^https?://fb\.watch/[\w-]+", re.I)
@@ -1181,7 +1181,8 @@ Write links only as markdown with these exact site paths: [text](/path). Do not 
 
 WHAT WAVERISE DOES (free, no login, no account, never asks for an Instagram password):
 - Save public posts from a link: Instagram Reels, videos, photos and carousels (/), Facebook public videos and Reels (/facebook-video-downloader), X / Twitter videos (/twitter-video-downloader).
-- YouTube and Threads are "coming soon": not available yet.
+- Threads public posts: videos and photos (/threads-video-downloader).
+- YouTube is "coming soon": not available yet.
 - NOT supported, on purpose, for privacy: Instagram Stories, Highlights, profile pictures, and anything from private accounts.
 - After a link is read, the result card shows the account, views/likes/comments when the site shares them, hashtags (tap to copy), the qualities the site offers, smaller sizes made on the server, and "Enhance to HD 1080p" (cleans and sharpens; it cannot add detail the original never had; videos up to 1 minute; smaller sizes up to 3 minutes). Photos have "Enhance photo (2x HD)" made on the phone.
 - Video & audio tools: Video to MP3 (/video-to-mp3), Reel to Ringtone (/reel-to-ringtone), Clip Trimmer (/video-trimmer), Make it small / video compressor for WhatsApp (/compress-video-for-whatsapp), GIF Maker (/gif-maker), HD Photo from Video: play, pause, capture a frame (/video-to-photo), WhatsApp Status Splitter: cut long videos into 15/30/60 s parts (/whatsapp-status-splitter), WhatsApp Status Saver (/whatsapp-status-saver), Caption & Hashtag Copier (/instagram-caption-copier).

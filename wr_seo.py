@@ -455,6 +455,11 @@ def install(app, taken_paths):
 
     @app.exception_handler(StarletteHTTPException)
     async def http_errors(request: Request, exc: StarletteHTTPException):
+        if request.url.path in ("/api/info", "/info", "/api/download", "/download"):
+            from wr_creator import diagnose
+            diagnostic = diagnose(exc.status_code, exc.detail)
+            return JSONResponse({"detail": exc.detail, "diagnostic": diagnostic}, status_code=exc.status_code,
+                                headers={"Cache-Control": "no-store", **(exc.headers or {})})
         if exc.status_code == 404 and exc.detail == "Not Found" and not request.url.path.startswith(("/api/", "/_vercel")):
             return not_found(request)
         return await http_exception_handler(request, exc)

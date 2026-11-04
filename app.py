@@ -1,6 +1,6 @@
 """WaveRise backend: public Instagram and X (Twitter) posts, MP3, clips, ringtones, GIFs, smaller videos, stickers, Reels and captions. No login is used.
 YouTube code stays in place but is switched off (SOON_SITES) until it works reliably from a cloud server. Threads is on (add it to SOON_SITES to switch it off)."""
-import html as _html, json, math, os, re, shutil, subprocess, time, unicodedata, uuid
+import html as _html, json, math, os, re, shutil, subprocess, sys, time, unicodedata, uuid
 from urllib.parse import quote
 from urllib.parse import urlparse
 from pathlib import Path
@@ -764,7 +764,9 @@ def ffmpeg_path():
 
 # ---------- downloader + caption ----------
 @r_.post("/info")
-def info(b: Req):
+def info(b: Req, request: Request):
+    requested = request.headers.get("x-waverise-tool", "")
+    if requested in MG.TOOLS: MG.ensure_tool(requested)
     d = fetch_info(clean(b.url))
     its = items_of(d)
     caption = d.get("description") or (its[0].get("description") if its else "") or ""
@@ -1073,6 +1075,8 @@ def sticker(url: str, index: int = 0, kind: str = "still", at: float = -1, start
 @r_.get("/download")
 def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int = 0, loud: int = 0, privacy: int = Query(0, alias="clean")):
     u = clean(url)
+    if site_of(u) == "facebook": MG.ensure_tool("facebook")
+    if site_of(u) == "x": MG.ensure_tool("x")
     if site_of(u) in PLAN_SITES:
         d = fetch_info(u)
         plans, _ = _yt_plans(d)
@@ -1087,6 +1091,7 @@ def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int
             raise HTTPException(413, f"HD downloads are limited to videos under {MAX_HD_SECONDS // 60} minutes on this free server. Choose {dflt}p instead.")
         return _ff_stream(d, list(p[1:]), h, inline, loud, privacy, nice_name(d, "mp4", f"{h}p"))
     src, hdrs, vid, d = media(u, index, info=True)
+    MG.ensure_download(u, vid, len(items_of(d)))
     if q and vid and not inline:
         its = items_of(d); e = its[min(max(index, 0), len(its) - 1)]; f = _native(e).get(q)
         if f:
@@ -1162,8 +1167,10 @@ async def share_target(request: Request):
 
 # ---------- Public SEO pages, sitemap.xml, robots.txt, redirects, 404 log (wr_seo) and the private admin area (wr_admin) ----------
 import wr_seo, wr_admin
+import wr_manage as MG
 SEO = wr_seo.SEO
 wr_admin.install(app)
+MG.install(app, wr_admin, sys.modules[__name__])
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})
 
 

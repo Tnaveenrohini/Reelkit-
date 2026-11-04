@@ -68,7 +68,7 @@ function topStatus() {
     h('span', { class: 'pill' }, h('span', { class: 'dot ' + (st.visibility ? 'ok' : 'bad') }), st.visibility ? 'Visible to search engines' : 'Hidden from search engines'),
     h('span', { class: 'pill' }, h('span', { class: 'dot ' + (g.connected ? 'ok' : 'warn') }), g.connected ? 'Google connected' : 'Google not connected'),
     h('span', { class: 'pill' }, h('span', { class: 'dot ' + (S.store.ok ? 'ok' : 'bad') }), S.store.ok ? 'Database connected' : 'No database'));
-  $('#who').textContent = S.email;
+  $('#who').textContent = S.email + ' · ' + S.role;
 }
 
 /* ---------- sections ---------- */
@@ -413,6 +413,7 @@ function editMeta(p) {
 /* ---------- router ---------- */
 async function render(arg) {
   const key = (location.hash.slice(1) || 'overview'); CUR = SECTIONS[key] ? key : 'overview';
+  if(S&&!S.sections.includes('*')&&!S.sections.includes(CUR)) { CUR='overview'; location.hash='overview'; return; }
   document.querySelectorAll('.side a').forEach(a => a.classList.toggle('on', a.dataset.s === CUR));
   setMenu(false);
   const main = $('#main'); main.replaceChildren(h('p', { class: 'muted pad' }, h('span', { class: 'spin' }), ' Loading…'));
@@ -421,7 +422,19 @@ async function render(arg) {
   document.title = (document.querySelector('.side a.on') || {}).textContent + ' · WaveRise Admin';
 }
 function go(k, arg) { if (location.hash.slice(1) === k) render(arg); else { cache.arg = arg; location.hash = k; } }
-async function refresh() { S = await api('/api/admin/state'); topStatus(); api('/api/admin/messages').then(d => { const b = $('#msgCount'); if (b) { b.textContent = d.unread || ''; b.hidden = !d.unread; } }).catch(() => {}); await render(); }
+async function refresh() {
+  S = await api('/api/admin/state'); topStatus();
+  const allowed=key=>S.sections.includes('*')||S.sections.includes(key);
+  document.querySelectorAll('.side a[data-s]').forEach(a=>a.hidden=!allowed(a.dataset.s));
+  document.querySelectorAll('.side .grp').forEach(group=>{
+    let sibling=group.nextElementSibling,visible=false;
+    while(sibling&&!sibling.classList.contains('grp')){if(sibling.matches('a')&&!sibling.hidden)visible=true;sibling=sibling.nextElementSibling;}
+    group.hidden=!visible;
+  });
+  if(allowed('messages'))api('/api/admin/messages').then(d => { const b = $('#msgCount'); if (b) { b.textContent = d.unread || ''; b.hidden = !d.unread; } }).catch(() => {});
+  if(allowed('alerts'))api('/api/admin/manage/alerts').then(d=>{const b=$('#alertCount'),count=d.rows.filter(a=>!a.acknowledged).length;b.textContent=count||'';b.hidden=!count;}).catch(()=>{});
+  await render();
+}
 window.addEventListener('hashchange', () => { const a = cache.arg; cache.arg = undefined; render(a); });
 /* phone menu: a panel under the top bar, closed with ✕, by tapping outside, Escape or choosing a page */
 function setMenu(open) {
@@ -436,4 +449,3 @@ $('#sideBd').addEventListener('click', () => setMenu(false));
 $('#sideClose').addEventListener('click', () => setMenu(false));
 addEventListener('keydown', e => { if (e.key === 'Escape' && $('#side').classList.contains('open')) setMenu(false); });
 $('#logout').addEventListener('click', async () => { try { await api('/api/admin/logout', {}); } catch (e) { /* already signed out */ } location.href = '/admin'; });
-refresh().catch(e => $('#main').replaceChildren(errBox(e)));

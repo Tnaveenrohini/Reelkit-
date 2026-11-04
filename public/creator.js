@@ -3,7 +3,7 @@
   'use strict';
   const C=window.WRCreatorCore;
   const TOOLS={
-    batch:['Batch downloads','Paste up to 10 public post links. Download them in order and retry individual failures.']
+    batch:['Batch downloads','Paste public post links. Download them together and retry individual failures.']
   };
   let cleanups=[], generation=0;
   function leave() { generation++; cleanups.splice(0).forEach(fn=>{try{fn();}catch{}}); }
@@ -44,12 +44,13 @@
   window.WRTools={open,leave,has:key=>!!TOOLS[key]};
 
   function showBatch() {
+    const limits=window.WRManagement?.batch()||{max_links:10,concurrency:1};
     const text=h('textarea',{'aria-label':'Post links, one per line',placeholder:'https://www.instagram.com/reel/…\nhttps://www.facebook.com/reel/…',rows:5});
     const summary=status(),list=h('div',{class:'creator-queue'}),progress=h('progress',{max:1,value:0,'aria-label':'Batch progress'});
-    let jobs=[],running=false,active=null,stopped=false;
+    let jobs=[],running=false,active=new Set(),stopped=false,batchToken='';
     const update=()=>{const n=jobs.filter(j=>['done','error','cancelled'].includes(j.state)).length;progress.max=jobs.length||1;progress.value=n;
       say(summary,`${jobs.filter(j=>j.state==='done').length} downloaded · ${jobs.filter(j=>j.state==='error').length} failed · ${jobs.filter(j=>j.state==='cancelled').length} stopped · ${jobs.length} total`);};
-    const start=button('Download all',()=>run(false),true),retry=button('Retry failed / stopped',()=>run(true)),stop=button('Stop',()=>{stopped=true;active?.abort();});
+    const start=button('Download all',()=>run(false),true),retry=button('Retry failed / stopped',()=>run(true)),stop=button('Stop',()=>{stopped=true;active.forEach(c=>c.abort());});
     stop.disabled=retry.disabled=true;
     function paintJob(j) {
       const state=h('small',{},j.state==='done'?'Downloaded. Tap a file below if your browser blocked automatic saving.':j.state==='active'?'Downloading…':j.state==='error'?'Failed':j.state==='cancelled'?'Stopped':'Waiting');
@@ -57,36 +58,50 @@
       if(j.error)j.el.append(h('p',{class:'err'},j.error.message));
     }
     async function downloadJob(j) {
-      active=controller();j.state='active';j.error=null;paintJob(j);
+      const view=generation;
+      const abort=controller();active.add(abort);j.state='active';j.error=null;paintJob(j);
+      const headers=batchToken?{'X-WaveRise-Batch':batchToken}:{};
       try {
-        const response=await request('/api/info',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:j.url}),signal:active.signal});
+        const response=await request('/api/info',{method:'POST',headers:{'Content-Type':'application/json',...headers},body:JSON.stringify({url:j.url}),signal:abort.signal});
         const data=await response.json();
         for(let i=0;i<data.items.length;i++) {
           if(stopped)throw new DOMException('Stopped','AbortError');
           // Keep completed carousel files when retrying a partially failed post.
           if(j.files.some(f=>f.index===i))continue;
-          const r=await request(`/api/download?url=${encodeURIComponent(j.url)}&index=${i}`,{signal:active.signal});
+          const r=await request(`/api/download?url=${encodeURIComponent(j.url)}&index=${i}`,{headers,signal:abort.signal});
           const blob=await r.blob(),name=fileName(r,`waverise-${jobs.indexOf(j)+1}-${i+1}.${data.items[i].type==='photo'?'jpg':'mp4'}`);
+          if(stopped||view!==generation)throw new DOMException('Stopped','AbortError');
           const href=objectURL(blob);j.files.push({index:i,href,name,label:`${data.items[i].type} ${i+1}`});
           save(blob,name,href);paintJob(j);
         }
         j.state='done';
       }catch(err){j.state=err.name==='AbortError'?'cancelled':'error';if(err.name!=='AbortError')j.error=err;}
-      paintJob(j);update();
+      active.delete(abort);paintJob(j);update();
     }
     async function run(onlyFailed) {
       if(running)return;
       if(!onlyFailed) {
-        let links;try{links=C.batchLinks(text.value);}catch(err){return say(summary,err.message,true);}
+        let links;try{links=C.batchLinks(text.value,limits.max_links);}catch(err){return say(summary,err.message,true);}
         jobs.forEach(j=>j.files.forEach(f=>URL.revokeObjectURL(f.href)));
         jobs=links.map(url=>({url,state:'waiting',files:[],el:h('div',{class:'creator-job'})}));
         list.replaceChildren(...jobs.map(j=>j.el));jobs.forEach(paintJob);
       }
       running=true;stopped=false;start.disabled=retry.disabled=true;stop.disabled=false;text.disabled=true;
       const thisGeneration=generation;
-      for(const job of jobs.filter(j=>onlyFailed?['error','cancelled'].includes(j.state):true)) {
-        if(stopped||generation!==thisGeneration)break;
-        await downloadJob(job);
+      const pending=jobs.filter(j=>onlyFailed?['error','cancelled'].includes(j.state):true);
+      try{
+        const r=await request('/api/batches',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({urls:pending.map(j=>j.url)}),signal:controller().signal});
+        const batch=await r.json();batchToken=batch.token||'';
+        const workers=Math.min(batch.limits?.concurrency||limits.concurrency,pending.length);
+        let next=0;
+        await Promise.all(Array.from({length:workers},async()=>{
+          while(next<pending.length&&!stopped&&generation===thisGeneration)await downloadJob(pending[next++]);
+        }));
+      }catch(error){
+        pending.filter(j=>j.state==='waiting').forEach(j=>{j.state='cancelled';paintJob(j);});
+        update();
+        if(error.name!=='AbortError')say(summary,error.message,true);
+        running=false;start.disabled=false;stop.disabled=true;text.disabled=false;retry.disabled=false;return;
       }
       jobs.filter(j=>j.state==='waiting').forEach(j=>{j.state='cancelled';paintJob(j);});
       running=false;start.disabled=false;stop.disabled=true;text.disabled=false;
@@ -95,7 +110,7 @@
       if(rateLimited){retry.disabled=true;const timer=setTimeout(()=>retry.disabled=false,120000);cleanups.push(()=>clearTimeout(timer));}
       update();
     }
-    panel(note('One link per line. Repeated links are removed. Keep this page open; your browser may ask you to allow multiple downloads.'),text,
+    panel(note(`Up to ${limits.max_links} links, one per line. Repeated links are removed. Keep this page open; your browser may ask you to allow multiple downloads.`),text,
       h('div',{class:'row'},start,retry,stop),summary,progress,list);
   }
 

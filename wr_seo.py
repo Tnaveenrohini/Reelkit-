@@ -9,11 +9,12 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 
 from wr_store import STORE, StoreError
 import wr_guides as WG
+import wr_manage as MG
 
 ROOT = Path(__file__).parent
 TEMPLATE_PATH = ROOT / "templates" / "index.html"
 INFO_PAGES = ("about", "contact", "faq", "privacy", "terms", "dmca")
-CACHE = {"Cache-Control": "public, max-age=0, s-maxage=300, stale-while-revalidate=86400"}
+CACHE = {"Cache-Control": "public, max-age=0, s-maxage=30, must-revalidate"}
 GA_RX = re.compile(r"^G-[A-Z0-9]{4,16}$")
 VERIFY_RX = re.compile(r"^[A-Za-z0-9_\-]{10,120}$")
 esc = lambda v: _html.escape(str(v), quote=True)
@@ -44,7 +45,9 @@ ADS_CLIENT_RX, ADS_SLOT_RX = re.compile(r"^ca-pub-\d{10,20}$"), re.compile(r"^\d
 
 
 def adsense():
-    c, sl = (os.getenv("ADSENSE_CLIENT") or "").strip(), (os.getenv("ADSENSE_SLOT") or "").strip()
+    ads = MG.config()["ads"]
+    if not ads["enabled"]: return "", ""
+    c, sl = (ads["client"] or os.getenv("ADSENSE_CLIENT") or "").strip(), (ads["slot"] or os.getenv("ADSENSE_SLOT") or "").strip()
     return (c if ADS_CLIENT_RX.match(c) else ""), (sl if ADS_SLOT_RX.match(sl) else "")
 
 
@@ -110,7 +113,7 @@ def effective(key):
     """The SEO actually used for a page: built-in values with admin overrides on top."""
     e, ov, st = SEO.get(key, {}), overrides("meta").get(key, {}), settings()
     return {"t": (ov.get("t") or e.get("t") or "WaveRise").strip(), "d": (ov.get("d") or e.get("d") or "").strip(),
-            "og": (ov.get("og") or st.get("default_og") or "").strip(), "noindex": bool(ov.get("noindex")) or not st.get("visibility", True),
+            "og": (ov.get("og") or st.get("default_og") or "").strip(), "noindex": bool(ov.get("noindex")) or not st.get("visibility", True) or MG.config()["tools"].get(key) is False,
             "page_noindex": bool(ov.get("noindex"))}
 
 
@@ -190,9 +193,9 @@ def render(key, request: Request):
     if GA_RX.match(ga):
         head.append(f'<script async src="https://www.googletagmanager.com/gtag/js?id={ga}"></script>'
                     f"<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments)}}gtag('js',new Date());gtag('config','{ga}',{{anonymize_ip:true}});</script>")
-    page = page.replace("</head>", "\n".join(head + ads_head(key in ADS_PAGES)) + "\n</head>", 1)
-    page = ads_body(page, key in ADS_PAGES)
-    return page, eff["noindex"]
+    page = page.replace("</head>", "\n".join(head + ads_head(key in MG.config()["ads"]["pages"])) + "\n</head>", 1)
+    page = ads_body(page, key in MG.config()["ads"]["pages"])
+    return MG.inject(page), eff["noindex"]
 
 
 def body_for(page, key):
@@ -228,14 +231,15 @@ def ads_body(page, _on):
     c, sl = adsense()
     if not c:
         return page
-    cfg = json.dumps({"c": c, "s": sl})
+    ads = MG.config()["ads"]
+    cfg = json.dumps({"c": c, "s": sl, "pages": ads["pages"], "placements": ads["placements"]})
     return page.replace('<script type="application/json" id="wr-ads">{}</script>', f'<script type="application/json" id="wr-ads">{cfg}</script>', 1)
 
 
 def render_guide(slug, request: Request):
     """/guides and /guides/<slug>: the same page and header, with the article in place of the tool."""
     page = TEMPLATE
-    g = WG.BY_SLUG.get(slug) if slug else None
+    g = WG.get_guide(slug) if slug else None
     if not page or (slug and not g):
         return None
     base, st = site_base(request), settings()
@@ -255,7 +259,7 @@ def render_guide(slug, request: Request):
     page = re.sub(r'<meta property="og:url" content="[^"]*">', lambda _: f'<meta property="og:url" content="{esc(url)}">', page, count=1)
     page = page.replace('content="/og-image.jpg?v=12"', f'content="{esc(og)}"')
     ld = WG.article_ld(g, base) if g else {"@context": "https://schema.org", "@type": "CollectionPage", "name": "WaveRise Guides", "url": url, "description": desc,
-                                           "hasPart": [{"@type": "Article", "headline": x["title"], "url": f"{base}/guides/{x['slug']}"} for x in WG.GUIDES]}
+                                           "hasPart": [{"@type": "Article", "headline": x["title"], "url": f"{base}/guides/{x['slug']}"} for x in WG.list_guides()]}
     page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>',
                   lambda _: '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>", page, count=1, flags=re.S)
     page = page.replace('<html lang="en"', '<html lang="en" data-view="guide"', 1)
@@ -270,8 +274,8 @@ def render_guide(slug, request: Request):
     if GA_RX.match(ga):
         head.append(f'<script async src="https://www.googletagmanager.com/gtag/js?id={ga}"></script>'
                     f"<script>window.dataLayer=window.dataLayer||[];function gtag(){{dataLayer.push(arguments)}}gtag('js',new Date());gtag('config','{ga}',{{anonymize_ip:true}});</script>")
-    page = page.replace("</head>", "\n".join(head + ads_head(True)) + "\n</head>", 1)
-    return ads_body(page, True), noindex
+    page = page.replace("</head>", "\n".join(head + ads_head("guides" in MG.config()["ads"]["pages"])) + "\n</head>", 1)
+    return MG.inject(ads_body(page, "guides" in MG.config()["ads"]["pages"])), noindex
 
 
 def page_response(key, request: Request):
@@ -303,7 +307,7 @@ def sitemap_urls(base):
         out.append((base + path_of(k), lm, "1.0" if k == "home" else "0.3" if k in INFO_PAGES else "0.8"))
     if settings().get("visibility", True):
         out.append((base + "/guides", WG.UPDATED, "0.7"))
-        out += [(f"{base}/guides/{g['slug']}", WG.UPDATED, "0.7") for g in WG.GUIDES]
+        out += [(f"{base}/guides/{g['slug']}", g.get("_updated", WG.UPDATED), "0.7") for g in WG.list_guides()]
     return out
 
 

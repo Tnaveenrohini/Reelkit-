@@ -32,6 +32,17 @@ class _Redis:
             raise StoreError(str(j.get("error") or r.status_code)[:200])
         return j.get("result")
 
+    def batch(self, commands):
+        try:
+            response = self.c.post(self.url + "/pipeline", headers=self.h,
+                                   json=[[str(x) for x in command] for command in commands])
+            rows = response.json()
+            if response.status_code != 200 or not isinstance(rows, list) or len(rows) != len(commands) or any("error" in row for row in rows):
+                raise ValueError()
+            return [row.get("result") for row in rows]
+        except (httpx.HTTPError, ValueError, TypeError):
+            raise StoreError("database pipeline failed") from None
+
 
 class _Memory:
     """Same commands, kept in this process (local development and tests only)."""
@@ -54,9 +65,12 @@ class _Memory:
             if op == "GET":
                 return self.d.get(k)
             if op == "SET":
+                if "NX" in [str(x).upper() for x in a[2:]] and k in self.d:
+                    return None
                 self.d[k] = a[1]; self.exp.pop(k, None)
-                if len(a) >= 4 and str(a[2]).upper() == "EX":
-                    self.exp[k] = time.time() + int(a[3])
+                options = [str(x).upper() for x in a[2:]]
+                if "EX" in options:
+                    self.exp[k] = time.time() + int(a[3 + options.index("EX")])
                 return "OK"
             if op == "DEL":
                 n = 0
@@ -76,6 +90,10 @@ class _Memory:
                 return 1
             if op == "HGET":
                 return (self.d.get(k) or {}).get(a[1])
+            if op == "HINCRBY":
+                h = self.d.setdefault(k, {})
+                h[a[1]] = str(int(h.get(a[1], 0)) + int(a[2]))
+                return int(h[a[1]])
             if op == "HDEL":
                 h = self.d.get(k) or {}
                 return sum(1 for f in a[1:] if h.pop(f, None) is not None)
@@ -119,6 +137,19 @@ class _Memory:
                 return max(0, e - s + 1)
             if op == "PING":
                 return "PONG"
+            if op == "EVAL":
+                script, count = a[0], int(a[1])
+                keys, values = a[2:2 + count], a[2 + count:]
+                if script.startswith("-- wr-release"):
+                    key = keys[0]
+                    if self._alive(key) and self.d.get(key) == values[0]:
+                        self.d.pop(key, None); self.exp.pop(key, None)
+                        return 1
+                    return 0
+                if script.startswith("-- wr-restore"):
+                    for key, entry in zip(keys, json.loads(values[0])):
+                        self.d[key] = entry["value"]; self.exp.pop(key, None)
+                    return 1
             raise StoreError(f"unsupported command {op}")
 
 
@@ -149,6 +180,11 @@ class Store:
         if not self.r:
             raise StoreError("No database is connected. Add Upstash Redis in Vercel → Storage.")
         return self.r.cmd(*a)
+
+    def batch(self, commands):
+        if not self.r:
+            raise StoreError("No database is connected.")
+        return self.r.batch(commands) if hasattr(self.r, "batch") else [self.r.cmd(*c) for c in commands]
 
     # --- helpers (keys are prefixed) ---
     def k(self, name):

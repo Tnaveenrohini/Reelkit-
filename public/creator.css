@@ -15,6 +15,8 @@
 .creator-hub { margin-bottom:18px; }
 html[data-creator="1"] .greet { display:none; }
 #nav .menu a.creator-nav { display:block; }
+.site-notice { padding:14px 20px; max-width:1100px; margin:14px auto; border:1px solid #c48b2355; border-radius:12px; background:#ad75001a; color:inherit; overflow-wrap:anywhere; }
+.site-notice[hidden],a[hidden] { display:none!important; }
 @media(max-width:560px) {
  .creator-card .go { width:100%; }
 }

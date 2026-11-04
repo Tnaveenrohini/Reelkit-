@@ -132,9 +132,7 @@ def explain(err, url):
         return f"{site} is limiting requests right now. Wait a few minutes and try again."
     if any(k in m for k in ("private", "protected", "not available", "unavailable", "404", "removed", "does not exist", "suspended", "deleted")):
         return "This post is private, deleted or no longer available."
-    why = re.sub(r"https?://\S+", "", str(err)).replace("ERROR:", "").strip()
-    why = re.sub(r"\s+", " ", why)[:140]
-    return "Couldn't read this link. Check that it opens in a private browser tab, then try again." + (f" Details: {why}" if why else "")
+    return "Couldn't read this link. Check that it opens in a private browser tab, then try again."
 
 
 YT_FORMAT = "18/b/bv*+ba/all"   # WaveRise picks the streams itself (see _yt_plans); this only has to never fail
@@ -681,12 +679,29 @@ def jpeg_clean(b):
     return b
 
 
-def stream(src, headers=None, filename=None, range_=None):
+def stream(src, headers=None, filename=None, range_=None, cache_key=None):
     hd = dict(headers or {})
     if range_:
         hd["Range"] = range_
     c = httpx.Client(timeout=60, follow_redirects=True)
-    r = c.send(c.build_request("GET", src, headers=hd), stream=True)
+    try:
+        r = c.send(c.build_request("GET", src, headers=hd), stream=True)
+    except httpx.HTTPError as exc:
+        c.close()
+        if cache_key:
+            _info_cache.pop(cache_key, None)
+        raise HTTPException(504 if isinstance(exc, httpx.TimeoutException) else 502,
+                            "The media server could not be reached. Retry to refresh the download link.")
+    if r.status_code not in (200, 206) or r.headers.get("content-type", "").split(";")[0] in ("text/html", "application/json"):
+        status = r.status_code
+        r.close(); c.close()
+        if cache_key:
+            _info_cache.pop(cache_key, None)
+        if status == 429:
+            raise HTTPException(429, "The media server is limiting requests. Wait a few minutes and retry.")
+        if status == 404:
+            raise HTTPException(404, "The media file could not be found. Retry to refresh the download link.")
+        raise HTTPException(502, "The media link expired or the platform refused access. Retry to refresh the download link.")
 
     def gen():
         try:
@@ -1066,7 +1081,7 @@ def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int
         p = plans[h]
         if p[0] == "one":
             if not (loud or privacy) or inline:
-                return stream(p[1]["url"], _hd(p[1], d), None if inline else nice_name(d, "mp4", f"{h}p"), request.headers.get("range"))
+                return stream(p[1]["url"], _hd(p[1], d), None if inline else nice_name(d, "mp4", f"{h}p"), request.headers.get("range"), cache_key=u)
             return _ff_stream(d, [p[1]], h, 0, loud, privacy, nice_name(d, "mp4", f"{h}p"))
         if h != dflt and (d.get("duration") or 0) > MAX_HD_SECONDS:
             raise HTTPException(413, f"HD downloads are limited to videos under {MAX_HD_SECONDS // 60} minutes on this free server. Choose {dflt}p instead.")
@@ -1077,10 +1092,10 @@ def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int
         if f:
             src, hdrs = f["url"], f.get("http_headers") or hdrs
             if not (loud or privacy):
-                return stream(src, hdrs, nice_name(d, "mp4", f"{q}p", index), request.headers.get("range"))
+                return stream(src, hdrs, nice_name(d, "mp4", f"{q}p", index), request.headers.get("range"), cache_key=u)
             return _ff_stream(d, [{"url": src, "http_headers": hdrs}], q, 0, loud, privacy, nice_name(d, "mp4", f"{q}p", index))
     if inline:
-        return stream(src, hdrs, None, request.headers.get("range"))
+        return stream(src, hdrs, None, request.headers.get("range"), cache_key=u)
     name = nice_name(d, "mp4" if vid else "jpg", "", index)
     if vid and (loud or privacy):
         return _ff_stream(d, [{"url": src, "http_headers": hdrs}], 0, 0, loud, privacy, name)
@@ -1093,7 +1108,7 @@ def download(request: Request, url: str, index: int = 0, inline: int = 0, q: int
         if len(r.content) > 40 * 1048576:
             raise HTTPException(413, "This photo is too large to clean here.")
         return Response(jpeg_clean(r.content), media_type=r.headers.get("content-type", "image/jpeg"), headers={"Content-Disposition": disposition(name)})
-    return stream(src, hdrs, name, request.headers.get("range"))
+    return stream(src, hdrs, name, request.headers.get("range"), cache_key=u)
 
 
 def _ff_stream(d, inputs, q, inline=0, loud=0, privacy=0, name=None):
@@ -1146,7 +1161,20 @@ async def share_target(request: Request):
 
 
 # ---------- Public SEO pages, sitemap.xml, robots.txt, redirects, 404 log (wr_seo) and the private admin area (wr_admin) ----------
-import wr_seo, wr_admin
+import wr_seo, wr_admin, wr_creator
+wr_creator.install(r_, ffmpeg_path)
+
+
+@r_.post("/diagnose")
+def download_diagnostics(b: Req):
+    try:
+        d = info(b)
+        return {"ok": True, "site": d["site"], "items": len(d["items"]),
+                "message": "The post can be read. If a download failed, retry to refresh its media link."}
+    except HTTPException as exc:
+        return {"ok": False, "diagnostic": wr_creator.diagnose(exc.status_code, exc.detail)}
+
+
 SEO = wr_seo.SEO
 wr_admin.install(app)
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})

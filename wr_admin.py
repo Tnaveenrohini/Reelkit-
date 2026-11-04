@@ -15,6 +15,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 
 import wr_seo
+import wr_manage as MG
 from wr_store import STORE, StoreError
 
 TPL = Path(__file__).parent / "templates"
@@ -167,9 +168,11 @@ def current_session(request: Request):
             return None
     except (StoreError, ValueError):
         return None
-    if not data or data.get("exp", 0) < time.time() or data.get("email", "").lower() not in cfg()["admins"]:
+    role = MG.role_for(data.get("email", "").lower(), cfg()["admins"]) if data else None
+    if not data or data.get("exp", 0) < time.time() or not role:
         return None
     data["_token"] = raw
+    data["role"] = role
     return data
 
 
@@ -189,6 +192,7 @@ def require(request: Request, write=False):
     s = current_session(request)
     if not s:
         raise HTTPException(401, "Please sign in again.")
+    MG.authorize(request.url.path, s["role"], request.method)
     rate_limit("api:" + hashlib.sha256(s["_token"].encode()).hexdigest()[:16], 240, 60)
     if write:
         if not hmac.compare_digest(request.headers.get("x-csrf-token", ""), s["csrf"]):
@@ -196,6 +200,8 @@ def require(request: Request, write=False):
         src = request.headers.get("origin") or request.headers.get("referer") or ""
         if not src or (urlparse(src).netloc or "").lower() != host_of(request):
             raise HTTPException(403, "Request came from another site.")
+        if request.url.path in ("/api/admin/settings", "/api/admin/meta", "/api/admin/schema", "/api/admin/redirects"):
+            MG.checkpoint(s["email"], "Before " + request.url.path.rsplit("/", 1)[-1])
     return s
 
 
@@ -683,12 +689,12 @@ def install(app):
     def admin_asset(asset: str, request: Request):
         if asset in ("login", "connect-google", "logout"):
             return admin_actions(asset, request)
-        if asset not in ("app.js", "app.css"):
+        if asset not in ("app.js", "app.css", "manage.js"):
             return wr_seo.not_found(request)
         if not current_session(request):
             return Response("Sign in first.", status_code=401, headers=ADMIN_HEADERS)
-        body = _page("admin.js" if asset == "app.js" else "admin.css")
-        return Response(body, media_type="application/javascript" if asset == "app.js" else "text/css", headers=ADMIN_HEADERS)
+        body = _page({"app.js": "admin.js", "app.css": "admin.css", "manage.js": "admin-manage.js"}[asset])
+        return Response(body, media_type="application/javascript" if asset.endswith(".js") else "text/css", headers=ADMIN_HEADERS)
 
     def admin_actions(action, request):
         r = canonical_host(request)
@@ -699,8 +705,7 @@ def install(app):
             rate_limit("login:" + client_ip(request), 20, 600)
             return oauth_start(request, "login")
         if action == "connect-google":
-            s = current_session(request)
-            if not s: return RedirectResponse("/admin", 302)
+            s = require(request)
             return oauth_start(request, "connect", s["email"])
         if action == "logout":
             resp = RedirectResponse("/admin", 302)
@@ -731,6 +736,7 @@ def install(app):
             s = current_session(request)
             if not s:
                 return login_page("Sign in as an admin before connecting Google.")
+            if s["role"] != "owner": raise HTTPException(403, "Only an owner can connect Google.")
             if not tok.get("refresh_token"):
                 return simple_page("Connect Google", "<h1>Google didn’t send a long-term key</h1><p>Remove WaveRise from <b>myaccount.google.com → Security → Third-party access</b>, then connect again.</p><a class='b' href='/admin'>Back</a>")
             try:
@@ -742,7 +748,7 @@ def install(app):
             resp = RedirectResponse("/admin#settings", 302)
             resp.delete_cookie(OAUTH_COOKIE, path="/admin")
             return resp
-        if email not in cfg()["admins"]:
+        if not MG.role_for(email, cfg()["admins"]):
             audit(request, email, "login_denied")
             return login_page(f"{email} isn’t a WaveRise admin. Put exactly this address in ADMIN_EMAILS in Vercel and redeploy, or sign in with the account that is listed there.")
         resp = RedirectResponse("/admin", 302)
@@ -775,7 +781,7 @@ def install(app):
             n404 = STORE.cmd("ZCARD", STORE.k("404")) if STORE.ok else 0
         except StoreError:
             n404 = None
-        return admin_json({"email": s["email"], "csrf": s["csrf"], "store": {"ok": STORE.ok, "kind": STORE.kind},
+        return admin_json({"email": s["email"], "csrf": s["csrf"], "role": s["role"], "sections": MG.SECTIONS[s["role"]], "store": {"ok": STORE.ok, "kind": STORE.kind},
                            "google": {"configured": bool(c["client_id"] and c["client_secret"]), "connected": bool(link and link.get("rt")),
                                       "email": (link or {}).get("email"), "scopes": (link or {}).get("scopes", []), "at": (link or {}).get("at")},
                            "settings": st, "site_url": wr_seo.site_base(request), "site_url_env": bool(os.getenv("SITE_URL")),

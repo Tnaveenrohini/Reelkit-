@@ -8,10 +8,13 @@ const {JSDOM,VirtualConsole}=require('jsdom');
 const root=path.resolve(__dirname,'..');
 const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 
-async function page(slug='',fetcher) {
+async function page(slug='',fetcher,controls,ads) {
   const errors=[],draws=[];
   const console=new VirtualConsole();console.on('jsdomError',e=>errors.push(e));
-  const dom=new JSDOM(fs.readFileSync(path.join(root,'templates/index.html'),'utf8'),{
+  let template=fs.readFileSync(path.join(root,'templates/index.html'),'utf8');
+  if(controls)template=template.replace('id="wr-management">{}</script>','id="wr-management">'+JSON.stringify(controls).replace(/</g,'\\u003c')+'</script>');
+  if(ads)template=template.replace('id="wr-ads">{}</script>','id="wr-ads">'+JSON.stringify(ads)+'</script>');
+  const dom=new JSDOM(template,{
     url:'https://waverise.test/'+slug,runScripts:'outside-only',pretendToBeVisual:true,virtualConsole:console
   });
   const w=dom.window;
@@ -94,5 +97,34 @@ test('removed tools are absent from desktop, mobile and home navigation',async()
     }
     assert.equal(w.WRBrand,undefined);
     assert.deepEqual(errors,[]);
+  }finally{dom.window.close();}
+});
+
+test('tool switches hide navigation and block a disabled tool during SPA navigation',async()=>{
+  const {dom,w,errors}=await page('',null,{tools:{batch:false},paths:{batch:'/batch-downloads'}});
+  try{
+    assert.ok([...w.document.querySelectorAll('a[href="/batch-downloads"]')].every(a=>a.hidden));
+    w.history.pushState(null,'','/batch-downloads');w.route();
+    assert.equal(w.document.querySelector('#p').textContent,'This tool is temporarily unavailable.');
+    assert.equal(w.document.querySelector('#out textarea'),null);assert.deepEqual(errors,[]);
+  }finally{dom.window.close();}
+});
+
+test('announcements render as text and batch limits are displayed',async()=>{
+  const {dom,w,errors}=await page('batch-downloads',null,{tools:{},batch:{max_links:3,concurrency:1},announcement:{text:'Maintenance <script>alert(1)</script>'}});
+  try{
+    assert.equal(w.document.querySelector('#site-notice').textContent,'Maintenance <script>alert(1)</script>');
+    assert.equal(w.document.querySelector('#site-notice script'),null);
+    assert.match(w.document.querySelector('#out').textContent,/Up to 3 links/);assert.deepEqual(errors,[]);
+  }finally{dom.window.close();}
+});
+
+test('ad page and placement settings apply when navigating between tools and home',async()=>{
+  const {dom,w,errors}=await page('instagram-video-downloader',null,null,{c:'ca-pub-1234567890123456',s:'1234567890',pages:['home'],placements:['hub']});
+  try{
+    assert.equal(w.document.querySelector('ins.adsbygoogle'),null);
+    w.history.pushState(null,'','/');w.route();
+    assert.ok(w.document.querySelector('.adanchor[data-ad="hub"] ins.adsbygoogle'));
+    assert.equal(w.document.querySelector('.adanchor[data-ad="tool"] ins.adsbygoogle'),null);assert.deepEqual(errors,[]);
   }finally{dom.window.close();}
 });

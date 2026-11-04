@@ -1,6 +1,7 @@
 """WaveRise Guides: original step-by-step articles, rendered on the server (wr_seo) inside the normal page.
 Each guide: slug, category, title, description, read time, the tool it explains, sections of HTML (our own writing)."""
 import html as _html
+from datetime import date
 
 esc = lambda v: _html.escape(str(v), quote=True)
 UPDATED = "2026-11-02"
@@ -139,6 +140,26 @@ BY_SLUG = {g["slug"]: g for g in GUIDES}
 HOME_PICKS = ["resize-photo-20-50-kb-exam-forms", "clean-signature-online-application", "long-video-whatsapp-status"]
 
 
+def list_guides():
+    from wr_store import STORE, StoreError
+    import wr_manage as MG
+    guides = dict(BY_SLUG)
+    try:
+        saved = STORE.cached("managed_guides", lambda: STORE.hall("managed_guides"), ttl=5) if STORE.ok else {}
+    except StoreError:
+        saved = {}
+    for slug, version in saved.items():
+        if version.get("hidden"):
+            guides.pop(slug, None)
+        elif version.get("live"):
+            guides[slug] = MG.guide_public(version["live"])
+    return list(guides.values())
+
+
+def get_guide(slug):
+    return next((g for g in list_guides() if g["slug"] == slug), None)
+
+
 def icon(name, size=26):
     return (f'<svg width="{size}" height="{size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" '
             f'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{ICONS.get(name, ICONS["photos"])}</svg>')
@@ -148,6 +169,9 @@ AD = '<div class="adanchor" data-ad="guide"></div>'
 
 
 def article_html(g):
+    available = {guide["slug"]: guide for guide in list_guides()}
+    updated = g.get("_updated", UPDATED)
+    updated_text = str(date.fromisoformat(updated).day) + date.fromisoformat(updated).strftime(" %B %Y")
     toc = "".join(f'<li><a href="#{esc(i)}">{esc(t)}</a></li>' for i, t, _ in g["sections"])
     body = []
     for n, (i, t, h) in enumerate(g["sections"]):
@@ -156,12 +180,12 @@ def article_html(g):
             body.append(AD)
         if n == 1:
             body.append(f'<div class="gcta"><span>Ready to try it? It takes about a minute.</span><a class="btn go" href="{esc(g["tool"][1])}">Open {esc(g["tool"][0])}</a></div>')
-    rel = "".join(f'<a class="grel" href="/guides/{esc(s)}">{esc(BY_SLUG[s]["title"])}</a>' for s in g["related"] if s in BY_SLUG)
+    rel = "".join(f'<a class="grel" href="/guides/{esc(s)}">{esc(available[s]["title"])}</a>' for s in g["related"] if s in available)
     return (f'<article class="page gpage" data-page="guide">'
             f'<nav class="crumb" aria-label="Breadcrumb"><a href="/guides">Guides</a> › <a href="/guides?topic={esc(g["cat"])}">{esc(CAT_NAME[g["cat"]])}</a></nav>'
             f'<h1>{esc(g["title"])}</h1>'
             f'<div class="byline"><span class="bav" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 14c3-6 6-6 9 0s6 6 9 0"/></svg></span>'
-            f'<span><b>By {esc(AUTHOR)}</b><time datetime="{UPDATED}">Updated {UPDATED_TXT}</time> · {g["read"]} min read</span></div>'
+            f'<span><b>By {esc(AUTHOR)}</b><time datetime="{updated}">Updated {esc(updated_text)}</time> · {g["read"]} min read</span></div>'
             f'<p class="lead">{esc(g["lead"])}</p>'
             f'<nav class="toc" aria-label="On this page"><b>On this page</b><ol>{toc}</ol></nav>'
             + "".join(body) +
@@ -176,7 +200,7 @@ def card_html(g):
 def index_html():
     chips = '<button type="button" class="gf" data-cat="" aria-pressed="true">All</button>' + "".join(
         f'<button type="button" class="gf" data-cat="{c}" aria-pressed="false">{esc(n)}</button>' for c, n in CATS)
-    cards = [card_html(g) for g in GUIDES]
+    cards = [card_html(g) for g in list_guides()]
     grid = "".join(cards[:2]) + '<div class="adanchor gwide" data-ad="guides"></div>' + "".join(cards[2:])
     return (f'<article class="page gpage gindex" data-page="guide"><h1>Guides</h1>'
             f'<p class="lead">Step-by-step help for forms, photos and WhatsApp, written by the WaveRise team.</p>'
@@ -184,20 +208,22 @@ def index_html():
 
 
 def home_cards_html():
-    return "".join(f'<a class="hguide" href="/guides/{esc(s)}"><span class="gimg">{icon(BY_SLUG[s]["icon"])}</span>'
-                   f'<span><b>{esc(BY_SLUG[s]["title"])}</b><small>{esc(CAT_NAME[BY_SLUG[s]["cat"]])} · {BY_SLUG[s]["read"]} min read</small></span></a>'
-                   for s in HOME_PICKS)
+    available = {g["slug"]: g for g in list_guides()}
+    picks = [s for s in HOME_PICKS if s in available]
+    picks += [s for s in available if s not in picks]
+    return "".join(f'<a class="hguide" href="/guides/{esc(s)}"><span class="gimg">{icon(available[s]["icon"])}</span>'
+                   f'<span><b>{esc(available[s]["title"])}</b><small>{esc(CAT_NAME[available[s]["cat"]])} · {available[s]["read"]} min read</small></span></a>'
+                   for s in picks[:3])
 
 
 def popular_html():
-    return "".join(f'<a href="/guides/{esc(s)}">{esc(BY_SLUG[s]["title"])}</a>' for s in
-                   ["resize-photo-20-50-kb-exam-forms", "clean-signature-online-application", "passport-photo-size-print"])
+    return "".join(f'<a href="/guides/{esc(g["slug"])}">{esc(g["title"])}</a>' for g in list_guides()[:3])
 
 
 def article_ld(g, base):
     url = f"{base}/guides/{g['slug']}"
     return {"@context": "https://schema.org", "@graph": [
-        {"@type": "Article", "headline": g["title"], "description": g["desc"], "datePublished": UPDATED, "dateModified": UPDATED,
+        {"@type": "Article", "headline": g["title"], "description": g["desc"], "datePublished": g.get("_published", UPDATED), "dateModified": g.get("_updated", UPDATED),
          "author": {"@type": "Organization", "name": AUTHOR, "url": base + "/about"},
          "publisher": {"@type": "Organization", "name": "WaveRise", "logo": {"@type": "ImageObject", "url": base + "/icon-512.png"}},
          "mainEntityOfPage": url, "inLanguage": "en"},

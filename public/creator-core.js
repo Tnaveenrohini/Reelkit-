@@ -1,7 +1,7 @@
 /* Shared, dependency-free validation for batch downloads and their tests. */
 (function (root) {
   'use strict';
-  function batchLinks(text) {
+  function batchLinks(text,limit=10) {
     const lines = String(text).split(/\r?\n/).map(s => s.trim()).filter(Boolean);
     const seen = new Set(), links = [];
     for (const line of lines) {
@@ -16,7 +16,7 @@
       const key = host.replace('twitter.com','x.com') + u.pathname.replace(/\/$/,'') + u.search;
       if (!seen.has(key)) { seen.add(key); links.push(u.href); }
     }
-    if (!links.length || links.length > 10) throw new Error('Add between 1 and 10 different post links.');
+    if (!links.length || links.length > limit) throw new Error(`Add between 1 and ${limit} different post links.`);
     return links;
   }
   const api={batchLinks};

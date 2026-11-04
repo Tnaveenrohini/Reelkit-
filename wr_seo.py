@@ -170,6 +170,8 @@ def render(key, request: Request):
         page = page.replace('<h1 id="h"></h1><p id="p"></p>', f'<h1 id="h">{esc(e["h"])}</h1><p id="p">{esc(e["p"])}</p>', 1)
         page = page.replace('<h2 id="ah"></h2><p id="ap"></p>', f'<h2 id="ah">About {esc("WaveRise" if key == "home" else e["h"])}</h2><p id="ap">{esc(e["a"])}</p>', 1)
     page = body_for(page, key)
+    soon = ",".join({"youtube": "yt"}.get(x, x) for x in (x.strip().lower() for x in os.getenv("SOON_SITES", "youtube").split(",")) if x)
+    page = page.replace('<html lang="en"', f'<html lang="en" data-soon="{esc(soon)}"', 1)
     ld = schema_for(key, base, eff)
     ld_html = "" if ld is None else '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>"
     page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>', lambda _: ld_html, page, count=1, flags=re.S)

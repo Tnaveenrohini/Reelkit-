@@ -1161,20 +1161,7 @@ async def share_target(request: Request):
 
 
 # ---------- Public SEO pages, sitemap.xml, robots.txt, redirects, 404 log (wr_seo) and the private admin area (wr_admin) ----------
-import wr_seo, wr_admin, wr_creator
-wr_creator.install(r_, ffmpeg_path)
-
-
-@r_.post("/diagnose")
-def download_diagnostics(b: Req):
-    try:
-        d = info(b)
-        return {"ok": True, "site": d["site"], "items": len(d["items"]),
-                "message": "The post can be read. If a download failed, retry to refresh its media link."}
-    except HTTPException as exc:
-        return {"ok": False, "diagnostic": wr_creator.diagnose(exc.status_code, exc.detail)}
-
-
+import wr_seo, wr_admin
 SEO = wr_seo.SEO
 wr_admin.install(app)
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})

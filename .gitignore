@@ -4,5 +4,4 @@ __pycache__/
 .ruff_cache/
 .env
 .env.*
-!.env.example
 node_modules/

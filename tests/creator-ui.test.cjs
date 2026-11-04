@@ -32,7 +32,7 @@ async function page(slug='',fetcher) {
   Object.defineProperty(w.document,'fonts',{value:{ready:Promise.resolve(),load:()=>Promise.resolve([])}});
   w.fetch=async(url,opts)=>{
     if(fetcher){const response=await fetcher(String(url),opts);if(response)return response;}
-    return {ok:true,json:async()=>String(url).includes('capabilities')?{transcription:false,subtitle_video:true,max_upload_mb:4,max_seconds:180}:{ai:false}};
+    return {ok:true,json:async()=>({ai:false})};
   };
   for(const tag of w.document.querySelectorAll('script')){
     if(tag.type&&tag.type!=='text/javascript')continue;
@@ -44,7 +44,7 @@ async function page(slug='',fetcher) {
   return {dom,w,errors,draws};
 }
 
-for(const [slug,title] of [['batch-downloads','Batch downloads'],['auto-subtitles','Auto subtitles'],['reel-size-converter','Reel size converter'],['brand-kit','Brand kit'],['download-diagnostics','Download diagnostics']]){
+for(const [slug,title] of [['batch-downloads','Batch downloads']]){
   test('direct navigation renders '+slug,async()=>{
     const {dom,w,errors}=await page(slug);
     try{
@@ -61,47 +61,13 @@ for(const [slug,title] of [['batch-downloads','Batch downloads'],['auto-subtitle
   });
 }
 
-test('diagnostics query is retained rather than triggering an automatic download',async()=>{
-  const link='https://www.instagram.com/reel/abc123/';
-  const {dom,w,errors}=await page('download-diagnostics?url='+encodeURIComponent(link));
-  try{assert.equal(w.document.querySelector('input[aria-label="Public post link"]').value,link);assert.deepEqual(errors,[]);}finally{dom.window.close();}
-});
-
-test('manual captions work when transcription is not configured',async()=>{
-  const {dom,w,errors}=await page('auto-subtitles');
-  try{
-    const buttons=[...w.document.querySelectorAll('#out button')];
-    assert.equal(buttons.find(b=>b.textContent==='Generate subtitles').disabled,true);
-    buttons.find(b=>b.textContent==='Add caption').click();
-    const text=w.document.querySelector('textarea[aria-label="Caption 1 text"]');assert.ok(text);
-    text.value='Hello Telugu';text.dispatchEvent(new w.Event('input'));
-    assert.ok(w.document.querySelector('.creator-cue'));
-    buttons.find(b=>b.textContent==='Export SRT').click();
-    assert.match(w.document.querySelector('.creator-status').textContent,/exported/);
-    assert.deepEqual(errors,[]);
-  }finally{dom.window.close();}
-});
-
-test('brand kit saves on the device and is drawn by festival exports',async()=>{
-  const {dom,w,errors,draws}=await page('brand-kit');
-  try{
-    const name=w.document.querySelector('input[aria-label="Brand name"]');name.value='Reelkit Studio';name.dispatchEvent(new w.Event('input'));
-    w.document.querySelector('input[aria-label="Apply brand to greetings"]').checked=true;
-    [...w.document.querySelectorAll('#out button')].find(b=>b.textContent==='Save brand kit').click();
-    assert.equal(JSON.parse(w.localStorage.getItem('wr_brand_v1')).name,'Reelkit Studio');
-    w.WRFest.draw(w.document.createElement('canvas'),{fest:'morning',size:'square',lang:'en'});
-    assert.ok(draws.some(args=>args[0]==='Reelkit Studio'));
-    assert.deepEqual(errors,[]);
-  }finally{dom.window.close();}
-});
-
 test('batch retries a failed post without re-downloading successful posts',async()=>{
   const counts=new Map();
   const {dom,w,errors}=await page('batch-downloads',async(url,opts)=>{
     if(url==='/api/info')return {ok:true,json:async()=>({items:[{type:'video'}]})};
     if(url.startsWith('/api/download?')){
       const post=new URL(url,'https://waverise.test').searchParams.get('url');const n=(counts.get(post)||0)+1;counts.set(post,n);
-      if(post.includes('second')&&n===1)return {ok:false,status:502,json:async()=>({detail:'Please retry',diagnostic:{code:'source_error',title:'Source error',action:'Please retry',retryable:true}})};
+      if(post.includes('second')&&n===1)return {ok:false,status:502,json:async()=>({detail:'Please retry'})};
       return {ok:true,blob:async()=>new Blob(['video']),headers:new Headers()};
     }
   });
@@ -113,6 +79,20 @@ test('batch retries a failed post without re-downloading successful posts',async
     assert.match(w.document.querySelector('.creator-status').textContent,/2 downloaded · 0 failed/);
     assert.equal(counts.get('https://instagram.com/reel/first/'),1);
     assert.equal(counts.get('https://instagram.com/reel/second/'),2);
+    assert.deepEqual(errors,[]);
+  }finally{dom.window.close();}
+});
+
+test('removed tools are absent from desktop, mobile and home navigation',async()=>{
+  const {dom,w,errors}=await page();
+  try{
+    for(const slug of ['auto-subtitles','reel-size-converter','brand-kit','download-diagnostics']) {
+      assert.equal(w.document.querySelector(`a[href="/${slug}"]`),null);
+    }
+    for(const parent of ['#nav','#tsheet','#hub']) {
+      assert.ok(w.document.querySelector(`${parent} a[href="/batch-downloads"]`));
+    }
+    assert.equal(w.WRBrand,undefined);
     assert.deepEqual(errors,[]);
   }finally{dom.window.close();}
 });

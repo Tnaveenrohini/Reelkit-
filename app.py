@@ -909,6 +909,24 @@ def clip(url: str, index: int = 0, start: float = 0, length: float = 15, dl: int
                         background=BackgroundTask(os.remove, out))
 
 
+@r_.get("/crop")
+def crop(url: str, index: int = 0, x: float = 0, y: float = 0, w: float = 1, h: float = 1, start: float = 0, length: float = 60,
+         dl: int = 0):
+    """Crop a public video to the chosen box (fractions of the picture: x, y, w, h) and length, for Status, posts or DP."""
+    src, hdrs, vid, d = media(clean(url), index, info=True)
+    if not vid:
+        raise HTTPException(400, "This item is a photo, so there is no video to crop.")
+    w, h = max(0.05, min(w, 1.0)), max(0.05, min(h, 1.0))
+    x, y = max(0.0, min(x, 1.0 - w)), max(0.0, min(y, 1.0 - h))
+    start, length = max(0.0, min(start, 21600.0)), max(1.0, min(length, 60.0))
+    vf = (f"crop=trunc(iw*{w:.4f}/2)*2:trunc(ih*{h:.4f}/2)*2:trunc(iw*{x:.4f}):trunc(ih*{y:.4f}),"
+          "scale='if(gt(iw,ih),min(1920,iw),-2)':'if(gt(iw,ih),-2,min(1920,ih))',setsar=1")
+    out = f"/tmp/crop-{uuid.uuid4().hex}.mp4"
+    r = _ff(src, hdrs, start, ["-t", f"{length:.2f}", "-map", "0:v:0", "-map", "0:a:0?", "-vf", vf, "-c:v", "libx264", "-preset", "veryfast",
+                                "-crf", "21", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"], out, timeout=150)
+    return _send(r, out, "video/mp4", nice_name(d, "mp4", "cropped"), dl, "cropped video")
+
+
 def _ff(src, hdrs, ss, args, out, timeout=140):
     if "-map_metadata" not in args:
         args = list(args) + CLEAN          # every file WaveRise makes is cleaned of hidden details

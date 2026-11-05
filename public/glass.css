@@ -1022,3 +1022,39 @@ html.cpg #chat,html.cpg #hub{display:none!important}
 .cprt a:last-child,.cprc button:last-child{border-bottom:0!important}
 .cprt a:hover,.cprc button:hover{color:var(--gold)!important}
 @media (min-width:901px) and (max-width:1110px){#nav .nv{padding:0 6px!important}}
+/* ---------- Photo Editor ---------- */
+.edcard{display:flex;flex-direction:column;gap:12px;text-align:left}
+.edtop{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.edcmp{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px!important;border-radius:999px!important;border:1px solid var(--line)!important;background:transparent!important;color:var(--text)!important;font:inherit;font-size:14px;font-weight:700;box-shadow:none!important;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none;cursor:pointer}
+.edcmp.on{border-color:var(--gold)!important;color:var(--gold)!important}
+.edcmp .i,.edtabs .i,.edrow .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.edreset{min-height:44px;padding:0 16px!important;background:transparent!important;color:var(--mute)!important;border:1px solid var(--line)!important;box-shadow:none!important;font-size:14px}
+.edstage{position:relative;margin:0 auto;max-width:100%;overflow:hidden;border-radius:14px;background:#000;touch-action:none}
+.edview{display:block;width:100%;height:100%}
+.edcrop i{width:22px!important;height:22px!important;border-width:4px!important}
+.edcrop i:nth-child(1){left:-4px;top:-4px}.edcrop i:nth-child(2){right:-4px;top:-4px}.edcrop i:nth-child(3){left:-4px;bottom:-4px}.edcrop i:nth-child(4){right:-4px;bottom:-4px}
+.edcrop i::after{content:"";position:absolute;inset:-12px}
+.edtabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;padding:4px;border-radius:16px;background:var(--field,rgba(255,255,255,.04));border:1px solid var(--line)}
+.edtabs button{display:flex;flex-direction:column;align-items:center;gap:4px;min-height:56px;padding:6px 2px!important;border:0!important;border-radius:12px!important;background:transparent!important;color:var(--mute)!important;font:inherit;font-size:12px;font-weight:700;box-shadow:none!important;cursor:pointer}
+.edtabs button[aria-selected=true]{background:var(--gold)!important;color:var(--ink)!important}
+.edpanel{display:flex;flex-direction:column;gap:10px;min-height:60px}
+.edsl{display:grid;grid-template-columns:1fr auto;align-items:center;gap:2px 10px;font-size:14px;font-weight:700}
+.edsl output{font-variant-numeric:tabular-nums;color:var(--gold);min-width:3ch;text-align:right}
+html[data-theme=light] .edsl output{color:#8A5D00}
+.edsl input[type=range]{grid-column:1/-1;width:100%;height:32px;accent-color:var(--gold);margin:0}
+.edsl[hidden]{display:none}
+.edlooks{display:flex;gap:10px;overflow-x:auto;padding:2px 2px 8px;scroll-snap-type:x proximity}
+.edlooks button{flex:none;display:flex;flex-direction:column;align-items:center;gap:6px;width:84px;padding:4px!important;border:2px solid transparent!important;border-radius:14px!important;background:transparent!important;color:var(--text)!important;font:inherit;font-size:12px;font-weight:700;box-shadow:none!important;scroll-snap-align:start;cursor:pointer}
+.edlooks button[aria-pressed=true]{border-color:var(--gold)!important}
+.edlooks img{width:72px;height:72px;border-radius:10px;object-fit:cover;display:block}
+.edrow{justify-content:flex-start}
+.edrow button{display:inline-flex;align-items:center;gap:6px}
+.edars button[aria-pressed=true]{background:var(--gold)!important;color:var(--ink)!important;border-color:var(--gold)!important}
+.edtr{align-self:flex-start}
+.edact{display:flex;justify-content:center}
+.edsave{display:inline-flex;align-items:center;gap:8px}
+.edsave .i{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.edresult:empty{display:none}
+@media (max-width:420px){.edtabs button{font-size:10.5px;letter-spacing:-.2px}.edtabs span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
+#out .edcard{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box}
+.edcard>*{min-width:0;max-width:100%}

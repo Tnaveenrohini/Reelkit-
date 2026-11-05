@@ -959,3 +959,13 @@ html[lang=te] body,html[lang=te] body *{font-family:"Noto Sans Telugu",Sora,syst
 html[lang=te] :is(h1,h2,h3),html[lang=te] :is(h1,h2,h3) *{font-family:"Anek Telugu","Noto Sans Telugu",Sora,sans-serif}
 html[lang=te] .brand,html[lang=te] .brand *{font-family:Sora,system-ui,sans-serif}
 @media (min-width:901px) and (max-width:1040px){#nav .nv{padding:0 9px}}
+/* Video Crop */
+.cropwrap{position:relative;width:100%;max-height:62vh;margin:12px auto 6px;overflow:hidden;border-radius:14px;background:#000;touch-action:none}
+.cropwrap video{position:absolute;inset:0;width:100%;height:100%;object-fit:fill;display:block}
+.cropbox{position:absolute;box-sizing:border-box;border:2px solid #F2C14E;box-shadow:0 0 0 9999px rgba(3,8,22,.62);cursor:move;touch-action:none;border-radius:4px}
+.cropbox i{position:absolute;width:14px;height:14px;border:3px solid #F2C14E}
+.cropbox i:nth-child(1){left:-3px;top:-3px;border-right:0;border-bottom:0}.cropbox i:nth-child(2){right:-3px;top:-3px;border-left:0;border-bottom:0}
+.cropbox i:nth-child(3){left:-3px;bottom:-3px;border-right:0;border-top:0}.cropbox i:nth-child(4){right:-3px;bottom:-3px;border-left:0;border-top:0}
+.crop-shapes{flex-wrap:wrap;gap:8px}#out .crop-shapes .btn{background:transparent!important;color:var(--text,#EAF0FF)!important;border:1px solid var(--line,#2a3a66)!important;box-shadow:none!important}#out .crop-shapes .btn.on{background:#F2C14E!important;color:#1a1300!important;border-color:#F2C14E!important}.crop-shapes small{opacity:.8;font-weight:500}
+.crop-z{display:flex;align-items:center;gap:12px;margin-top:10px}.crop-z input{flex:1}
+.crop-st{width:100%;display:block}

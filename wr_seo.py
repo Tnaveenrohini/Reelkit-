@@ -390,7 +390,7 @@ def not_found(request: Request):
             except StoreError:
                 pass
     body = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=40"></head>'
+            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=41"></head>'
             '<body style="background:#07122B;color:#F4F1EA;font-family:Sora,system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;padding:0 20px;text-align:center">'
             '<main><h1 style="font-size:28px;margin:0 0 8px">Page not found</h1><p style="color:#AEB8D0;margin:0 0 20px">This page doesn’t exist or has moved.</p>'
             '<a href="/" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#F2C14E;color:#1A1405;font-weight:800;text-decoration:none">Open WaveRise</a></main></body></html>')

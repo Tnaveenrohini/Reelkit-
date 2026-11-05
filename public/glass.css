@@ -253,7 +253,7 @@ button.go,.btn{color:#fff;text-shadow:0 1px 6px rgba(0,30,90,.4);background:line
 .page a.cemail{display:inline-block;padding:12px 2px;margin:-12px 0}
 
 /* five-tab rail and dock */
-@media (min-width:901px) and (max-width:1400px){#nav .nv{padding:0 13px}#nav>.nv>.i,#nav .dd>.nv>.i:not(.chev){display:none}}
+@media (min-width:901px) and (max-width:1600px){#nav .nv{padding:0 13px}#nav>.nv>.i,#nav .dd>.nv>.i:not(.chev){display:none}}
 @media (max-width:900px){
  #nav{grid-template-columns:repeat(5,1fr);gap:2px;padding:6px 5px;left:max(10px,calc(50% - 300px));right:max(10px,calc(50% - 300px))}
  #nav .nv{font-size:10.5px;letter-spacing:0;padding:0 2px}
@@ -969,3 +969,56 @@ html[lang=te] .brand,html[lang=te] .brand *{font-family:Sora,system-ui,sans-seri
 .crop-shapes{flex-wrap:wrap;gap:8px}#out .crop-shapes .btn{background:transparent!important;color:var(--text,#EAF0FF)!important;border:1px solid var(--line,#2a3a66)!important;box-shadow:none!important}#out .crop-shapes .btn.on{background:#F2C14E!important;color:#1a1300!important;border-color:#F2C14E!important}.crop-shapes small{opacity:.8;font-weight:500}
 .crop-z{display:flex;align-items:center;gap:12px;margin-top:10px}.crop-z input{flex:1}
 .crop-st{width:100%;display:block}
+/* ---------- Chat page (/chat) ---------- */
+.cpage{display:flex;flex-direction:column;gap:16px;padding-top:8px}
+.cpage[hidden]{display:none}
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.cphero{display:flex;align-items:center;gap:20px;padding:20px 24px;border-radius:24px;border:1px solid var(--line);background:linear-gradient(120deg,var(--card) 0%,var(--card) 62%,rgba(242,193,78,.16) 100%)}
+.cphero h1{margin:0;font-size:clamp(22px,3.4vw,32px);line-height:1.2;font-weight:800;font-style:italic}
+.cphero p{margin:6px 0 0;color:var(--mute);font-size:15px;line-height:1.5}
+.cphi{color:var(--gold)}
+html[data-theme=light] .cphi{color:#8A5D00}
+.cprobot{width:92px;height:92px;flex:none}
+.cprobot .rb{fill:#F4F6FB}.cprobot .rf{fill:#0A1433}.cprobot .ra{fill:var(--gold)}
+.cprobot .re{fill:none;stroke:#4FD1FF;stroke-width:4;stroke-linecap:round}
+html[data-theme=light] .cprobot .rb{fill:#fff;stroke:#CDD4E1;stroke-width:2}
+.cpmodes,.cptry{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cptry>span{font-weight:700;color:var(--gold);font-size:14px;margin-right:2px}
+html[data-theme=light] .cptry>span{color:#8A5D00}
+.cplog{display:flex;flex-direction:column;gap:12px;min-height:120px}
+.cplog .msg{max-width:min(620px,90%);box-sizing:border-box;margin:0}
+.cplog .me{align-self:flex-end;background:var(--gold);color:var(--ink);border-radius:22px 6px 22px 22px;padding:11px 16px;font-weight:700;font-size:14.5px;overflow-wrap:anywhere}
+.cplog .bot{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-radius:6px 22px 22px 22px;padding:14px 16px;font-size:14.5px;line-height:1.55}
+.cpempty{margin:auto 0;color:var(--mute);font-size:14px;text-align:center}
+.cpcard{display:flex!important;flex-direction:column;gap:12px;width:min(560px,90%)}
+.cpch{margin:0;font-weight:800;font-size:16px}
+.cpcb{display:flex;gap:14px;align-items:flex-start}
+.cpcb img{width:96px;height:120px;object-fit:cover;border-radius:12px;background:var(--line);flex:none}
+.cpci{display:flex;flex-direction:column;gap:4px;font-size:14px;color:var(--mute);min-width:0}
+.cpci b{color:var(--text);font-size:15px}
+.cpca{display:flex;flex-wrap:wrap;gap:8px}
+.cpca .btn{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 16px;border-radius:14px;font:inherit;font-weight:700;cursor:pointer}
+.cpca .btn:not(.big){background:transparent!important;color:var(--text)!important;border:1px solid var(--fline,var(--line))!important;box-shadow:none!important;text-shadow:none}
+.cpca .btn .i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;margin-right:6px}
+.cpf{display:flex!important;align-items:center;gap:8px;margin:0!important;padding:6px 6px 6px 18px!important;border-radius:999px!important;border:2px solid var(--gold)!important;background:var(--field,var(--card))!important;max-width:none!important;box-shadow:none!important}
+.cpf::after{display:none!important}
+.cpf input{flex:1;min-width:0;height:44px;border:0!important;background:transparent!important;color:var(--text);font:inherit;font-size:16px;padding:0!important;box-shadow:none!important;outline-offset:4px}
+.cpic,.cpsend{flex:none;width:46px;height:46px;padding:0!important;border-radius:50%!important;display:grid;place-items:center;cursor:pointer}
+.cpic{background:transparent!important;border:0!important;color:var(--mute);box-shadow:none!important}
+.cpsend{background:var(--gold)!important;border:0!important;color:var(--ink)!important;box-shadow:none!important}
+.cpic .i,.cpsend .i{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linejoin:round;stroke-linecap:round}
+.cpside{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-top:8px}
+.cpside .sbox{padding:16px;border-radius:18px;background:var(--card);border:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.cpside h2{margin:0;font-size:16px}
+.cprch{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cprt,.cprc{display:flex;flex-direction:column}
+.cprt a,.cprc button{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:0 4px;border:0;border-bottom:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-size:14px;font-weight:600;text-align:left;text-decoration:none;cursor:pointer;border-radius:0;box-shadow:none}
+.cprt a:last-child,.cprc button:last-child{border-bottom:0}
+.cprt a:hover,.cprc button:hover{color:var(--gold)}
+.cprt .i{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+@media (max-width:640px){.cphero{padding:16px;gap:14px}.cprobot{width:64px;height:64px}.cpcb img{width:80px;height:100px}}
+html.cpg #chat,html.cpg #hub{display:none!important}
+.cprt a,.cprc button{border:0!important;border-bottom:1px solid var(--line)!important;background:transparent!important;padding:0 4px!important;border-radius:0!important;box-shadow:none!important;color:var(--text)!important;width:100%}
+.cprt a:last-child,.cprc button:last-child{border-bottom:0!important}
+.cprt a:hover,.cprc button:hover{color:var(--gold)!important}
+@media (min-width:901px) and (max-width:1110px){#nav .nv{padding:0 6px!important}}

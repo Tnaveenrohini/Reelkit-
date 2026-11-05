@@ -15,6 +15,7 @@ from pydantic import BaseModel
 IG_URL = re.compile(r"^https?://(www\.)?instagram\.com/(p|reel|reels|tv)/", re.I)
 YT_ID = re.compile(r"^https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch\?(?:.*&)?v=|shorts/|live/|embed/)|youtu\.be/)([A-Za-z0-9_-]{11})", re.I)
 TH_URL = re.compile(r"^https?://(?:www\.)?threads\.(?:net|com)/(?:(@[A-Za-z0-9._]{1,30})/post|t)/([A-Za-z0-9_-]{5,24})", re.I)
+TH_SHARE = re.compile(r"^https?://(?:www\.)?threads\.(?:net|com)/share/([A-Za-z0-9_-]{4,40})", re.I)   # app "Copy link" short links
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 CDN = ("cdninstagram.com", "fbcdn.net")
 SOON = {x.strip().lower() for x in os.getenv("SOON_SITES", "youtube").split(",") if x.strip()}  # sites shown as "coming soon"; set SOON_SITES to empty to switch them on
@@ -90,11 +91,13 @@ def clean(url):
     if FB_URL.match(url):
         return _fb_clean(url)
     url = url.split("?")[0].split("#")[0]
+    if TH_SHARE.match(url):
+        url = _th_share(url)
     m = TH_URL.match(url)
     if m:
         return f"https://www.threads.com/{m.group(1)}/post/{m.group(2)}" if m.group(1) else f"https://www.threads.com/t/{m.group(2)}"
     if not (IG_URL.match(url) or X_URL.match(url)):
-        raise HTTPException(400, "Paste a public Instagram, Facebook or X link.")
+        raise HTTPException(400, "Paste a public Instagram, Facebook, X or Threads link.")
     return url
 
 
@@ -474,6 +477,28 @@ def _cdn(u):
 TH_HEADERS = {"User-Agent": UA, "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.9",
               "Sec-Fetch-Dest": "document", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Site": "none", "Upgrade-Insecure-Requests": "1"}
 TH_MEDIA_HD = {"User-Agent": UA, "Referer": "https://www.threads.com/"}
+
+
+_th_shared = {}
+
+
+def _th_share(u):
+    """threads.com/share/… links (what the Threads app copies) lead to a post: follow them to its /@user/post/CODE address."""
+    if u in _th_shared:
+        return _th_shared[u]
+    st, page, final = _th_get(u)
+    post = TH_URL.match(final)
+    if not post:   # no redirect: the page itself names the post (canonical link, og:url or a link in its data)
+        for cand in re.findall(r'https?:\\?/\\?/(?:www\.)?threads\.(?:net|com)\\?/(?:@[A-Za-z0-9._]{1,30}\\?/post|t)\\?/[A-Za-z0-9_-]{5,24}', page or ""):
+            post = TH_URL.match(cand.replace("\\/", "/"))
+            if post:
+                break
+    if not post:
+        print("[waverise] threads share link not resolved:", u, "| status", st, "| final", final)
+        raise HTTPException(422, "Couldn’t open this Threads share link. In Threads, open the post, tap ⋯ (or the share icon) → Copy link, and paste that link.")
+    out = f"https://www.threads.com/{post.group(1)}/post/{post.group(2)}" if post.group(1) else f"https://www.threads.com/t/{post.group(2)}"
+    _th_shared[u] = out
+    return out
 
 
 def _th_get(u):

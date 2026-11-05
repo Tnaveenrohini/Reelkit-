@@ -1058,3 +1058,20 @@ html[data-theme=light] .edsl output{color:#8A5D00}
 @media (max-width:420px){.edtabs button{font-size:10.5px;letter-spacing:-.2px}.edtabs span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}}
 #out .edcard{width:100%!important;max-width:100%!important;min-width:0!important;box-sizing:border-box}
 .edcard>*{min-width:0;max-width:100%}
+/* ---------- House banner (#promo) ---------- */
+.promo{position:relative;margin:18px 0;border-radius:22px;border:1px solid rgba(242,193,78,.55);background:radial-gradient(120% 140% at 100% 0%,rgba(242,193,78,.22) 0%,rgba(242,193,78,0) 55%),var(--card);overflow:hidden}
+.promo[hidden]{display:none}
+.prlink{display:flex;align-items:center;gap:16px;padding:18px 56px 18px 18px;color:var(--text)!important;text-decoration:none!important;flex-wrap:wrap}
+.pric{flex:none;width:56px;height:56px;border-radius:16px;background:var(--gold);color:var(--ink);display:grid;place-items:center}
+.pric .i{width:28px;height:28px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.prtx{flex:1 1 220px;min-width:0;display:flex;flex-direction:column;gap:3px}
+.prtx b{font-size:19px;font-weight:800;line-height:1.25}
+.prtx>span:last-child{color:var(--mute);font-size:14.5px;line-height:1.5}
+.prnew{align-self:flex-start;padding:3px 9px;border-radius:999px;background:rgba(242,193,78,.16);color:var(--gold);font-size:11.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase}
+html[data-theme=light] .prnew{color:#7A5200;background:#FFF1C7}
+.prgo{flex:none;display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:999px;background:var(--gold);color:var(--ink);font-weight:800;font-size:15px}
+.prlink:hover .prgo{filter:brightness(1.06)}
+.prx{position:absolute;top:8px;right:8px;width:44px;height:44px;padding:0!important;border:0!important;border-radius:50%!important;background:transparent!important;color:var(--mute)!important;box-shadow:none!important;display:grid;place-items:center;cursor:pointer}
+.prx:hover{color:var(--text)!important}
+.prx .i{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+@media (max-width:520px){.prlink{gap:12px;padding:16px 48px 16px 16px}.pric{width:48px;height:48px}.prgo{width:100%;justify-content:center}}

@@ -166,7 +166,7 @@ class Store:
                     break
         if url and tok:
             self.r, self.kind = _Redis(url, tok), "upstash"
-        elif not os.getenv("VERCEL"):
+        elif not (os.getenv("VERCEL") or os.getenv("K_SERVICE")):   # K_SERVICE is set on Google Cloud Run
             self.r, self.kind = _Memory(), "memory"
         else:
             self.r, self.kind = None, "none"
@@ -178,7 +178,7 @@ class Store:
 
     def cmd(self, *a):
         if not self.r:
-            raise StoreError("No database is connected. Add Upstash Redis in Vercel → Storage.")
+            raise StoreError("No database is connected. Add your Upstash Redis REST URL and token to the hosting settings.")
         return self.r.cmd(*a)
 
     def batch(self, commands):

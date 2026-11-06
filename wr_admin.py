@@ -207,7 +207,7 @@ def require(request: Request, write=False):
 
 def need_store():
     if not STORE.ok:
-        raise HTTPException(503, "No database is connected, so changes can’t be saved. Add Upstash Redis in Vercel → Storage, then redeploy.")
+        raise HTTPException(503, "No database is connected, so changes can’t be saved. Add KV_REST_API_URL and KV_REST_API_TOKEN from Upstash to the hosting settings, then deploy again.")
 
 
 # ---------------- Google OAuth ----------------
@@ -641,8 +641,8 @@ def signin_problem(reason: str):
     """Turn Google's answer into a message that says what to fix (Google's reasons contain no secrets)."""
     r = (reason or "").lower()
     if "invalid_client" in r or "unauthorized" in r or "client secret" in r:
-        return ("Google rejected the app's key. In Vercel, set GOOGLE_CLIENT_SECRET to the current secret (GOCSPX-…) of the same "
-                "Google client as GOOGLE_CLIENT_ID, with no spaces, then redeploy.")
+        return ("Google rejected the app's key. In the hosting settings, set GOOGLE_CLIENT_SECRET to the current secret (GOCSPX-…) of the same "
+                "Google client as GOOGLE_CLIENT_ID, with no spaces, then deploy again.")
     if "redirect_uri" in r:
         return f"Google doesn't allow this return address. Add {ADMIN_CALLBACK_HINT} to the client's Authorised redirect URIs."
     if "invalid_grant" in r:
@@ -675,7 +675,7 @@ def install(app):
         if r: return r
         miss = missing_setup()
         if miss:
-            return simple_page("Setup needed", "<h1>Admin isn’t set up yet</h1><p>Add these environment variables in Vercel → Settings → Environment Variables, then redeploy:</p><ul>"
+            return simple_page("Setup needed", "<h1>Admin isn’t set up yet</h1><p>Add these environment variables in the hosting settings (Google Cloud Run → Edit &amp; deploy new revision → Variables &amp; secrets), then deploy:</p><ul>"
                                + "".join(f"<li><code>{wr_seo.esc(m)}</code></li>" for m in miss) + "</ul>", 503)
         s = current_session(request)
         if not s:
@@ -750,7 +750,7 @@ def install(app):
             return resp
         if not MG.role_for(email, cfg()["admins"]):
             audit(request, email, "login_denied")
-            return login_page(f"{email} isn’t a WaveRise admin. Put exactly this address in ADMIN_EMAILS in Vercel and redeploy, or sign in with the account that is listed there.")
+            return login_page(f"{email} isn’t a WaveRise admin. Put exactly this address in ADMIN_EMAILS in the hosting settings and deploy again, or sign in with the account that is listed there.")
         resp = RedirectResponse("/admin", 302)
         try:
             new_session(request, resp, email)

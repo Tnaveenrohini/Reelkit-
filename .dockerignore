@@ -1,0 +1,12 @@
+.git
+.github
+.venv
+__pycache__
+*.pyc
+tests
+node_modules
+.vercel
+start.bat
+start.sh
+run_local.py
+requirements-local.txt

@@ -31,6 +31,8 @@ def _read_template():
 
 
 TEMPLATE = _read_template()
+if not os.getenv("VERCEL"):   # Vercel Web Analytics only exists on Vercel; elsewhere its script would just 404
+    TEMPLATE = TEMPLATE.replace('<script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)}</script><script defer src="/_vercel/insights/script.js"></script>', '')
 try:
     SEO = json.loads(re.search(r'<script type="application/json" id="wr-seo">(.*?)</script>', TEMPLATE, re.S).group(1).replace("<\\/", "</"))
 except Exception:

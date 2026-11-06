@@ -115,7 +115,7 @@ const SECTIONS = {
       h('button', { class: 'btn', onclick: () => go('health', true) }, 'Run SEO check'),
       h('a', { class: 'btn ghost', href: '#sitemap' }, 'Sitemap'),
       h('a', { class: 'btn ghost', href: 'https://search.google.com/search-console', target: '_blank', rel: 'noopener' }, 'Open Search Console ↗')),
-      !S.store.ok ? h('div', { class: 'note bad', style: 'margin-top:12px' }, 'No database is connected, so settings can’t be saved. In Vercel open Storage → Create → Upstash (Redis), connect it to this project and redeploy.') : null);
+      !S.store.ok ? h('div', { class: 'note bad', style: 'margin-top:12px' }, 'No database is connected, so settings can’t be saved. Add KV_REST_API_URL and KV_REST_API_TOKEN from your Upstash database to the hosting settings, then deploy again.') : null);
     return sec('Overview', 'Live status of WaveRise in Google search. Everything here is private to admins.', box, h('div', { class: 'grid g2', style: 'margin-top:14px' }, gsc, flow), h('div', { style: 'margin-top:14px' }, actions));
   },
 
@@ -144,7 +144,7 @@ const SECTIONS = {
   },
 
   async ga() {
-    const out = sec('Google Analytics', 'Visitors, sessions and page views from Google Analytics 4. Vercel Web Analytics keeps running alongside it.');
+    const out = sec('Google Analytics', 'Visitors, sessions and page views from Google Analytics 4. ');
     const st = S.settings;
     out.append(card(h('h2', {}, 'Tracking on the public site'), st.ga_id ? h('p', {}, tag('On', 'ok'), ' Measurement ID ', h('span', { class: 'mono' }, st.ga_id), ' is added to every public page.') : h('p', {}, tag('Off'), ' Add your Measurement ID (G-…) in ', h('a', { href: '#settings' }, 'Settings'), ' to start collecting.')));
     const ng = needGoogle(); if (ng) { out.append(h('div', { style: 'margin-top:14px' }, ng)); return out; }
@@ -342,7 +342,7 @@ const SECTIONS = {
     const st = S.settings, g = S.google;
     const out = sec('Settings', 'Google connection, verification, analytics and search engine visibility. Secrets stay on the server; this page only shows what is safe to show.');
     // Google connection
-    out.append(card(h('h2', {}, 'Google connection'), !g.configured ? h('div', { class: 'note bad' }, 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set in Vercel.') :
+    out.append(card(h('h2', {}, 'Google connection'), !g.configured ? h('div', { class: 'note bad' }, 'GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET are not set in the hosting settings.') :
       g.connected ? h('div', {}, h('p', {}, tag('Connected', 'ok'), ' as ', h('b', {}, g.email || '?'), h('span', { class: 'muted small' }, ' · since ' + when(g.at))),
         h('p', { class: 'muted small' }, 'Access: ', (g.scopes || []).filter(x => /webmasters|analytics/.test(x)).map(x => x.split('/').pop()).join(', ') || '–'),
         h('div', { class: 'row' }, h('a', { class: 'btn ghost', href: '/admin/connect-google' }, 'Reconnect'), h('button', { class: 'btn danger', onclick: async () => { if (!confirm('Disconnect Google? Reports stop until you connect again.')) return; await api('/api/admin/google/disconnect', {}); toast('Google disconnected.'); await refresh(); } }, 'Disconnect')))
@@ -376,9 +376,9 @@ const SECTIONS = {
       card(h('h2', {}, 'Search engine visibility'), h('label', { class: 'switch' }, vis, 'Let search engines index WaveRise'), h('p', { class: 'muted small' }, 'Turning this off adds noindex to every page and blocks crawling in robots.txt. Keep it on for the public site.')),
       card(h('h2', {}, 'Default share image'), h('p', { class: 'muted small' }, 'Used for Open Graph and Twitter cards when a page has no image of its own. 1200 × 630 px works best.'), og)));
     out.append(card(h('h2', { style: 'margin-top:4px' }, 'Environment'), h('div', { class: 'grid g4' },
-      stat('Main address', S.site_url || '–', S.site_url_env ? 'From SITE_URL' : 'Set SITE_URL in Vercel', S.site_url_env ? 'ok' : 'warn'),
+      stat('Main address', S.site_url || '–', S.site_url_env ? 'From SITE_URL' : 'Set SITE_URL in hosting settings', S.site_url_env ? 'ok' : 'warn'),
       stat('Database', S.store.ok ? 'Connected' : 'Missing', S.store.kind, S.store.ok ? 'ok' : 'bad'),
-      stat('Daily SEO check', S.cron ? 'On' : 'Off', S.cron ? 'Vercel Cron, 03:00 UTC' : 'Set CRON_SECRET', S.cron ? 'ok' : 'warn'))));
+      stat('Daily SEO check', S.cron ? 'On' : 'Off', S.cron ? 'Daily, 03:00 UTC' : 'Set CRON_SECRET', S.cron ? 'ok' : 'warn'))));
     return out;
   }
 };

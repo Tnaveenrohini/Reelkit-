@@ -1437,6 +1437,7 @@ const pubUrl=p=>p?`${SB_URL}/storage/v1/object/public/community/${p.split('/').m
 const cbox=()=>$('#community');
 const cnote=(t,err)=>h('p',{class:err?'err':'note',style:'text-align:left'},t);
 const nice=e=>{const m=(e&&(e.message||e.error_description||e.msg))||String(e||'');
+ if(/schema cache|does not exist|PGRST20[25]|relation .* not found/i.test(m))return 'Ringtones and wallpapers are being set up. Please check back soon.';
  if(/duplicate key|already exists/i.test(m))return m.includes('username')?'That username is taken. Try another.':'You already did that.';
  if(/20 files a day/.test(m))return 'You can upload 20 files a day. Please try again tomorrow.';
  if(/not authorized|email.*not.*allowed|signups not allowed|Error sending/i.test(m))return 'Email sign-in isn’t switched on yet. Please use Continue with Google.';
@@ -1520,7 +1521,7 @@ function exploreView(w){const list=h('div',{class:CK.kind==='wallpaper'?'wgrid':
  const load=async reset=>{if(!reset&&CK.busy)return;const g=++CK.gen;CK.busy=true;if(reset){CK.from=0;CK.items=[];CK.done=false;list.replaceChildren();st.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Loading…'))}
   try{const r=await feed(g);if(g!==CK.gen)return;st.replaceChildren();r.forEach(it=>list.append(CK.kind==='wallpaper'?wcard(it):rrow(it)));
    if(!CK.items.length)st.replaceChildren(cnote(CK.q||CK.cat?'Nothing found. Try another word or category.':CK.sort==='following'?'Follow creators and their new uploads show up here.':`No ${CK.kind}s yet. Be the first to upload one!`))}
-  catch(e){if(g===CK.gen)st.replaceChildren(cnote(nice(e),true))}if(g===CK.gen){more.hidden=CK.done;CK.busy=false}};
+  catch(e){if(g===CK.gen){CK.done=true;st.replaceChildren(cnote(nice(e),true))}}if(g===CK.gen){more.hidden=CK.done;CK.busy=false}};
  more.onclick=()=>load(false);
  w.replaceChildren(chead('Ringtones & Wallpapers','Free to download. Made and shared by the WaveRise community.'),
   seg([['ringtone','Ringtones'],['wallpaper','Wallpapers']],CK.kind,v=>{CK.kind=v;CK.cat='';cgo('/'+v+'s')}),

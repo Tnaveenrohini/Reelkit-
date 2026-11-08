@@ -45,9 +45,26 @@ def blob_token():
     return t
 
 
+def blob_store_id():
+    v = os.getenv("BLOB_STORE_ID", "").strip()
+    return v[len("store_"):] if v.startswith("store_") else v
+
+
+def blob_auth(request: Request = None):
+    """(token, store id) the same way Vercel's own library picks them: the project's OIDC token first, then the read-write token."""
+    sid = blob_store_id()
+    oidc = (request.headers.get("x-vercel-oidc-token") if request is not None else None) or os.getenv("VERCEL_OIDC_TOKEN", "").strip()
+    if oidc and sid:
+        return oidc, sid
+    tok = blob_token()
+    if tok:
+        return tok, (tok.split("_") + ["", "", "", ""])[3]
+    return None, None
+
+
 def ready():
     c = A.cfg()
-    return bool(STORE.ok and c["client_id"] and c["client_secret"] and len(c["secret"]) >= 32 and (blob_token() or not hosted()))
+    return bool(STORE.ok and c["client_id"] and c["client_secret"] and len(c["secret"]) >= 32 and (blob_token() or blob_store_id() or not hosted()))
 
 
 def k(name):
@@ -71,8 +88,8 @@ def same_site(request: Request):
 
 
 # ---------------- files (Vercel Blob, or a local folder when testing) ----------------
-def blob_put(path, data: bytes, ctype: str):
-    tok = blob_token()
+def blob_put(path, data: bytes, ctype: str, request: Request = None):
+    tok, store_id = blob_auth(request)
     if not tok:
         if hosted():
             raise HTTPException(503, "File storage isn't connected yet.")
@@ -80,7 +97,6 @@ def blob_put(path, data: bytes, ctype: str):
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_bytes(data)
         return "/api/c/devfile/" + path
-    store_id = (tok.split("_") + ["", "", "", ""])[3]
     try:
         r = HTTP.put(BLOB_API + "/?" + urlencode({"pathname": path}), content=data, headers={
             "authorization": f"Bearer {tok}", "x-api-version": "13", "x-vercel-blob-store-id": store_id,
@@ -93,17 +109,16 @@ def blob_put(path, data: bytes, ctype: str):
     raise HTTPException(502, "Couldn't save the file. Please try again.")
 
 
-def blob_del(urls):
+def blob_del(urls, request: Request = None):
     urls = [u for u in urls if u]
     if not urls:
         return
-    tok = blob_token()
+    tok, store_id = blob_auth(request)
     if not tok:
         for u in urls:
             if u.startswith("/api/c/devfile/"):
                 (LOCAL_DIR / u[len("/api/c/devfile/"):]).unlink(missing_ok=True)
         return
-    store_id = (tok.split("_") + ["", "", "", ""])[3]
     try:
         HTTP.post(BLOB_API + "/delete", json={"urls": urls}, headers={
             "authorization": f"Bearer {tok}", "x-api-version": "13", "x-vercel-blob-store-id": store_id})
@@ -223,7 +238,7 @@ def item_or_404(item_id):
     return it
 
 
-def remove_item(it):
+def remove_item(it, request: Request = None):
     iid = str(it["id"])
     likers = STORE.cmd("SMEMBERS", k(f"likes:{iid}")) or []
     cmds = [["DEL", k(f"item:{iid}")], ["DEL", k(f"likes:{iid}")], ["DEL", k(f"reports:{iid}")],
@@ -232,7 +247,7 @@ def remove_item(it):
             ["ZREM", k(f"uitems:{it['user_id']}"), iid], ["ZREM", k("z:reported"), iid],
             ["HDEL", k("cnt"), f"l:{iid}", f"d:{iid}"]] + [["SREM", k(f"ulikes:{u}"), iid] for u in likers]
     STORE.batch(cmds)
-    blob_del([it.get("url"), it.get("thumb_url")])
+    blob_del([it.get("url"), it.get("thumb_url")], request)
 
 
 def sniff_audio(b: bytes):
@@ -242,7 +257,13 @@ def sniff_audio(b: bytes):
 # ---------------- routes ----------------
 @R.get("/api/c/status")
 def c_status():
-    return {"on": ready()}
+    """Which parts are still missing (names only, never values), to help with setup."""
+    c, miss = A.cfg(), []
+    if not STORE.ok: miss.append("Upstash database (KV_REST_API_URL, KV_REST_API_TOKEN)")
+    if not (c["client_id"] and c["client_secret"]): miss.append("GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET")
+    if len(c["secret"]) < 32: miss.append("SESSION_SECRET")
+    if hosted() and not (blob_token() or blob_store_id()): miss.append("Vercel Blob store connected to this project")
+    return JSONResponse({"on": ready(), "missing": miss}, headers={"Cache-Control": "no-store"})
 
 
 @R.get("/api/c/devfile/{path:path}", include_in_schema=False)
@@ -422,8 +443,8 @@ async def c_upload(request: Request, kind: str = Form(...), title: str = Form(..
     if len(data) < 200:
         raise HTTPException(400, "This file is empty.")
     key = secrets.token_hex(8)
-    url = blob_put(f"c/{me['id']}/{key}.{ext}", data, mime)
-    turl = blob_put(f"c/{me['id']}/{key}-thumb.jpg", thumb_bytes, "image/jpeg") if thumb_bytes else None
+    url = blob_put(f"c/{me['id']}/{key}.{ext}", data, mime, request)
+    turl = blob_put(f"c/{me['id']}/{key}-thumb.jpg", thumb_bytes, "image/jpeg", request) if thumb_bytes else None
     iid = int(STORE.cmd("INCR", k("seq")))
     ts = time.time()
     it = {"id": iid, "kind": kind, "title": title, "category": category, "tags": tg, "url": url, "thumb_url": turl, "mime": mime,
@@ -501,7 +522,7 @@ def c_delete(item_id: int, request: Request):
     it = item_or_404(item_id)
     if me["id"] != it["user_id"] and not is_admin(me):
         raise HTTPException(403, "You can only delete your own uploads.")
-    remove_item(it)
+    remove_item(it, request)
     return {"ok": True}
 
 
@@ -560,7 +581,7 @@ def c_account_delete(request: Request):
     uid = me["id"]
     for it in get_items(STORE.cmd("ZREVRANGE", k(f"uitems:{uid}"), 0, -1) or []):
         if it:
-            remove_item(it)
+            remove_item(it, request)
     cmds = [["DEL", k(f"user:{uid}")], ["DEL", k(f"uname:{me['username']}")], ["DEL", k(f"email:{uid}")], ["DEL", k(f"uitems:{uid}")],
             ["DEL", k(f"ulikes:{uid}")], ["DEL", k(f"following:{uid}")], ["DEL", k(f"followers:{uid}")]]
     for f in STORE.cmd("SMEMBERS", k(f"following:{uid}")) or []:

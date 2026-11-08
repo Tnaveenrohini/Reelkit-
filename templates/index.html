@@ -1614,7 +1614,9 @@ function signInView(why,w){w=w||(()=>{showCommView();const x=h('div',{class:'wra
  const g=h('button',{type:'button',class:'btn gbtn'},h('span',{class:'g'},'G'),'Continue with Google'),em=h('input',{type:'email',class:'tin',placeholder:'you@example.com','aria-label':'Email',autocomplete:'email',inputmode:'email'}),
   send=h('button',{type:'button',class:'go'},'Email me a sign-in link'),m=h('p',{class:'note',style:'text-align:left'});
  const back=location.origin+location.pathname;
- g.onclick=async()=>{const s=await sb();g.disabled=true;const r=await s.auth.signInWithOAuth({provider:'google',options:{redirectTo:back}});if(r.error){g.disabled=false;m.textContent=nice(r.error)}};
+ g.onclick=async()=>{g.disabled=true;
+  try{const st=await fetch(SB_URL+'/auth/v1/settings',{headers:{apikey:SB_KEY}}).then(x=>x.ok?x.json():null);if(st&&st.external&&st.external.google===false){g.disabled=false;m.textContent='Google sign-in isn’t switched on yet. Please try again later.';return}}catch{}
+  const s=await sb();const r=await s.auth.signInWithOAuth({provider:'google',options:{redirectTo:back}});if(r.error){g.disabled=false;m.textContent=nice(r.error)}};
  send.onclick=async()=>{const e=em.value.trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){m.textContent='Type your email address.';return em.focus()}
   const s=await sb();send.disabled=true;m.replaceChildren(h('span',{class:'spin'}),'Sending…');const r=await s.auth.signInWithOtp({email:e,options:{emailRedirectTo:back}});send.disabled=false;
   m.textContent=r.error?nice(r.error):`Check ${e} for a sign-in link. Open it on this phone. It can take a minute; look in Spam too.`};

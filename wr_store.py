@@ -135,6 +135,32 @@ class _Memory:
                 for m, _ in z[s:e + 1]:
                     self.d[k].pop(m, None)
                 return max(0, e - s + 1)
+            if op == "MGET":
+                return [self.d.get(x) if self._alive(x) else None for x in a]
+            if op == "HMGET":
+                h = self.d.get(k) or {}
+                return [h.get(f) for f in a[1:]]
+            if op == "SMISMEMBER":
+                st = self.d.get(k) or set()
+                return [1 if str(x) in st else 0 for x in a[1:]]
+            if op == "SADD":
+                st = self.d.setdefault(k, set()); n = len(st); st.update(str(x) for x in a[1:]); return len(st) - n
+            if op == "SREM":
+                st = self.d.get(k) or set(); n = sum(1 for x in a[1:] if str(x) in st); st.difference_update(str(x) for x in a[1:]); return n
+            if op == "SISMEMBER":
+                return 1 if str(a[1]) in (self.d.get(k) or set()) else 0
+            if op == "SCARD":
+                return len(self.d.get(k) or set())
+            if op == "SMEMBERS":
+                return sorted(self.d.get(k) or set())
+            if op == "ZADD":
+                z = self.d.setdefault(k, {}); n = 0
+                for i in range(1, len(a), 2):
+                    m = str(a[i + 1]); n += 0 if m in z else 1; z[m] = float(a[i])
+                return n
+            if op == "ZREM":
+                z = self.d.get(k) or {}
+                return sum(1 for m in a[1:] if z.pop(str(m), None) is not None)
             if op == "PING":
                 return "PONG"
             if op == "EVAL":

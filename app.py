@@ -1213,6 +1213,8 @@ import wr_seo, wr_admin
 import wr_manage as MG
 SEO = wr_seo.SEO
 wr_admin.install(app)
+import wr_comm  # noqa: E402  Ringtones & Wallpapers (community uploads)
+app.include_router(wr_comm.R)
 MG.install(app, wr_admin, sys.modules[__name__])
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})
 

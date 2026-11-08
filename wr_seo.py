@@ -31,9 +31,6 @@ def _read_template():
 
 
 TEMPLATE = _read_template()
-_SB_URL, _SB_KEY = os.getenv("SUPABASE_URL", "").strip(), os.getenv("SUPABASE_ANON_KEY", "").strip()
-if _SB_URL and _SB_KEY:   # Ringtones & Wallpapers (Supabase). Both values are public by design; the database rules protect the data.
-    TEMPLATE = TEMPLATE.replace('<html lang="en"', f'<html lang="en" data-sb-url="{_html.escape(_SB_URL)}" data-sb-key="{_html.escape(_SB_KEY)}"', 1)
 if not os.getenv("VERCEL"):   # Vercel Web Analytics only exists on Vercel; elsewhere its script would just 404
     TEMPLATE = TEMPLATE.replace('<script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)}</script><script defer src="/_vercel/insights/script.js"></script>', '')
 try:
@@ -159,6 +156,16 @@ def schema_for(key, base, eff):
     return auto_schema(key, base, eff)
 
 
+def comm_flag(page):
+    """data-comm="1" switches on Ringtones & Wallpapers in the page when its backend is ready."""
+    try:
+        import wr_comm
+        on = wr_comm.ready()
+    except Exception:
+        on = False
+    return page.replace('<html lang="en"', '<html lang="en" data-comm="1"', 1) if on else page
+
+
 def render(key, request: Request):
     page = TEMPLATE
     if not page or key not in SEO:
@@ -180,6 +187,7 @@ def render(key, request: Request):
     page = body_for(page, key)
     soon = ",".join({"youtube": "yt"}.get(x, x) for x in (x.strip().lower() for x in os.getenv("SOON_SITES", "youtube").split(",")) if x)
     page = page.replace('<html lang="en"', f'<html lang="en" data-soon="{esc(soon)}"', 1)
+    page = comm_flag(page)
     ld = schema_for(key, base, eff)
     ld_html = "" if ld is None else '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>"
     page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>', lambda _: ld_html, page, count=1, flags=re.S)
@@ -268,6 +276,7 @@ def render_guide(slug, request: Request):
     page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>',
                   lambda _: '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>", page, count=1, flags=re.S)
     page = page.replace('<html lang="en"', '<html lang="en" data-view="guide"', 1)
+    page = comm_flag(page)
     page = page.replace('<div id="pages">', '<div id="pages">' + (WG.article_html(g) if g else WG.index_html()), 1)
     page = page.replace('<section class="tool tguide" id="tguide">', '<section class="tool tguide" id="tguide" hidden>', 1)
     head = [f'<meta name="twitter:title" content="{t}">', f'<meta name="twitter:description" content="{d}">',

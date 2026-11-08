@@ -440,7 +440,7 @@ const fmtD=s=>s&&String(s).length===8?new Date(+s.slice(0,4),+s.slice(4,6)-1,+s.
 function facts(d){const it=d.items[0]||{};return [it.width&&it.height&&`${it.width} x ${it.height}`,it.duration&&tt(Math.round(it.duration)),it.size&&fmtB(it.size),
  fmtD(d.date)&&'Uploaded '+fmtD(d.date),d.views!=null&&fmtN(d.views)+' views',d.likes!=null&&fmtN(d.likes)+' likes',d.music&&'Sound: '+d.music].filter(Boolean)}
 const T={x:['h_x','s_x','b_download'],fb:['h_fb','s_fb','b_download'],threads:['h_th','s_th','b_download'],yt:['h_yt','s_yt','b_download'],download:['h_download','s_download','b_download'],mp3:['h_mp3','s_mp3','b_mp3'],ring:['h_ring','s_ring','b_load'],clip:['h_clip','s_clip','b_load'],crop:['h_crop','s_crop','b_load'],caption:['h_caption','s_caption','b_caption'],frame:['h_frame','s_frame','b_load'],split:['h_split','s_split','b_load'],sticker:['h_sticker','s_sticker','b_post'],festival:['h_fest','s_fest','b_post'],kb:['h_kb','s_kb','b_load'],edit:['h_edit','s_edit','b_load'],pass:['h_pass','s_pass','b_load'],sign:['h_sign','s_sign','b_load'],nd:['h_nd','s_nd','b_load'],pdf:['h_pdf','s_pdf','b_load'],saver:['h_saver','s_saver','b_load'],daily:['h_daily','s_daily','b_load'],bg:['h_bg','s_bg','b_post'],shrink:['h_shrink','s_shrink','b_load'],gif:['h_gif','s_gif','b_load']};
-const SB_URL=String(document.documentElement.dataset.sbUrl||window.SUPABASE_URL||'').trim().replace(/\/$/,''),SB_KEY=String(document.documentElement.dataset.sbKey||window.SUPABASE_ANON_KEY||'').trim(),COMM_ON=!!(SB_URL&&SB_KEY);
+const COMM_ON=document.documentElement.dataset.comm==='1';
 if(!COMM_ON)document.querySelectorAll('[data-comm]').forEach(e=>e.remove());
 const M={x:'x',threads:'threads',crop:'crop',facebook:'fb',video:'download',photo:'download',reels:'download',carousel:'download',mp3:'mp3',ringtone:'ring',clip:'clip',caption:'caption',shrink:'shrink',gif:'gif',frame:'frame',status:'split',saver:'saver',sticker:'sticker',festival:'festival',bgremove:'bg',editor:'edit',reduce:'kb',passport:'pass',signature:'sign',namedate:'nd',topdf:'pdf',daily:'daily'};
 let cur='download';
@@ -1424,93 +1424,71 @@ function showEdit(){if($('#out').children.length)return;
   setTab('looks')}
 }
 
-/* ---------- Community: ringtones & wallpapers people upload, like, share and follow (Supabase) ---------- */
-const SBJS=CDN+'@supabase/supabase-js@2.117.3/dist/umd/supabase.js';
-let SB=null,SBP=null,ME=null,MYP=null,IS_ADMIN=false,PENDING_UP=null;
-const CK={kind:'ringtone',sort:'popular',cat:'',q:'',from:0,items:[],liked:new Set(),done:false,busy:false,gen:0};
+/* ---------- Ringtones & Wallpapers: people sign in with Google, upload, like, share and follow (WaveRise's own server) ---------- */
+let ME=null,IS_ADMIN=false,MEP=null,PENDING_UP=null;
+const CK={kind:'ringtone',sort:'popular',cat:'',q:'',from:0,items:[],done:false,busy:false,gen:0};
 const CATS={ringtone:[['bgm','BGM'],['love','Love'],['devotional','Devotional'],['mass','Mass'],['sad','Sad'],['funny','Funny'],['instrumental','Instrumental'],['notification','Notification'],['other','Other']],
  wallpaper:[['nature','Nature'],['god','God'],['love','Love'],['quotes','Quotes'],['abstract','Abstract'],['amoled','AMOLED'],['festival','Festival'],['cars','Cars'],['other','Other']]};
 const CATN=Object.fromEntries([...CATS.ringtone,...CATS.wallpaper]);
-const PAGE=24;
 const cgo=p=>{history.pushState(null,'',p);route()};
-const pubUrl=p=>p?`${SB_URL}/storage/v1/object/public/community/${p.split('/').map(encodeURIComponent).join('/')}`:'';
 const cbox=()=>$('#community');
 const cnote=(t,err)=>h('p',{class:err?'err':'note',style:'text-align:left'},t);
-const nice=e=>{const m=(e&&(e.message||e.error_description||e.msg))||String(e||'');
- if(/schema cache|does not exist|PGRST20[25]|relation .* not found/i.test(m))return 'Ringtones and wallpapers are being set up. Please check back soon.';
- if(/duplicate key|already exists/i.test(m))return m.includes('username')?'That username is taken. Try another.':'You already did that.';
- if(/20 files a day/.test(m))return 'You can upload 20 files a day. Please try again tomorrow.';
- if(/not authorized|email.*not.*allowed|signups not allowed|Error sending/i.test(m))return 'Email sign-in isn’t switched on yet. Please use Continue with Google.';
- if(/rate limit|too many/i.test(m))return 'Too many tries. Please wait a few minutes and try again.';
- if(/JWT|not signed in|auth/i.test(m))return 'Please sign in again.';
- if(/Failed to fetch|NetworkError|load failed/i.test(m))return 'No connection. Check your internet and try again.';
- return m.slice(0,140)||'Something went wrong. Try again.'};
-async function sb(){if(SB)return SB;if(SBP)return SBP;
- SBP=(async()=>{if(!window.supabase)await addJS(SBJS);
-  const c=window.supabase.createClient(SB_URL,SB_KEY,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'implicit'}});
-  const {data}=await c.auth.getSession();SB=c;await setMe(data&&data.session);
-  c.auth.onAuthStateChange((ev,s)=>{if(ev==='INITIAL_SESSION')return;const was=ME&&ME.id;setMe(s).then(()=>{if((ME&&ME.id)!==was&&cview())renderComm()})});return c})();
- try{return await SBP}catch(e){SBP=null;throw e}}
-async function setMe(s){ME=s&&s.user||null;MYP=null;IS_ADMIN=false;if(!ME)return;
- const {data}=await SB.from('profiles').select('*').eq('id',ME.id).maybeSingle();MYP=data||null;
- const r=await SB.rpc('is_admin');IS_ADMIN=!!(r&&r.data)}
+const nice=e=>{const m=(e&&e.message)||String(e||'');if(/Failed to fetch|NetworkError|load failed/i.test(m))return 'No connection. Check your internet and try again.';return m.slice(0,160)||'Something went wrong. Try again.'};
+async function capi(p,o={}){const opt={credentials:'same-origin',...o};if(o.json!==undefined){opt.method=opt.method||'POST';opt.headers={'Content-Type':'application/json'};opt.body=JSON.stringify(o.json);delete opt.json}
+ const r=await fetch(API+p,opt),j=await r.json().catch(()=>({}));if(!r.ok){if(r.status===401&&ME){ME=null;IS_ADMIN=false}throw new Error(j.detail||'Something went wrong. Try again.')}return j}
+async function who(force){if(MEP&&!force)return MEP;MEP=capi('/api/c/me').then(j=>{ME=j.user||null;IS_ADMIN=!!j.is_admin;return ME}).catch(e=>{MEP=null;throw e});return MEP}
 const cview=()=>COMM_ON&&!cbox().hidden;
-function avatar(p,size=36){const n=(p&&(p.display_name||p.username)||'?').trim();
+function avatar(p,size=36){const n=((p&&(p.display_name||p.username))||'?').trim()||'?';
  const ini=()=>h('span',{class:'av',style:`width:${size}px;height:${size}px;font-size:${Math.round(size*.42)}px`},n[0].toUpperCase());
  if(!(p&&p.avatar_url))return ini();const im=h('img',{class:'av',src:p.avatar_url,alt:'',width:size,height:size,referrerpolicy:'no-referrer',style:`width:${size}px;height:${size}px`});im.onerror=()=>im.replaceWith(ini());return im}
 const ago=t=>{const s=(Date.now()-new Date(t))/1000;return s<3600?Math.max(1,Math.round(s/60))+' min ago':s<86400?Math.round(s/3600)+' h ago':s<2592000?Math.round(s/86400)+' days ago':new Date(t).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})};
 const kfmt=n=>n>=1e6?(n/1e6).toFixed(1).replace(/\.0$/,'')+'M':n>=1e3?(n/1e3).toFixed(1).replace(/\.0$/,'')+'K':String(n||0);
-const dlName=it=>(slug(it.title)||'waverise')+'.'+(it.mime==='audio/mpeg'?'mp3':it.mime==='audio/ogg'?'ogg':it.mime.startsWith('audio')?'m4a':it.mime==='image/png'?'png':it.mime==='image/webp'?'webp':'jpg');
-function needSignIn(why){return signInView(why)}
+const dlName=it=>(slug(it.title)||'waverise')+'.'+(it.mime==='audio/mpeg'?'mp3':it.mime==='audio/ogg'?'ogg':it.mime==='audio/aac'?'aac':(it.mime||'').startsWith('audio')?'m4a':'jpg');
+const needSignIn=why=>signInView(why);
+let TOAST=null;function toast(t){if(!TOAST){TOAST=h('div',{class:'toast',role:'status'});document.body.append(TOAST)}TOAST.textContent=t;TOAST.classList.add('show');clearTimeout(TOAST._t);TOAST._t=setTimeout(()=>TOAST.classList.remove('show'),3200)}
 
 /* --- audio: one ringtone plays at a time --- */
 const PLAYER=new Audio();PLAYER.preload='none';let PLAYING=null;
 const syncPlay=()=>document.querySelectorAll('.play[data-id]').forEach(b=>{const on=+b.dataset.id===PLAYING&&!PLAYER.paused;b.classList.toggle('on',on);b.setAttribute('aria-label',(on?'Pause ':'Play ')+b.dataset.t)});
 ['play','pause','ended'].forEach(e=>PLAYER.addEventListener(e,syncPlay));
 function playBtn(it){const b=h('button',{type:'button',class:'play','data-id':it.id,'data-t':it.title,'aria-label':'Play '+it.title},h('span',{class:'tri'}));
- b.onclick=e=>{e.preventDefault();e.stopPropagation();if(PLAYING===it.id&&!PLAYER.paused){PLAYER.pause()}else{PLAYER.src=pubUrl(it.file_path);PLAYING=it.id;PLAYER.play().catch(()=>toast('Couldn’t play this ringtone.'))}};
+ b.onclick=e=>{e.preventDefault();e.stopPropagation();if(PLAYING===it.id&&!PLAYER.paused){PLAYER.pause()}else{PLAYER.src=it.url;PLAYING=it.id;PLAYER.play().catch(()=>toast('Couldn’t play this ringtone.'))}};
  if(PLAYING===it.id&&!PLAYER.paused)b.classList.add('on');return b}
 
 /* --- likes / follows / downloads --- */
-async function toggleLike(it,btn){if(!ME)return needSignIn('Sign in to like ringtones and wallpapers.');const s=await sb(),on=CK.liked.has(it.id);
- CK.liked[on?'delete':'add'](it.id);it.likes_count+=on?-1:1;likeLook(btn,it);
- const r=on?await s.from('likes').delete().eq('user_id',ME.id).eq('item_id',it.id):await s.from('likes').insert({user_id:ME.id,item_id:it.id});
- if(r.error&&!/duplicate/.test(r.error.message)){CK.liked[on?'add':'delete'](it.id);it.likes_count+=on?1:-1;likeLook(btn,it);toast(nice(r.error))}}
-function likeLook(b,it){const on=CK.liked.has(it.id);b.classList.toggle('on',on);b.setAttribute('aria-pressed',on);b.querySelector('b').textContent=kfmt(it.likes_count)}
-const likeBtn=it=>{const b=h('button',{type:'button',class:'like','aria-label':'Like','aria-pressed':'false'},h('span',{class:'heart'}),h('b',{},'0'));likeLook(b,it);b.onclick=e=>{e.preventDefault();e.stopPropagation();toggleLike(it,b)};return b};
-async function followBtn(p){const b=h('button',{type:'button',class:'btn sm follow'},'Follow');if(ME&&ME.id===p.id)return null;let on=false;
- if(ME){const s=await sb(),r=await s.from('follows').select('following_id').eq('follower_id',ME.id).eq('following_id',p.id).maybeSingle();on=!!r.data}
+function likeLook(b,it){b.classList.toggle('on',!!it.liked);b.setAttribute('aria-pressed',String(!!it.liked));b.querySelector('b').textContent=kfmt(it.likes_count)}
+const likeBtn=it=>{const b=h('button',{type:'button',class:'like','aria-label':'Like','aria-pressed':'false'},h('span',{class:'heart'}),h('b',{},'0'));likeLook(b,it);
+ b.onclick=async e=>{e.preventDefault();e.stopPropagation();if(!ME)return needSignIn('Sign in to like ringtones and wallpapers.');
+  const was=[it.liked,it.likes_count];it.liked=!it.liked;it.likes_count+=it.liked?1:-1;likeLook(b,it);
+  try{const r=await capi(`/api/c/items/${it.id}/like`,{json:{}});it.liked=r.liked;it.likes_count=r.likes_count;likeLook(b,it)}catch(x){[it.liked,it.likes_count]=was;likeLook(b,it);toast(nice(x))}};return b};
+function followBtn(p){if(ME&&ME.id===p.id)return null;let on=!!p.following;const b=h('button',{type:'button',class:'btn sm follow'},'Follow');
  const look=()=>{b.textContent=on?'Following':'Follow';b.classList.toggle('on',on)};look();
- b.onclick=async()=>{if(!ME)return needSignIn('Sign in to follow creators.');const s=await sb();b.disabled=true;
-  const r=on?await s.from('follows').delete().eq('follower_id',ME.id).eq('following_id',p.id):await s.from('follows').insert({follower_id:ME.id,following_id:p.id});
-  b.disabled=false;if(r.error&&!/duplicate/.test(r.error.message))return toast(nice(r.error));on=!on;p.followers_count=(p.followers_count||0)+(on?1:-1);look();const c=document.querySelector('[data-fc]');if(c)c.textContent=kfmt(p.followers_count)};return b}
-function dlLink(it,label='Download'){const a=h('a',{class:'btn',href:pubUrl(it.file_path)+'?download='+encodeURIComponent(dlName(it)),download:dlName(it),rel:'noopener'},label);
- a.onclick=()=>{sb().then(s=>s.rpc('count_download',{p_item:it.id})).catch(()=>{});it.downloads_count++};return a}
+ b.onclick=async()=>{if(!ME)return needSignIn('Sign in to follow creators.');b.disabled=true;
+  try{const r=await capi(`/api/c/users/${encodeURIComponent(p.username)}/follow`,{json:{}});on=r.following;p.followers_count=r.followers_count;look();const c=document.querySelector('[data-fc]');if(c)c.textContent=kfmt(p.followers_count)}catch(x){toast(nice(x))}b.disabled=false};return b}
+function dlLink(it,label='Download'){const a=h('a',{class:'btn',href:it.url+(it.url.startsWith('/')?'':'?download=1'),download:dlName(it),rel:'noopener'},label);
+ a.onclick=()=>{capi(`/api/c/items/${it.id}/download`,{method:'POST'}).catch(()=>{});it.downloads_count++};return a}
 function shareItem(it,b){const url=location.origin+'/'+it.kind+'s#item/'+it.id,text=`${it.title} on WaveRise`;
  if(navigator.share)return navigator.share({title:it.title,text,url}).catch(()=>{});
  navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>{const o=b.textContent;b.textContent='Link copied';setTimeout(()=>b.textContent=o,1500)})}
-let TOAST=null;function toast(t){if(!TOAST){TOAST=h('div',{class:'toast',role:'status'});document.body.append(TOAST)}TOAST.textContent=t;TOAST.classList.add('show');clearTimeout(TOAST._t);TOAST._t=setTimeout(()=>TOAST.classList.remove('show'),3200)}
 
 /* --- page frame --- */
-function chead(title,sub){const right=h('div',{class:'chd-r'});
- const up=h('a',{class:'btn sm',href:'#upload'},'Upload');right.append(up);
- if(ME){const a=h('a',{class:'me-btn',href:'#me','aria-label':'My profile'},avatar(MYP||{username:'me'},34));right.append(a)}
- else right.append(h('a',{class:'btn sm mp3b',href:'#me'},'Sign in'));
+function chead(title,sub){const right=h('div',{class:'chd-r'});right.append(h('a',{class:'btn sm',href:'#upload'},'Upload'));
+ right.append(ME?h('a',{class:'me-btn',href:'#me','aria-label':'My profile'},avatar(ME,34)):h('a',{class:'btn sm mp3b',href:'#me'},'Sign in'));
  return h('div',{class:'chd'},h('div',{},h('h1',{class:'ch1'},title),sub?h('p',{class:'note',style:'text-align:left;margin:4px 0 0'},sub):null),right)}
 function showCommView(){document.querySelectorAll('.tool').forEach(e=>e.hidden=true);document.querySelectorAll('.page').forEach(e=>e.hidden=true);cbox().hidden=false;
  document.querySelectorAll('#nav a,.dd>button').forEach(a=>a.classList.remove('on'));closeAll()}
-async function renderComm(){const raw=location.hash.slice(1),box=cbox();showCommView();
- if(/(^|&)(access_token|error_description|error_code)=/.test(raw))return authReturn();
- if(!SB){box.replaceChildren(h('div',{class:'wrap'},h('p',{class:'note'},h('span',{class:'spin'}),'Loading…')))}
- try{await sb()}catch(e){box.replaceChildren(h('div',{class:'wrap'},cnote('Couldn’t reach the community right now. Check your internet and try again.',true)));return}
- const w=h('div',{class:'wrap cwrap'});box.replaceChildren(w);
+const cwrap=()=>{const w=h('div',{class:'wrap cwrap'});cbox().replaceChildren(w);return w};
+async function renderComm(){const raw=location.hash.slice(1);showCommView();
+ if(!ME&&!MEP)cbox().replaceChildren(h('div',{class:'wrap cwrap'},h('p',{class:'note'},h('span',{class:'spin'}),'Loading…')));
+ try{await who()}catch(e){cwrap().append(cnote(nice(e),true));return}
+ const w=cwrap();
+ if(raw==='signin-failed'){history.replaceState(null,'',location.pathname);toast('Google sign-in didn’t finish. Please try again.');return signInView('',w)}
  if(raw.startsWith('item/'))return itemView(w,+raw.split('/')[1]);
  if(raw.startsWith('u/'))return profileView(w,raw.slice(2).split(/[/?]/)[0]);
- if(raw==='me'){if(!ME)return signInView('Sign in to upload, like and follow.',w);location.replace('#u/'+(MYP?MYP.username:''));return}
+ if(raw==='me'){if(!ME)return signInView('Sign in to upload, like and follow.',w);location.replace('#u/'+ME.username);return}
  if(raw==='upload'){if(!ME)return signInView('Sign in to upload your ringtones and wallpapers.',w);return uploadView(w)}
  if(raw==='admin')return adminView(w);
- CK.kind=pathKey()==='wallpapers'?'wallpaper':'ringtone';
- return exploreView(w)}
+ CK.kind=pathKey()==='wallpapers'?'wallpaper':'ringtone';return exploreView(w)}
 
 /* --- Explore --- */
 function seg(opts,val,on){const g=h('div',{class:'seg',role:'tablist'});opts.forEach(([v,t])=>{const b=h('button',{type:'button',role:'tab','aria-selected':String(v===val)},t);b.onclick=()=>on(v);g.append(b)});return g}
@@ -1519,7 +1497,8 @@ function exploreView(w){const list=h('div',{class:CK.kind==='wallpaper'?'wgrid':
  const chips=h('div',{class:'cchips'},[['','All'],...CATS[CK.kind]].map(([v,t])=>{const b=h('button',{type:'button','aria-pressed':String(CK.cat===v)},t);b.onclick=()=>{CK.cat=v;exploreView(w)};return b}));
  let tm;q.oninput=()=>{clearTimeout(tm);tm=setTimeout(()=>{CK.q=q.value.trim();load(true)},350)};
  const load=async reset=>{if(!reset&&CK.busy)return;const g=++CK.gen;CK.busy=true;if(reset){CK.from=0;CK.items=[];CK.done=false;list.replaceChildren();st.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Loading…'))}
-  try{const r=await feed(g);if(g!==CK.gen)return;st.replaceChildren();r.forEach(it=>list.append(CK.kind==='wallpaper'?wcard(it):rrow(it)));
+  try{const r=await capi('/api/c/items?'+new URLSearchParams({kind:CK.kind,sort:CK.sort,cat:CK.cat,q:CK.q,start:CK.from}));if(g!==CK.gen)return;
+   CK.from=r.next;CK.done=r.done;CK.items.push(...r.items);st.replaceChildren();r.items.forEach(it=>list.append(CK.kind==='wallpaper'?wcard(it):rrow(it)));
    if(!CK.items.length)st.replaceChildren(cnote(CK.q||CK.cat?'Nothing found. Try another word or category.':CK.sort==='following'?'Follow creators and their new uploads show up here.':`No ${CK.kind}s yet. Be the first to upload one!`))}
   catch(e){if(g===CK.gen){CK.done=true;st.replaceChildren(cnote(nice(e),true))}}if(g===CK.gen){more.hidden=CK.done;CK.busy=false}};
  more.onclick=()=>load(false);
@@ -1528,155 +1507,115 @@ function exploreView(w){const list=h('div',{class:CK.kind==='wallpaper'?'wgrid':
   h('div',{class:'crow'},seg([['popular','Popular'],['new','New'],['following','Following']],CK.sort,v=>{if(v==='following'&&!ME)return needSignIn('Sign in to see uploads from people you follow.');CK.sort=v;exploreView(w)}),q),
   chips,st,list,h('div',{class:'row',style:'justify-content:center;margin-top:14px'},more));
  load(true)}
-async function feed(g){const s=await sb();if(CK.done)return[];
- let q=s.from('items').select('id,kind,title,category,tags,file_path,thumb_path,mime,duration,width,height,likes_count,downloads_count,created_at,user_id,status,profiles!items_user_id_fkey(username,display_name,avatar_url)').eq('kind',CK.kind).eq('status','live');
- if(CK.cat)q=q.eq('category',CK.cat);
- const t=(CK.q||'').replace(/[^\p{L}\p{N} ]+/gu,' ').trim().slice(0,40);
- if(t)q=q.or(`title.ilike.*${t}*,tags.cs.{${t.toLowerCase().replace(/\s+/g,'')}}`);
- if(CK.sort==='following'){const f=await s.from('follows').select('following_id').eq('follower_id',ME.id);if(f.error)throw f.error;const ids=(f.data||[]).map(x=>x.following_id);if(!ids.length){CK.done=true;return[]}q=q.in('user_id',ids)}
- q=CK.sort==='popular'?q.order('likes_count',{ascending:false}).order('created_at',{ascending:false}):q.order('created_at',{ascending:false});
- const {data,error}=await q.range(CK.from,CK.from+PAGE-1);if(error)throw error;if(g!==CK.gen)return[];
- CK.from+=data.length;if(data.length<PAGE)CK.done=true;CK.items.push(...data);await loadLiked(data);return data}
-async function loadLiked(items){if(!ME||!items.length)return;const s=await sb(),r=await s.from('likes').select('item_id').eq('user_id',ME.id).in('item_id',items.map(x=>x.id));(r.data||[]).forEach(x=>CK.liked.add(x.item_id))}
 const tt2=s=>s==null?'':Math.floor(s/60)+':'+String(Math.round(s%60)).padStart(2,'0');
 function rrow(it){const p=it.profiles||{};
- return h('div',{class:'rrow'},playBtn(it),h('a',{class:'rmid',href:'#item/'+it.id},h('b',{},it.title),h('small',{},'@'+(p.username||'unknown'),' · ',tt2(it.duration),' · ',CATN[it.category]||'')),likeBtn(it))}
+ return h('div',{class:'rrow'+(it.status==='hidden'?' hid':'')},playBtn(it),h('a',{class:'rmid',href:'#item/'+it.id},h('b',{},it.title),h('small',{},'@'+(p.username||'unknown'),it.duration?' · '+tt2(it.duration):'',' · ',CATN[it.category]||'')),likeBtn(it))}
 function wcard(it){const p=it.profiles||{};
- return h('div',{class:'wcard'},h('a',{href:'#item/'+it.id,'aria-label':it.title},h('img',{src:pubUrl(it.thumb_path||it.file_path),alt:it.title,loading:'lazy'}),h('div',{class:'wcap'},h('b',{},it.title),h('small',{},'@'+(p.username||'')))),likeBtn(it))}
+ return h('div',{class:'wcard'+(it.status==='hidden'?' hid':'')},h('a',{href:'#item/'+it.id,'aria-label':it.title},h('img',{src:it.thumb_url||it.url,alt:it.title,loading:'lazy'}),h('div',{class:'wcap'},h('b',{},it.title),h('small',{},'@'+(p.username||'')))),likeBtn(it))}
 
 /* --- one ringtone or wallpaper --- */
-async function itemView(w,id){const s=await sb();w.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Loading…'));
- const {data:it,error}=await s.from('items').select('*,profiles!items_user_id_fkey(id,username,display_name,avatar_url,followers_count)').eq('id',id).maybeSingle();
- if(error||!it){w.replaceChildren(chead('Not found'),cnote('This upload was removed or isn’t available.',true),h('a',{class:'btn',href:'/ringtones'},'Back to Ringtones'));return}
- await loadLiked([it]);const p=it.profiles||{},mine=ME&&ME.id===it.user_id,wall=it.kind==='wallpaper';document.title=it.title+' – WaveRise';
- const media=wall?h('img',{class:'whero',src:pubUrl(it.file_path),alt:it.title}):h('div',{class:'rhero'},playBtn(it),h('div',{},h('b',{},tt2(it.duration)),h('small',{},CATN[it.category]||'Ringtone')));
+async function itemView(w,id){w.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Loading…'));let it;
+ try{it=await capi('/api/c/items/'+id)}catch(e){w.replaceChildren(chead('Not found'),cnote(nice(e),true),h('a',{class:'btn',href:'/ringtones'},'Back to Ringtones'));return}
+ const p=it.profiles||{},mine=ME&&ME.id===it.user_id,wall=it.kind==='wallpaper';document.title=it.title+' – WaveRise';
+ const media=wall?h('img',{class:'whero',src:it.url,alt:it.title}):h('div',{class:'rhero'},playBtn(it),h('div',{},h('b',{},tt2(it.duration)||'Ringtone'),h('small',{},CATN[it.category]||'Ringtone')));
  const shareB=h('button',{type:'button',class:'btn share'},'Share');shareB.onclick=()=>shareItem(it,shareB);
  const wa=h('a',{class:'btn sm mp3b',href:'https://wa.me/?text='+encodeURIComponent(`${it.title} on WaveRise: ${location.origin}/${it.kind}s#item/${it.id}`),target:'_blank',rel:'noopener'},'WhatsApp');
- const fb=await followBtn({...p,id:it.user_id}),actions=h('div',{class:'row',style:'margin-top:12px'},likeBtn(it),dlLink(it),shareB,wa);
+ const actions=h('div',{class:'row',style:'margin-top:12px'},likeBtn(it),dlLink(it),shareB,wa);
  const how=h('p',{class:'note',style:'text-align:left;margin-top:10px'},wall?'To set it: download, open it in Gallery or Photos, then choose Set as wallpaper.':'To set it on Android: download, then Settings → Sound → Phone ringtone, and pick the file.');
  const extra=h('div',{style:'margin-top:16px'});
  if(it.status==='hidden')extra.append(cnote(mine?'This upload is hidden after reports. Only you and the admin can see it.':'Hidden after reports.',true));
  if(mine||IS_ADMIN){const del=h('button',{type:'button',class:'btn sm danger'},'Delete');let arm=false;
   del.onclick=async()=>{if(!arm){arm=true;del.textContent='Tap again to delete';setTimeout(()=>{arm=false;del.textContent='Delete'},4000);return}
-   del.disabled=true;try{await removeItem(it);toast('Deleted.');location.hash='#u/'+(mine&&MYP?MYP.username:p.username)}catch(e){del.disabled=false;toast(nice(e))}};
+   del.disabled=true;try{await capi('/api/c/items/'+it.id,{method:'DELETE'});toast('Deleted.');location.hash='#u/'+(mine?ME.username:p.username)}catch(e){del.disabled=false;toast(nice(e))}};
   extra.append(h('div',{class:'row'},del,IS_ADMIN&&it.status==='hidden'?restoreBtn(it):null))}
  else extra.append(reportBox(it));
  w.replaceChildren(h('a',{class:'back',href:'/'+it.kind+'s'},'‹ '+(wall?'Wallpapers':'Ringtones')),
   h('div',{class:'card citem'},media,h('div',{class:'cmeta'},h('h1',{class:'ch1'},it.title),
-   h('div',{class:'creator'},h('a',{href:'#u/'+p.username,class:'cuser'},avatar(p,40),h('span',{},h('b',{},p.display_name||p.username),h('small',{},'@'+p.username))),fb),
+   h('div',{class:'creator'},h('a',{href:'#u/'+p.username,class:'cuser'},avatar(p,40),h('span',{},h('b',{},p.display_name||p.username),h('small',{},'@'+p.username))),followBtn(p)),
    h('div',{class:'pstats'},h('span',{},kfmt(it.likes_count)+' likes'),h('span',{},kfmt(it.downloads_count)+' downloads'),h('span',{},ago(it.created_at))),
    (it.tags||[]).length?h('div',{class:'tags'},it.tags.map(t=>h('span',{},'#'+t))):null,actions,how,extra)))}
-async function removeItem(it){const s=await sb(),paths=[it.file_path,it.thumb_path].filter(Boolean);
- const r=await s.from('items').delete().eq('id',it.id);if(r.error)throw r.error;if(paths.length)await s.storage.from('community').remove(paths)}
-function restoreBtn(it){const b=h('button',{type:'button',class:'btn sm'},'Restore');b.onclick=async()=>{const s=await sb();b.disabled=true;
- const r=await s.from('items').update({status:'live',reports_count:0}).eq('id',it.id);await s.from('reports').delete().eq('item_id',it.id);b.disabled=false;if(r.error)return toast(nice(r.error));toast('Restored.');renderComm()};return b}
+function restoreBtn(it){const b=h('button',{type:'button',class:'btn sm'},'Restore');b.onclick=async()=>{b.disabled=true;
+ try{await capi(`/api/c/items/${it.id}/restore`,{json:{}});toast('Restored.');renderComm()}catch(e){b.disabled=false;toast(nice(e))}};return b}
+const sel_=(aria,opts)=>h('select',{'aria-label':aria},opts.map(([k,t])=>h('option',{value:k},t)));
 function reportBox(it){const d=h('details',{class:'report'},h('summary',{},'Report this upload'));
  const sel=sel_('Reason',[['copyright','It’s my song, film or picture (copyright)'],['nudity','Nudity or sexual content'],['hate','Hate, violence or harassment'],['spam','Spam or misleading'],['other','Something else']]);
  const b=h('button',{type:'button',class:'btn sm'},'Send report'),m=h('p',{class:'note',style:'text-align:left'});
- b.onclick=async()=>{if(!ME)return needSignIn('Sign in to report an upload.');const s=await sb();b.disabled=true;const r=await s.from('reports').insert({item_id:it.id,user_id:ME.id,reason:sel.value});b.disabled=false;
-  m.textContent=r.error?(/duplicate/.test(r.error.message)?'You already reported this. Thank you.':nice(r.error)):'Thank you. After 3 reports an upload is hidden until our team checks it. Copyright owners can also use the DMCA page.'};
+ b.onclick=async()=>{if(!ME)return needSignIn('Sign in to report an upload.');b.disabled=true;
+  try{const r=await capi(`/api/c/items/${it.id}/report`,{json:{reason:sel.value}});m.textContent=r.already?'You already reported this. Thank you.':'Thank you. After 3 reports an upload is hidden until our team checks it. Copyright owners can also use the DMCA page.'}catch(e){m.textContent=nice(e)}b.disabled=false};
  d.append(h('div',{class:'row',style:'margin-top:8px'},sel,b),m);return d}
-const sel_=(aria,opts)=>h('select',{'aria-label':aria},opts.map(([k,t])=>h('option',{value:k},t)));
 
 /* --- profiles --- */
-async function profileView(w,username){const s=await sb();w.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Loading…'));
- const {data:p}=await s.from('profiles').select('*').eq('username',username).maybeSingle();
- if(!p){w.replaceChildren(chead('Profile not found'),cnote('No one uses this name.',true),h('a',{class:'btn',href:'/ringtones'},'Back to Ringtones'));return}
- const mine=ME&&ME.id===p.id;document.title=(p.display_name||p.username)+' – WaveRise';let kind='ringtone';
- const grid=h('div',{}),fb=await followBtn(p);
- const show=async()=>{grid.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'})));
-  const {data}=await s.from('items').select('id,kind,title,category,tags,file_path,thumb_path,mime,duration,likes_count,downloads_count,created_at,user_id,status,profiles!items_user_id_fkey(username,display_name,avatar_url)').eq('user_id',p.id).eq('kind',kind).order('created_at',{ascending:false}).limit(60);
-  await loadLiked(data||[]);const list=h('div',{class:kind==='wallpaper'?'wgrid':'rlist'},(data||[]).map(it=>{const el=kind==='wallpaper'?wcard(it):rrow(it);if(it.status==='hidden')el.classList.add('hid');return el}));
-  grid.replaceChildren((data||[]).length?list:cnote(mine?`You haven’t uploaded any ${kind}s yet.`:`No ${kind}s yet.`))};
+async function profileView(w,username){w.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Loading…'));let kind='ringtone',data;
+ try{data=await capi(`/api/c/users/${encodeURIComponent(username)}?kind=${kind}`)}catch(e){w.replaceChildren(chead('Profile not found'),cnote(nice(e),true),h('a',{class:'btn',href:'/ringtones'},'Back to Ringtones'));return}
+ const p=data.profile,mine=ME&&ME.id===p.id;document.title=(p.display_name||p.username)+' – WaveRise';const grid=h('div',{});
+ const paint=items=>{const list=h('div',{class:kind==='wallpaper'?'wgrid':'rlist'},items.map(it=>kind==='wallpaper'?wcard(it):rrow(it)));grid.replaceChildren(items.length?list:cnote(mine?`You haven’t uploaded any ${kind}s yet.`:`No ${kind}s yet.`))};
+ const show=async()=>{grid.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'})));try{paint((await capi(`/api/c/users/${encodeURIComponent(username)}?kind=${kind}`)).items)}catch(e){grid.replaceChildren(cnote(nice(e),true))}};
  const tabs=seg([['ringtone','Ringtones'],['wallpaper','Wallpapers']],kind,v=>{kind=v;tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',String(b.textContent===(v==='ringtone'?'Ringtones':'Wallpapers'))));show()});
- const mineBox=mine?myTools(p,w):null;
+ const shareP=h('button',{type:'button',class:'btn sm mp3b'},'Share profile');shareP.onclick=()=>{const url=location.origin+'/ringtones#u/'+p.username;navigator.share?navigator.share({title:'@'+p.username+' on WaveRise',url}).catch(()=>{}):navigator.clipboard&&navigator.clipboard.writeText(url).then(()=>toast('Link copied'))};
  w.replaceChildren(chead(mine?'My profile':'Creator'),h('div',{class:'card prof'},h('div',{class:'phead'},avatar(p,72),h('div',{},h('h1',{class:'ch1'},p.display_name||p.username),h('small',{class:'note'},'@'+p.username),p.bio?h('p',{style:'margin:6px 0 0'},p.bio):null)),
   h('div',{class:'pcounts'},h('span',{},h('b',{},kfmt(p.uploads_count)),'Uploads'),h('span',{},h('b',{'data-fc':''},kfmt(p.followers_count)),'Followers'),h('span',{},h('b',{},kfmt(p.following_count)),'Following')),
-  h('div',{class:'row',style:'margin-top:12px'},fb,h('button',{type:'button',class:'btn sm mp3b',onclick:function(){const url=location.origin+'/ringtones#u/'+p.username;navigator.share?navigator.share({title:'@'+p.username+' on WaveRise',url}).catch(()=>{}):navigator.clipboard.writeText(url).then(()=>{this.textContent='Link copied'})}},'Share profile'),
-   IS_ADMIN&&mine?h('a',{class:'btn sm',href:'#admin'},'Admin'):null),mineBox),tabs,grid);show()}
-function myTools(p,w){const d=h('details',{class:'mytools'},h('summary',{},'Edit profile and account'));
+  h('div',{class:'row',style:'margin-top:12px'},followBtn(p),shareP,IS_ADMIN&&mine?h('a',{class:'btn sm',href:'#admin'},'Admin'):null),mine?myTools(p):null),tabs,grid);
+ paint(data.items)}
+function myTools(p){const d=h('details',{class:'mytools'},h('summary',{},'Edit profile and account'));
  const dn=h('input',{type:'text',class:'tin',maxlength:40,value:p.display_name||'','aria-label':'Name'}),un=h('input',{type:'text',class:'tin',maxlength:20,value:p.username,'aria-label':'Username',autocapitalize:'none'}),
   bio=h('textarea',{class:'tin',maxlength:160,rows:2,'aria-label':'Bio',placeholder:'A line about you'},p.bio||''),m=h('p',{class:'note',style:'text-align:left'});
  const save=h('button',{type:'button',class:'go'},'Save');save.onclick=async()=>{const u=un.value.trim().toLowerCase();if(!/^[a-z0-9_.]{3,20}$/.test(u)){m.textContent='Username: 3–20 letters, numbers, _ or .';return}
-  const s=await sb();save.disabled=true;const r=await s.from('profiles').update({display_name:dn.value.trim(),username:u,bio:bio.value.trim()}).eq('id',p.id).select().maybeSingle();save.disabled=false;
-  if(r.error){m.textContent=nice(r.error);return}MYP=r.data;toast('Saved.');location.hash='#u/'+r.data.username};
- const out_=h('button',{type:'button',class:'btn sm mp3b'},'Sign out');out_.onclick=async()=>{const s=await sb();await s.auth.signOut();ME=null;MYP=null;IS_ADMIN=false;cgo('/ringtones')};
+  save.disabled=true;try{const r=await capi('/api/c/profile',{json:{display_name:dn.value.trim(),username:u,bio:bio.value.trim()}});ME=r.user;toast('Saved.');location.hash='#u/'+r.user.username}catch(e){m.textContent=nice(e)}save.disabled=false};
+ const out_=h('button',{type:'button',class:'btn sm mp3b'},'Sign out');out_.onclick=async()=>{await capi('/api/c/logout',{json:{}}).catch(()=>{});ME=null;IS_ADMIN=false;MEP=null;cgo('/ringtones')};
  const del=h('button',{type:'button',class:'btn sm danger'},'Delete my account');let arm=false;
  del.onclick=async()=>{if(!arm){arm=true;del.textContent='Tap again: this deletes your profile and all your uploads';setTimeout(()=>{arm=false;del.textContent='Delete my account'},6000);return}
-  del.disabled=true;try{const s=await sb(),{data}=await s.from('items').select('file_path,thumb_path').eq('user_id',ME.id);const paths=(data||[]).flatMap(x=>[x.file_path,x.thumb_path]).filter(Boolean);
-   for(let i=0;i<paths.length;i+=100)await s.storage.from('community').remove(paths.slice(i,i+100));const r=await s.rpc('delete_my_account');if(r.error)throw r.error;await s.auth.signOut();ME=null;MYP=null;toast('Your account was deleted.');cgo('/ringtones')}
-  catch(e){del.disabled=false;toast(nice(e))}};
+  del.disabled=true;try{await capi('/api/c/account/delete',{json:{}});ME=null;IS_ADMIN=false;MEP=null;toast('Your account was deleted.');cgo('/ringtones')}catch(e){del.disabled=false;toast(nice(e))}};
  d.append(h('div',{class:'fgrid'},h('label',{class:'fld'},h('span',{},'Name'),dn),h('label',{class:'fld'},h('span',{},'Username'),un)),h('label',{class:'fld',style:'margin-top:10px'},h('span',{},'Bio'),bio),
   h('div',{class:'row',style:'margin-top:12px'},save,out_),m,h('div',{class:'row',style:'margin-top:16px'},del));return d}
 
-/* --- sign in --- */
-function signInView(why,w){w=w||(()=>{showCommView();const x=h('div',{class:'wrap cwrap'});cbox().replaceChildren(x);return x})();
- const g=h('button',{type:'button',class:'btn gbtn'},h('span',{class:'g'},'G'),'Continue with Google'),em=h('input',{type:'email',class:'tin',placeholder:'you@example.com','aria-label':'Email',autocomplete:'email',inputmode:'email'}),
-  send=h('button',{type:'button',class:'go'},'Email me a sign-in link'),m=h('p',{class:'note',style:'text-align:left'});
- const back=location.origin+location.pathname;
- g.onclick=async()=>{g.disabled=true;
-  try{const st=await fetch(SB_URL+'/auth/v1/settings',{headers:{apikey:SB_KEY},cache:'no-store'}).then(x=>x.ok?x.json():null);if(st&&st.external&&st.external.google===false){g.disabled=false;m.textContent='Google sign-in isn’t switched on yet. Please try again later.';return}}catch{}
-  const s=await sb();const r=await s.auth.signInWithOAuth({provider:'google',options:{redirectTo:back}});if(r.error){g.disabled=false;m.textContent=nice(r.error)}};
- send.onclick=async()=>{const e=em.value.trim();if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)){m.textContent='Type your email address.';return em.focus()}
-  const s=await sb();send.disabled=true;m.replaceChildren(h('span',{class:'spin'}),'Sending…');const r=await s.auth.signInWithOtp({email:e,options:{emailRedirectTo:back}});send.disabled=false;
-  m.textContent=r.error?nice(r.error):`Check ${e} for a sign-in link. Open it on this phone. It can take a minute; look in Spam too.`};
- w.replaceChildren(chead('Sign in'),h('div',{class:'card signin'},h('p',{style:'margin:0 0 14px'},h('b',{},why||'Sign in to upload, like and follow.')),g,h('div',{class:'or'},h('span',{},'or')),
-  h('div',{class:'row'},em),h('div',{class:'row',style:'margin-top:10px'},send),m,
+/* --- sign in (Google, handled by WaveRise's server) --- */
+function signInView(why,w){w=w||(()=>{showCommView();return cwrap()})();
+ const g=h('a',{class:'btn gbtn',href:'/api/auth/google/start?next='+encodeURIComponent(location.pathname+(/^#(upload|me|u\/|item\/)/.test(location.hash)?location.hash:''))},h('span',{class:'g'},'G'),'Continue with Google');
+ w.replaceChildren(chead('Sign in'),h('div',{class:'card signin'},h('p',{style:'margin:0 0 14px'},h('b',{},why||'Sign in to upload, like and follow.')),g,
   h('p',{class:'note',style:'text-align:left;margin-top:14px'},'New here? Signing in creates your free account. Your email is never shown to anyone. You can delete your account at any time.')));return w}
-async function authReturn(){showCommView();cbox().replaceChildren(h('div',{class:'wrap'},h('p',{class:'note'},h('span',{class:'spin'}),'Signing you in…')));
- const hp=new URLSearchParams(location.hash.slice(1)),err=hp.get('error_description'),fresh=!SB;
- try{await sb();if(!fresh&&hp.get('access_token'))await SB.auth.setSession({access_token:hp.get('access_token'),refresh_token:hp.get('refresh_token')||''});await new Promise(r=>setTimeout(r,60));const {data}=await SB.auth.getSession();await setMe(data&&data.session)}catch{}
- history.replaceState(null,'',location.pathname+(ME?'#me':''));if(err&&!ME)toast(err.replace(/\+/g,' '));renderComm()}
 
 /* --- upload --- */
-function uploadView(w){let kind=PENDING_UP?PENDING_UP.kind:'ringtone',file=null,meta={},full=null,thumb=null;
+function uploadView(w){let kind=PENDING_UP?PENDING_UP.kind:'ringtone',meta={},full=null,thumb=null;
  const inp=h('input',{type:'file'}),pv=h('div',{class:'upv'}),m=h('p',{class:'note',style:'text-align:left'}),
   title=h('input',{type:'text',class:'tin',maxlength:60,'aria-label':'Title',placeholder:'Title'}),cat=h('select',{'aria-label':'Category'}),tags=h('input',{type:'text',class:'tin',maxlength:120,'aria-label':'Tags',placeholder:'Tags, comma separated (up to 5)'}),
   rights=h('input',{type:'checkbox'}),go=h('button',{type:'button',class:'go',disabled:''},'Publish');
- const setKind=k=>{kind=k;inp.accept=k==='ringtone'?'audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/x-m4a,.mp3,.m4a,.aac,.ogg':'image/*';cat.replaceChildren(...CATS[k].map(([v,t])=>h('option',{value:v},t)));file=null;pv.replaceChildren();go.disabled=true;
-  m.textContent=k==='ringtone'?'MP3, M4A, AAC or OGG, up to 60 seconds and 5 MB. Tip: make one from any Reel with the Ringtone tool.':'Any photo. Tall 9:16 pictures look best. Location and camera details are removed.'};
+ const setKind=k=>{kind=k;inp.accept=k==='ringtone'?'audio/mpeg,audio/mp4,audio/aac,audio/ogg,audio/x-m4a,.mp3,.m4a,.aac,.ogg':'image/*';cat.replaceChildren(...CATS[k].map(([v,t])=>h('option',{value:v},t)));full=null;pv.replaceChildren();go.disabled=true;
+  m.textContent=k==='ringtone'?'MP3, M4A, AAC or OGG, up to 60 seconds and 4 MB. Tip: make one from any Reel with the Ringtone tool.':'Any photo. Tall 9:16 pictures look best. Location and camera details are removed.'};
  const okType=['audio/mpeg','audio/mp4','audio/aac','audio/ogg','audio/x-m4a'];
- const pick=async f=>{if(!f)return;file=null;go.disabled=true;pv.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Checking…'));
+ const pick=async f=>{if(!f)return;full=null;go.disabled=true;pv.replaceChildren(h('p',{class:'note'},h('span',{class:'spin'}),'Checking…'));
   if(!title.value||title.value===title.dataset.auto){title.value=title.dataset.auto=(f.name||'').replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ').replace(/\s+/g,' ').trim().slice(0,60)}
-  try{if(kind==='ringtone'){let t=f.type||'';if(!t){t=/\.mp3$/i.test(f.name)?'audio/mpeg':/\.(m4a|mp4)$/i.test(f.name)?'audio/mp4':/\.aac$/i.test(f.name)?'audio/aac':/\.ogg$/i.test(f.name)?'audio/ogg':''}
+  try{if(kind==='ringtone'){let t=f.type||'';if(!okType.includes(t)){t=/\.mp3$/i.test(f.name)?'audio/mpeg':/\.(m4a|mp4)$/i.test(f.name)?'audio/mp4':/\.aac$/i.test(f.name)?'audio/aac':/\.ogg$/i.test(f.name)?'audio/ogg':''}
     if(!okType.includes(t))throw new Error('Use an MP3, M4A, AAC or OGG file. You can make one with the Video to MP3 or Ringtone tool.');
-    if(f.size>5*1048576)throw new Error('This file is over 5 MB. Ringtones should be short: up to 60 seconds.');
+    if(f.size>4*1048576)throw new Error('This file is over 4 MB. Ringtones should be short: up to 60 seconds.');
     const u=URL.createObjectURL(f),a=new Audio();a.preload='metadata';a.src=u;const d=await new Promise((ok,no)=>{a.onloadedmetadata=()=>ok(a.duration);a.onerror=()=>no(new Error('Couldn’t play this file.'));setTimeout(()=>ok(NaN),6000)});
     if(isFinite(d)&&d>61)throw new Error(`This is ${tt2(d)} long. Ringtones can be up to 60 seconds. Cut it with the Ringtone tool.`);
-    meta={mime:t,duration:isFinite(d)?Math.round(d*10)/10:null};full=f;thumb=null;pv.replaceChildren(h('audio',{controls:'',src:u}),h('p',{class:'note',style:'text-align:left'},`${tt2(d)} · ${fmtSize(f.size)}`))}
+    meta={mime:t,duration:isFinite(d)?Math.round(d*10)/10:0};full=new Blob([f],{type:t});thumb=null;pv.replaceChildren(h('audio',{controls:'',src:u}),h('p',{class:'note',style:'text-align:left'},`${tt2(d)} · ${fmtSize(f.size)}`))}
    else{const im=await loadImg(f),[W,H]=dims(im),k=Math.min(1,1920/Math.max(W,H)),cv=document.createElement('canvas');cv.width=Math.round(W*k);cv.height=Math.round(H*k);const g=cv.getContext('2d');g.fillStyle='#000';g.fillRect(0,0,cv.width,cv.height);g.drawImage(im,0,0,cv.width,cv.height);
     full=await toBlob(cv,'image/jpeg',.88);const tk=Math.min(1,360/cv.width),tc=document.createElement('canvas');tc.width=Math.round(cv.width*tk);tc.height=Math.round(cv.height*tk);tc.getContext('2d').drawImage(cv,0,0,tc.width,tc.height);thumb=await toBlob(tc,'image/jpeg',.78);
     meta={mime:'image/jpeg',width:cv.width,height:cv.height};pv.replaceChildren(h('img',{src:URL.createObjectURL(full),alt:'Preview',class:'upimg'}),h('p',{class:'note',style:'text-align:left'},`${cv.width} × ${cv.height} px · ${fmtSize(full.size)}`))}
-   file=f;go.disabled=false}
+   go.disabled=false}
   catch(e){pv.replaceChildren(cnote(e.message,true))}};
  inp.onchange=()=>pick(inp.files[0]);
  go.onclick=async()=>{const t=title.value.trim();if(t.length<2){m.textContent='Give it a title.';return title.focus()}
   if(!rights.checked){m.textContent='Please confirm you made this or have the right to share it.';return}
-  const s=await sb();go.disabled=true;m.replaceChildren(h('span',{class:'spin'}),'Uploading…');
-  const id=Date.now().toString(36)+Math.random().toString(36).slice(2,8),ext=meta.mime==='audio/mpeg'?'mp3':meta.mime==='audio/ogg'?'ogg':meta.mime==='audio/aac'?'aac':meta.mime.startsWith('audio')?'m4a':'jpg';
-  const fp=`${ME.id}/${id}.${ext}`,tp=thumb?`${ME.id}/${id}-thumb.jpg`:null,done=[];
-  try{const body=full.type===meta.mime?full:new Blob([full],{type:meta.mime});let r=await s.storage.from('community').upload(fp,body,{contentType:meta.mime,cacheControl:'31536000',upsert:false});if(r.error)throw r.error;done.push(fp);
-   if(tp){r=await s.storage.from('community').upload(tp,thumb,{contentType:'image/jpeg',cacheControl:'31536000',upsert:false});if(r.error)throw r.error;done.push(tp)}
-   const tg=tags.value.split(/[,#]/).map(x=>x.trim().toLowerCase()).filter(Boolean).slice(0,5);
-   const ins=await s.from('items').insert({user_id:ME.id,kind,title:t,category:cat.value,tags:tg,file_path:fp,thumb_path:tp,mime:meta.mime,size_bytes:full.size,duration:meta.duration||null,width:meta.width||null,height:meta.height||null}).select('id').single();
-   if(ins.error)throw ins.error;PENDING_UP=null;toast('Published!');location.hash='#item/'+ins.data.id}
-  catch(e){if(done.length)s.storage.from('community').remove(done).catch(()=>{});m.textContent=nice(e);go.disabled=false}};
+  go.disabled=true;m.replaceChildren(h('span',{class:'spin'}),'Uploading…');
+  const fd=new FormData();fd.append('kind',kind);fd.append('title',t);fd.append('category',cat.value);fd.append('tags',tags.value);fd.append('duration',meta.duration||0);fd.append('width',meta.width||0);fd.append('height',meta.height||0);
+  fd.append('file',full,'file.'+(kind==='ringtone'?dlName({mime:meta.mime,title:'f'}).split('.').pop():'jpg'));if(thumb)fd.append('thumb',thumb,'thumb.jpg');
+  try{const r=await capi('/api/c/upload',{method:'POST',body:fd});PENDING_UP=null;toast('Published!');location.hash='#item/'+r.id}catch(e){m.textContent=nice(e);go.disabled=false}};
  const kinds=seg([['ringtone','Ringtone'],['wallpaper','Wallpaper']],kind,v=>{setKind(v);kinds.querySelectorAll('button').forEach(b=>b.setAttribute('aria-selected',String(b.textContent.toLowerCase()===v)))});
  setKind(kind);
  w.replaceChildren(chead('Upload'),h('div',{class:'card'},kinds,h('div',{class:'row',style:'margin-top:14px'},h('label',{class:'btn mp3b filebtn'},'Choose file',inp)),pv,
   h('div',{class:'fgrid'},h('label',{class:'fld'},h('span',{},'Title'),title),h('label',{class:'fld'},h('span',{},'Category'),cat)),h('label',{class:'fld',style:'margin-top:10px'},h('span',{},'Tags'),tags),
   h('label',{class:'rights'},rights,h('span',{},'I made this, or I have the right to share it. No film songs or pictures I don’t own.')),h('div',{class:'row',style:'margin-top:14px'},go),m));
- if(PENDING_UP){const f=new File([PENDING_UP.blob],PENDING_UP.name,{type:PENDING_UP.blob.type||'audio/mpeg'});pick(f)}}
+ if(PENDING_UP){pick(new File([PENDING_UP.blob],PENDING_UP.name,{type:PENDING_UP.blob.type||'audio/mpeg'}))}}
 
 /* --- admin --- */
 async function adminView(w){if(!IS_ADMIN){w.replaceChildren(chead('Admin'),cnote('Only WaveRise admins can open this page.',true));return}
- const s=await sb();w.replaceChildren(chead('Admin','Hidden and reported uploads'),h('p',{class:'note'},h('span',{class:'spin'})));
- const {data:its}=await s.from('items').select('*,profiles!items_user_id_fkey(username)').or('status.eq.hidden,reports_count.gt.0').order('reports_count',{ascending:false}).limit(100);
- const {data:reps}=await s.from('reports').select('item_id,reason');const why={};(reps||[]).forEach(r=>{(why[r.item_id]=why[r.item_id]||[]).push(r.reason)});
- const rows=(its||[]).map(it=>{const del=h('button',{type:'button',class:'btn sm danger'},'Delete');del.onclick=async()=>{del.disabled=true;try{await removeItem(it);row.remove()}catch(e){del.disabled=false;toast(nice(e))}};
-  const row=h('div',{class:'arow'},h('a',{href:'#item/'+it.id},h('b',{},it.title),h('small',{},`${it.kind} · @${(it.profiles||{}).username} · ${it.status} · ${it.reports_count} reports: ${(why[it.id]||[]).join(', ')||'—'}`)),h('div',{class:'row'},restoreBtn(it),del));return row});
+ w.replaceChildren(chead('Admin','Hidden and reported uploads'),h('p',{class:'note'},h('span',{class:'spin'})));let its=[];
+ try{its=(await capi('/api/c/admin/queue')).items}catch(e){w.replaceChildren(chead('Admin'),cnote(nice(e),true));return}
+ const rows=its.map(it=>{const del=h('button',{type:'button',class:'btn sm danger'},'Delete');const row=h('div',{class:'arow'},h('a',{href:'#item/'+it.id},h('b',{},it.title),h('small',{},`${it.kind} · @${(it.profiles||{}).username} · ${it.status} · ${(it.reports||[]).length} reports: ${(it.reports||[]).join(', ')||'—'}`)),h('div',{class:'row'},restoreBtn(it),del));
+  del.onclick=async()=>{del.disabled=true;try{await capi('/api/c/items/'+it.id,{method:'DELETE'});row.remove()}catch(e){del.disabled=false;toast(nice(e))}};return row});
  w.replaceChildren(chead('Admin','Hidden and reported uploads'),rows.length?h('div',{class:'card',style:'display:block'},rows):cnote('Nothing to check right now.'))}
-
 
 /* page hooks for the router */
 window.wrComm={show(){if(!COMM_ON){showCommView();cbox().replaceChildren(h('div',{class:'wrap cwrap'},h('div',{class:'card csoon'},h('h1',{class:'ch1'},L('t_comm')),h('p',{class:'note',style:'text-align:left;margin:8px 0 0'},L('comm_soon')))));return}renderComm()},

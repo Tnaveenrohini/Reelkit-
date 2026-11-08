@@ -3,7 +3,7 @@
 Explore lets people sign in, upload ringtones and wallpapers, and like, share, download and follow.
 It runs on Supabase's free plan. Until you finish step 4, the site works exactly as before and Explore stays hidden.
 
-You need about 30 minutes. Replace `your-site.vercel.app` below with your real Vercel address.
+You need about 30 minutes. The pages are **waverise.in/ringtones** and **waverise.in/wallpapers**.
 
 ## 1. Create a free Supabase project
 1. Go to https://supabase.com, sign up (free), and click **New project**.
@@ -19,29 +19,29 @@ You need about 30 minutes. Replace `your-site.vercel.app` below with your real V
 
 ## 3. Allow your website to sign people in
 In Supabase open **Authentication → URL Configuration**:
-- **Site URL:** `https://your-site.vercel.app`
-- **Redirect URLs:** add `https://your-site.vercel.app/**`
+- **Site URL:** `https://waverise.in`
+- **Redirect URLs:** add `https://waverise.in/**`
 
 ## 4. Put your keys in the site
 1. In Supabase click **Connect** at the top (or **Settings → API Keys**) and copy:
    - the **Project URL** (looks like `https://abcd1234.supabase.co`)
    - the **Publishable key** (starts with `sb_publishable_`), or the older **anon public** key
-2. Open `public/config.js` and fill them in:
-   ```js
-   window.SUPABASE_URL = "https://abcd1234.supabase.co";
-   window.SUPABASE_ANON_KEY = "sb_publishable_...";
-   ```
+2. Add them as environment variables where the site is hosted
+   (Google Cloud Run → your service → **Edit & deploy new revision → Variables & secrets**, or Vercel → Settings → Environment Variables):
+   - `SUPABASE_URL` = the Project URL
+   - `SUPABASE_ANON_KEY` = the Publishable key
    Both are meant to be public. The database rules from step 2 decide what anyone can do.
-   Never put the **secret** / **service_role** key in the site.
-3. Upload `public/index.html`, `public/glass.css` and `public/config.js` to GitHub and commit. After Vercel redeploys, **Explore** appears in the bottom bar.
+   Never use the **secret** / **service_role** key.
+3. Deploy. **Ringtones** and **Wallpapers** then appear in the Tools menu, the phone tools list and the home page.
+   Until then the pages say "coming soon" and the links stay hidden.
 
 ## 5. Turn on "Continue with Google"
-1. Go to https://console.cloud.google.com, create a project called `WaveRise`, then open **Google Auth Platform**.
+1. Go to https://console.cloud.google.com and open **Google Auth Platform** in your WaveRise project (the same one used for admin sign-in is fine).
 2. **Branding:** app name `WaveRise`, your support email, and your logo if you like.
 3. **Audience:** choose **External**. When everything works, click **Publish app** so anyone can sign in (in Testing mode only listed test users can).
 4. **Data Access:** add the `openid` scope (email and profile are already there).
 5. **Clients → Create client:** type **Web application**.
-   - **Authorized JavaScript origins:** `https://your-site.vercel.app`
+   - **Authorized JavaScript origins:** `https://waverise.in`
    - **Authorized redirect URIs:** the **Callback URL** shown in Supabase under **Authentication → Sign In / Providers → Google** (it looks like `https://abcd1234.supabase.co/auth/v1/callback`).
 6. Copy the **Client ID** and **Client secret** into that Supabase Google page, switch Google **on**, and save.
 
@@ -55,7 +55,7 @@ To fix it for free with Brevo:
    host `smtp-relay.brevo.com`, port `587`, username = your Brevo login email, password = the SMTP key, and your verified sender email.
 
 ## 7. You are the admin
-Sign in with the email you put in step 2, open your profile, and tap **Admin**. You'll see uploads that were reported.
+Sign in on waverise.in/ringtones with the email you put in step 2, open your profile, and tap **Admin**. You'll see uploads that were reported.
 An upload is hidden automatically after 3 reports. **Restore** brings it back, **Delete** removes it and its files.
 You can also delete any upload from its own page.
 

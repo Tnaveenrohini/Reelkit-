@@ -31,6 +31,9 @@ def _read_template():
 
 
 TEMPLATE = _read_template()
+_SB_URL, _SB_KEY = os.getenv("SUPABASE_URL", "").strip(), os.getenv("SUPABASE_ANON_KEY", "").strip()
+if _SB_URL and _SB_KEY:   # Ringtones & Wallpapers (Supabase). Both values are public by design; the database rules protect the data.
+    TEMPLATE = TEMPLATE.replace('<html lang="en"', f'<html lang="en" data-sb-url="{_html.escape(_SB_URL)}" data-sb-key="{_html.escape(_SB_KEY)}"', 1)
 if not os.getenv("VERCEL"):   # Vercel Web Analytics only exists on Vercel; elsewhere its script would just 404
     TEMPLATE = TEMPLATE.replace('<script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)}</script><script defer src="/_vercel/insights/script.js"></script>', '')
 try:
@@ -392,7 +395,7 @@ def not_found(request: Request):
             except StoreError:
                 pass
     body = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=44"></head>'
+            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=45"></head>'
             '<body style="background:#07122B;color:#F4F1EA;font-family:Sora,system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;padding:0 20px;text-align:center">'
             '<main><h1 style="font-size:28px;margin:0 0 8px">Page not found</h1><p style="color:#AEB8D0;margin:0 0 20px">This page doesn’t exist or has moved.</p>'
             '<a href="/" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#F2C14E;color:#1A1405;font-weight:800;text-decoration:none">Open WaveRise</a></main></body></html>')

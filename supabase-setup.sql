@@ -304,3 +304,6 @@ create policy "community: upload to own folder" on storage.objects for insert to
 drop policy if exists "community: delete own files or admin" on storage.objects;
 create policy "community: delete own files or admin" on storage.objects for delete to authenticated
   using (bucket_id = 'community' and ((storage.foldername(name))[1] = auth.uid()::text or public.is_admin()));
+
+-- ---------- tell the API about the new tables right away ----------
+notify pgrst, 'reload schema';

@@ -1251,19 +1251,17 @@ WHAT WAVERISE DOES (free, no login, no account, never asks for an Instagram pass
 """
 HELP_LANG = {"en": "English", "hi": "Hindi", "ta": "Tamil", "te": "Telugu"}
 HELP_MODELS = [m for m in [os.getenv("GEMINI_MODEL", "").strip(), "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"] if m]
-HELP_PER_IP, HELP_WINDOW, HELP_PER_DAY = 20, 600, int(os.getenv("HELP_DAILY_LIMIT", "900"))
+HELP_PER_IP, HELP_WINDOW, HELP_PER_DAY = 40, 600, int(os.getenv("HELP_DAILY_LIMIT", "100000"))
 _help_hits, _help_day = {}, {"d": "", "n": 0}
 
 
 @r_.get("/help")
 def help_status():
-    return {"ai": bool(os.getenv("GEMINI_API_KEY", "").strip())}
+    return {"ai": True}                     # WaveRise's own assistant always answers; Gemini is optional
 
 
 @r_.post("/help")
 def help_ask(b: HelpReq, request: Request):
-    if not os.getenv("GEMINI_API_KEY", "").strip():
-        return {"ai": False}
     q = re.sub(r"\s+", " ", str(b.q or "")).strip()[:500]
     if not q:
         return {"ai": True, "answer": None}
@@ -1279,11 +1277,11 @@ def help_ask(b: HelpReq, request: Request):
     if len(_help_hits) > 2000:
         _help_hits.clear()
     try:
-        return {"ai": True, "answer": wr_bot.visitor_reply(q, b.hist, b.lang)}
-    except wr_bot.BotOff:
-        return {"ai": False}
-    except wr_bot.BotBusy:
-        return {"ai": True, "answer": None, "busy": True}
+        answer, go = wr_bot.visitor_reply(q, b.hist, b.lang)
+    except Exception as e:                    # never leave the visitor without a reply
+        wr_bot.note("server", "/api/help", f"{type(e).__name__}: {e}", "", 500)
+        return {"ai": True, "answer": None}
+    return {"ai": True, "answer": answer, "go": [k for k in (go or []) if isinstance(k, str)][:3]}
 
 
 @r_.get("/health")

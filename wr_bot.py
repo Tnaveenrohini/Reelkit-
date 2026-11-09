@@ -246,7 +246,13 @@ def visitor_reply(q, hist, lang):
         if isinstance(m, dict) and m.get("t"):
             turns.append(("user" if m.get("me") else "model", str(m["t"])[:700]))
     turns.append(("user", q))
-    return gemini(visitor_system(lang), turns, temperature=0.75, max_tokens=500, where="visitor chat")[:1500]
+    if ai_key():                                   # optional: Gemini, when a key was added
+        try:
+            return gemini(visitor_system(lang), turns, temperature=0.75, max_tokens=500, where="visitor chat")[:1500], []
+        except (BotOff, BotBusy):
+            pass
+    import wr_brain
+    return wr_brain.visitor(q, hist, lang)       # WaveRise's own brain: no key needed
 
 
 # ---------------------------------------------------------------- owner assistant
@@ -311,16 +317,23 @@ SITE DATA (JSON):
 
 
 def owner_reply(turns):
-    system = OWNER + json.dumps(site_snapshot(), ensure_ascii=False, default=str)[:24000]
-    return gemini(system, turns, temperature=0.5, max_tokens=900, timeout=30, where="owner assistant")
+    snap = site_snapshot()
+    if ai_key():
+        try:
+            return gemini(OWNER + json.dumps(snap, ensure_ascii=False, default=str)[:24000], turns, temperature=0.5, max_tokens=900, timeout=30, where="owner assistant")
+        except (BotOff, BotBusy):
+            pass
+    import wr_brain
+    q = next((t for r, t in reversed(turns) if r == "user"), "")
+    return wr_brain.owner(q, snap)
 
 
 def daily_report():
     """Once a day (from the cron job): a short morning summary kept for the admin page."""
-    if not ai_key() or not STORE.ok:
+    if not STORE.ok:
         return None
     try:
-        text = owner_reply([("user", "Give me today's short report on the site: what broke, what needs my attention, and how things are going. Use simple English.")])
+        text = owner_reply([("user", "Eeroju site report ela undi? Full report cheppu.")])
     except (BotOff, BotBusy):
         return None
     rep = {"t": int(time.time()), "text": text[:4000]}
@@ -343,7 +356,13 @@ WAVERISE FACTS:
 def draft_reply(msg):
     import app as backend
     who = f"From: {msg.get('name') or 'no name'}\nTopic: {msg.get('topic')}\nMessage:\n{msg.get('message')}"
-    return gemini(DRAFT + backend.HELP_FACTS + EXTRA_FACTS, [("user", who)], temperature=0.6, max_tokens=600, where="reply drafts")
+    if ai_key():
+        try:
+            return gemini(DRAFT + backend.HELP_FACTS + EXTRA_FACTS, [("user", who)], temperature=0.6, max_tokens=600, where="reply drafts")
+        except (BotOff, BotBusy):
+            pass
+    import wr_brain
+    return wr_brain.draft(msg)
 
 
 # ---------------------------------------------------------------- routes
@@ -392,7 +411,7 @@ def install(app):
     @app.get("/api/admin/bot", include_in_schema=False)
     def a_bot_state(request: Request):
         A.require(request)
-        return A.admin_json({"ai": bool(ai_key()), "store": STORE.ok, "daily": STORE.get_json("bot:daily") if STORE.ok else None,
+        return A.admin_json({"ai": True, "engine": "gemini" if ai_key() else "own", "store": STORE.ok, "daily": STORE.get_json("bot:daily") if STORE.ok else None,
                              "open_problems": sum(1 for e in errors(200, int(time.time()) - 86400) if not e["fixed"])})
 
     @app.post("/api/admin/bot", include_in_schema=False)
@@ -455,6 +474,9 @@ def install(app):
             raise HTTPException(404, "That problem is no longer in the notebook.")
         q = ("Explain this one problem simply: what the visitor sees, whether it is a real bug, and what I should do. "
              "Problem: " + json.dumps({k: row[k] for k in ("source", "where", "msg", "detail", "count", "status")}, ensure_ascii=False))
+        import wr_brain
+        if not ai_key():
+            return A.admin_json({"answer": wr_brain.explain_problem(row, wr_brain.owner_style(str(j.get("q") or "")) if j.get("q") else "en")})
         try:
             text = await run_in_threadpool(owner_reply, [("user", q)])
         except BotOff:

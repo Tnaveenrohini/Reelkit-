@@ -74,8 +74,11 @@ def test_server_crash_and_failed_download_are_noted(monkeypatch):
 
 def test_owner_assistant_and_admin_pages(monkeypatch):
     owner = login()
-    assert owner.get("/api/admin/bot").json()["ai"] is False
-    assert owner.post("/api/admin/bot", json={"q": "hi"}).status_code == 409
+    assert owner.get("/api/admin/bot").json()["engine"] == "own"
+    B.note("browser", "/photo-mb-to-kb", "TypeError: x is null")
+    own = owner.post("/api/admin/bot", json={"q": "eeroju site ela undi?"})
+    assert own.status_code == 200 and "real bug" in own.json()["answer"] and "/photo-mb-to-kb" in own.json()["answer"]
+    owner.post("/api/admin/errors", json={"action": "clear"})
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     B.note("server", "/api/download", "KeyError: 'url'")
     fake = FakeGemini([(404, "gone"), (200, "Site bagundi, oka bug undi.")])
@@ -101,6 +104,8 @@ def test_reply_draft_for_contact_message(monkeypatch):
                   headers={"Origin": "https://testserver"}).status_code == 200
     owner = login()
     mid = owner.get("/api/admin/messages").json()["rows"][0]["id"]
+    own = owner.post(f"/api/admin/messages/{mid}/draft", json={}).json()["draft"]
+    assert own.startswith("Hi there,") and "Naveen, WaveRise" in own and "photo-mb-to-kb" in own
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     monkeypatch.setattr(B.httpx, "post", FakeGemini([(200, "Hi! Thanks for telling us. — Naveen, WaveRise")]))
     r = owner.post(f"/api/admin/messages/{mid}/draft", json={})
@@ -112,7 +117,8 @@ def test_reply_draft_for_contact_message(monkeypatch):
 
 def test_visitor_chat_talks_like_a_person(monkeypatch):
     c = TestClient(backend.app, base_url="https://testserver")
-    assert c.post("/api/help", json={"q": "hi"}).json() == {"ai": False}
+    own = c.post("/api/help", json={"q": "photo size ela taggali", "lang": "en"}).json()
+    assert "/photo-mb-to-kb" in own["answer"] and "andi" in own["answer"] and own["go"] == ["reduce"]
     monkeypatch.setenv("GEMINI_API_KEY", "k")
     fake = FakeGemini([(200, "Sure! Open [Photo MB to KB](/photo-mb-to-kb) and pick 50 KB.")])
     monkeypatch.setattr(B.httpx, "post", fake)
@@ -122,7 +128,8 @@ def test_visitor_chat_talks_like_a_person(monkeypatch):
     assert "English letters" in sysmsg and "Photo Editor" in sysmsg
     # quota used up on every model: the visitor gets the normal fallback, and the problem is noted
     monkeypatch.setattr(B.httpx, "post", FakeGemini([(429, "quota")] * 10))
-    assert c.post("/api/help", json={"q": "again"}).json()["busy"] is True
+    fallback = c.post("/api/help", json={"q": "is it free?"}).json()
+    assert "free" in fallback["answer"].lower()                        # our own brain answered instead
     assert any(r["source"] == "ai" for r in B.errors())
 
 

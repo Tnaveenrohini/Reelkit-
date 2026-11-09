@@ -90,6 +90,27 @@ class _Memory:
                 return 1
             if op == "HGET":
                 return (self.d.get(k) or {}).get(a[1])
+            if op == "HSETNX":
+                h = self.d.setdefault(k, {})
+                if a[1] in h:
+                    return 0
+                h[a[1]] = a[2]; return 1
+            if op in ("ZRANGE", "ZREVRANGEBYSCORE"):
+                z = sorted((self.d.get(k) or {}).items(), key=lambda kv: kv[1], reverse=op != "ZRANGE")
+                opts = [str(x).upper() for x in a]
+                if op == "ZRANGE":
+                    s, e = int(a[1]), int(a[2]); part = z[s:(None if e == -1 else e + 1)]
+                else:
+                    hi = float("inf") if str(a[1]) == "+inf" else float(a[1]); lo = float("-inf") if str(a[2]) == "-inf" else float(a[2])
+                    part = [kv for kv in z if lo <= kv[1] <= hi]
+                    if "LIMIT" in opts:
+                        i = opts.index("LIMIT"); part = part[int(a[i + 1]):int(a[i + 1]) + int(a[i + 2])]
+                if "WITHSCORES" in opts:
+                    out = []
+                    for m, sc in part:
+                        out += [m, str(sc)]
+                    return out
+                return [m for m, _ in part]
             if op == "HINCRBY":
                 h = self.d.setdefault(k, {})
                 h[a[1]] = str(int(h.get(a[1], 0)) + int(a[2]))

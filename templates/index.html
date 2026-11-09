@@ -105,6 +105,10 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 <script>try{if(sessionStorage.getItem("wr_intro")&&!/[?&]intro/.test(location.search))document.documentElement.classList.add("wr-seen")}catch(e){}</script>
 <link rel="stylesheet" href="/glass.css?v=49">
 <link rel="stylesheet" href="/creator.css?v=2">
+<script>(()=>{let n=0;const seen=new Set();const send=(msg,src,stack)=>{msg=String(msg||'').slice(0,300);if(!msg||n>=5||seen.has(msg))return;seen.add(msg);n++;
+try{const b=new Blob([JSON.stringify({msg,src:String(src||'').slice(0,200),stack:String(stack||'').slice(0,700),page:location.href})],{type:'application/json'});if(!(navigator.sendBeacon&&navigator.sendBeacon('/api/err',b)))fetch('/api/err',{method:'POST',body:b,keepalive:true}).catch(()=>{})}catch(e){}};
+addEventListener('error',e=>{if(e.target&&e.target!==window&&e.target.tagName){return}send(e.message,(e.filename||'')+':'+(e.lineno||0)+':'+(e.colno||0),e.error&&e.error.stack)});
+addEventListener('unhandledrejection',e=>{const r=e.reason;send('Unhandled: '+(r&&r.message||r),'',r&&r.stack)});})();</script>
 </head>
 <body>
 
@@ -587,7 +591,7 @@ const HELP_KB=[{"id":"notwork","k":["not working","doesnt work","does not work",
   const local=()=>m.e&&m.score>=1.5?[A(m.e),[...new Set([...(m.e.go||[]),...m.go])]]:m.go.length?[L('hb_tool'),m.go]:null;
   let ans=null;
   const words=q.split(/\s+/).length;
-  if(m.e&&m.score>=1.5&&(words<=6||m.score>=4)||!AI){await new Promise(r=>setTimeout(r,380));ans=local()}
+  if(!AI){await new Promise(r=>setTimeout(r,380));ans=local()}
   else{try{const r=await fetch(API+'/api/help',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,lang,hist:hist.slice(-7,-1).map(x=>({t:x.t,me:x.me||0}))})});const j=await r.json();
     if(j.answer)ans=[j.answer,m.go];else if(j.ai===false){AI=false;paintSub()}}catch{}
    ans=ans||local()}
@@ -600,7 +604,7 @@ const HELP_KB=[{"id":"notwork","k":["not working","doesnt work","does not work",
  const close=()=>{if(sh.hidden)return;sh.hidden=true;document.documentElement.classList.remove('ts-open');if(last&&last.focus)last.focus()};
  async function reply(q,hh=[]){await status();const m=match(q),words=q.split(/\s+/).length;
   const local=()=>m.e&&m.score>=1.5?[A(m.e),[...new Set([...(m.e.go||[]),...m.go])]]:m.go.length?[L('hb_tool'),m.go]:null;
-  if(m.e&&m.score>=1.5&&(words<=6||m.score>=4)||!AI){await new Promise(r=>setTimeout(r,380));return local()}
+  if(!AI){await new Promise(r=>setTimeout(r,380));return local()}
   try{const r=await fetch(API+'/api/help',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,lang,hist:hh.slice(-6)})});const j=await r.json();
    if(j.answer)return[j.answer,m.go];if(j.ai===false){AI=false;paintSub()}}catch{}
   return local()}

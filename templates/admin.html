@@ -22,6 +22,7 @@
   <nav class="side" id="side" aria-label="Admin sections">
     <button type="button" class="side-close" id="sideClose"><span aria-hidden="true">✕</span> Close menu</button>
     <a href="#overview" data-s="overview">Overview</a>
+    <a href="#bot" data-s="bot">Assistant</a>
     <p class="grp">SEO Management</p>
     <a href="#gsc" data-s="gsc">Google Search Console</a>
     <a href="#ga" data-s="ga">Google Analytics</a>
@@ -38,6 +39,7 @@
     <a href="#announcements" data-s="announcements">Announcements</a>
     <a href="#guides" data-s="guides">Guide editor</a>
     <a href="#ads" data-s="ads">Ads manager</a>
+    <a href="#errors" data-s="errors">Error log <span class="mcount" id="errCount" hidden></span></a>
     <a href="#alerts" data-s="alerts">Error alerts <span class="mcount" id="alertCount" hidden></span></a>
     <a href="#messages" data-s="messages">Messages <span class="mcount" id="msgCount" hidden></span></a>
     <a href="#redirects" data-s="redirects">Redirects</a>
@@ -53,5 +55,6 @@
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <script src="/admin/app.js"></script>
 <script src="/admin/manage.js"></script>
+<script src="/admin/bot.js"></script>
 </body>
 </html>

@@ -689,11 +689,11 @@ def install(app):
     def admin_asset(asset: str, request: Request):
         if asset in ("login", "connect-google", "logout"):
             return admin_actions(asset, request)
-        if asset not in ("app.js", "app.css", "manage.js"):
+        if asset not in ("app.js", "app.css", "manage.js", "bot.js"):
             return wr_seo.not_found(request)
         if not current_session(request):
             return Response("Sign in first.", status_code=401, headers=ADMIN_HEADERS)
-        body = _page({"app.js": "admin.js", "app.css": "admin.css", "manage.js": "admin-manage.js"}[asset])
+        body = _page({"app.js": "admin.js", "app.css": "admin.css", "manage.js": "admin-manage.js", "bot.js": "admin-bot.js"}[asset])
         return Response(body, media_type="application/javascript" if asset.endswith(".js") else "text/css", headers=ADMIN_HEADERS)
 
     def admin_actions(action, request):
@@ -1091,4 +1091,14 @@ def install(app):
         if not sec or not hmac.compare_digest(request.headers.get("authorization", ""), f"Bearer {sec}"):
             raise HTTPException(401, "Unauthorized")
         rep = run_health(wr_seo.site_base(request))
+        try:
+            import wr_bot
+            for it in rep.get("site", []):
+                if not it.get("ok") and it.get("level") == "error":
+                    wr_bot.note("check", "daily site check", it.get("name", "check failed"), str(it.get("detail", "")), None)
+            for b in rep.get("broken", [])[:20]:
+                wr_bot.note("check", "daily site check", "Broken page or link", json.dumps(b, ensure_ascii=False)[:400] if not isinstance(b, str) else b, None)
+            wr_bot.daily_report()
+        except Exception as e:
+            print(f"[waverise] daily assistant report skipped: {type(e).__name__}")
         return JSONResponse({"ok": True, "summary": rep["summary"]}, headers={"Cache-Control": "no-store"})

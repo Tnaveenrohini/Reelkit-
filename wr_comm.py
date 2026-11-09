@@ -4,7 +4,7 @@ People sign in with Google (the same Google client as the admin area), files go 
 and records live in the Upstash Redis database the admin area already uses.
 Switched on when the database, the Blob token, the Google client and SESSION_SECRET are all present.
 """
-import hashlib, json, os, re, secrets, time
+import hashlib, hmac, json, os, re, secrets, time
 from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import urlencode
@@ -162,7 +162,32 @@ def is_admin(u):
         e = STORE.cmd("GET", k(f"email:{u['id']}")) or ""
     except StoreError:
         return False
-    return e.lower() in A.cfg()["admins"]
+    # Admin powers only for an email Google has confirmed, never for one typed into the sign-up form
+    return e.lower() in A.cfg()["admins"] and STORE.cmd("GET", k(f"everified:{u['id']}")) == "1"
+
+
+# ---------------- email + password accounts ----------------
+EMAIL_RX = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[a-z]{2,24}$", re.I)
+
+
+def hash_pw(pw: str, salt: bytes = None):
+    salt = salt or secrets.token_bytes(16)
+    d = hashlib.scrypt(pw.encode(), salt=salt, n=2 ** 14, r=8, p=1, dklen=32)
+    return "scrypt$" + A.b64u(salt) + "$" + A.b64u(d)
+
+
+def check_pw(pw: str, stored: str):
+    try:
+        _, salt, d = stored.split("$")
+        return hmac.compare_digest(hash_pw(pw, A.unb64u(salt)).split("$")[2], d)
+    except Exception:
+        return False
+
+
+def signed_in(resp, request, uid):
+    A._set_cookie(resp, request, UCOOKIE, A.sign(f"{uid}|{int(time.time()) + UTTL}", "user"), UTTL)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 def public_profile(u, viewer=None):
@@ -312,8 +337,12 @@ def g_callback(request: Request, code: str = "", state: str = "", error: str = "
     if claims.get("iss") not in ("https://accounts.google.com", "accounts.google.com") or claims.get("aud") != c["client_id"] \
             or int(claims.get("exp", 0)) < time.time() or not claims.get("email_verified") or not claims.get("sub"):
         return RedirectResponse(nxt.split("#")[0] + "#signin-failed", status_code=302)
-    uid = "g" + str(claims["sub"])
+    email = claims["email"].lower()
+    uid = STORE.cmd("GET", k(f"emailuid:{email}")) or ("g" + str(claims["sub"]))
     u = get_user(uid)
+    if not u:
+        uid = "g" + str(claims["sub"])
+        u = get_user(uid)
     if not u:
         name = (claims.get("name") or claims.get("given_name") or "").strip()
         uname = make_username(name)
@@ -322,12 +351,83 @@ def g_callback(request: Request, code: str = "", state: str = "", error: str = "
              "bio": "", "created_at": now_iso()}
         save_user(u)
         STORE.cmd("SET", k(f"uname:{uname}"), uid)
-    STORE.cmd("SET", k(f"email:{uid}"), claims["email"].lower())
+    STORE.batch([["SET", k(f"email:{uid}"), email], ["SET", k(f"emailuid:{email}"), uid], ["SET", k(f"everified:{uid}"), "1"]])
     resp = RedirectResponse(nxt, status_code=302)
     A._set_cookie(resp, request, UCOOKIE, A.sign(f"{uid}|{int(time.time()) + UTTL}", "user"), UTTL)
     resp.delete_cookie(UOAUTH, path="/")
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+@R.post("/api/c/signup")
+async def c_signup(request: Request):
+    need_ready()
+    same_site(request)
+    A.rate_limit("c-su:" + A.client_ip(request), 10, 3600)
+    b = await request.json()
+    name = re.sub(r"\s+", " ", str(b.get("name") or "")).strip()[:40]
+    email = str(b.get("email") or "").strip().lower()[:120]
+    pw = str(b.get("password") or "")
+    if len(name) < 2:
+        raise HTTPException(400, "Enter your name.")
+    if not EMAIL_RX.match(email):
+        raise HTTPException(400, "Enter a valid email address.")
+    if len(pw) < 8 or len(pw) > 128:
+        raise HTTPException(400, "Password must be at least 8 characters.")
+    if email in A.cfg()["admins"]:
+        raise HTTPException(400, "Please use Continue with Google for this email.")
+    if STORE.cmd("GET", k(f"emailuid:{email}")):
+        raise HTTPException(409, "This email already has an account. Sign in instead.")
+    uid = "e" + secrets.token_hex(10)
+    if not STORE.cmd("SET", k(f"emailuid:{email}"), uid, "NX"):
+        raise HTTPException(409, "This email already has an account. Sign in instead.")
+    uname = make_username(name)
+    u = {"id": uid, "username": uname, "display_name": name, "avatar_url": None, "bio": "", "created_at": now_iso()}
+    save_user(u)
+    STORE.batch([["SET", k(f"uname:{uname}"), uid], ["SET", k(f"email:{uid}"), email], ["SET", k(f"pw:{uid}"), hash_pw(pw)]])
+    return signed_in(JSONResponse({"user": public_profile(u)}), request, uid)
+
+
+@R.post("/api/c/login")
+async def c_login(request: Request):
+    need_ready()
+    same_site(request)
+    b = await request.json()
+    email = str(b.get("email") or "").strip().lower()[:120]
+    pw = str(b.get("password") or "")
+    A.rate_limit("c-li:" + A.client_ip(request), 20, 600)
+    A.rate_limit("c-lie:" + hashlib.sha256(email.encode()).hexdigest()[:16], 10, 600)
+    uid = STORE.cmd("GET", k(f"emailuid:{email}")) if EMAIL_RX.match(email) else None
+    stored = STORE.cmd("GET", k(f"pw:{uid}")) if uid else None
+    if not stored:
+        hash_pw(pw or "x")   # same work either way, so timing doesn't reveal which emails exist
+        if uid and uid.startswith("g"):
+            raise HTTPException(401, "This email signs in with Google. Tap Continue with Google.")
+        raise HTTPException(401, "Wrong email or password.")
+    if not check_pw(pw, stored):
+        raise HTTPException(401, "Wrong email or password.")
+    u = get_user(uid)
+    if not u:
+        raise HTTPException(401, "Wrong email or password.")
+    return signed_in(JSONResponse({"user": public_profile(u)}), request, uid)
+
+
+@R.post("/api/c/password")
+async def c_password(request: Request):
+    need_ready()
+    same_site(request)
+    me = need_user(request)
+    b = await request.json()
+    new = str(b.get("new") or "")
+    if len(new) < 8 or len(new) > 128:
+        raise HTTPException(400, "Password must be at least 8 characters.")
+    stored = STORE.cmd("GET", k(f"pw:{me['id']}"))
+    if stored and not check_pw(str(b.get("current") or ""), stored):
+        raise HTTPException(400, "Your current password is wrong.")
+    if not stored and STORE.cmd("GET", k(f"everified:{me['id']}")) != "1":
+        raise HTTPException(400, "Couldn’t change the password.")
+    STORE.cmd("SET", k(f"pw:{me['id']}"), hash_pw(new))
+    return {"ok": True}
 
 
 @R.post("/api/c/logout")
@@ -582,7 +682,9 @@ def c_account_delete(request: Request):
     for it in get_items(STORE.cmd("ZREVRANGE", k(f"uitems:{uid}"), 0, -1) or []):
         if it:
             remove_item(it, request)
+    em = STORE.cmd("GET", k(f"email:{uid}"))
     cmds = [["DEL", k(f"user:{uid}")], ["DEL", k(f"uname:{me['username']}")], ["DEL", k(f"email:{uid}")], ["DEL", k(f"uitems:{uid}")],
+            ["DEL", k(f"pw:{uid}")], ["DEL", k(f"everified:{uid}")]] + ([["DEL", k(f"emailuid:{em}")]] if em else []) + [
             ["DEL", k(f"ulikes:{uid}")], ["DEL", k(f"following:{uid}")], ["DEL", k(f"followers:{uid}")]]
     for f in STORE.cmd("SMEMBERS", k(f"following:{uid}")) or []:
         cmds.append(["SREM", k(f"followers:{f}"), uid])

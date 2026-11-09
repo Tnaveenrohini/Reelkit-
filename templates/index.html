@@ -103,7 +103,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 
 </style>
 <script>try{if(sessionStorage.getItem("wr_intro")&&!/[?&]intro/.test(location.search))document.documentElement.classList.add("wr-seen")}catch(e){}</script>
-<link rel="stylesheet" href="/glass.css?v=45">
+<link rel="stylesheet" href="/glass.css?v=46">
 <link rel="stylesheet" href="/creator.css?v=2">
 </head>
 <body>
@@ -1485,7 +1485,7 @@ async function renderComm(){const raw=location.hash.slice(1);showCommView();
  if(raw==='signin-failed'){history.replaceState(null,'',location.pathname);toast('Google sign-in didn’t finish. Please try again.');return signInView('',w)}
  if(raw.startsWith('item/'))return itemView(w,+raw.split('/')[1]);
  if(raw.startsWith('u/'))return profileView(w,raw.slice(2).split(/[/?]/)[0]);
- if(raw==='me'){if(!ME)return signInView('Sign in to upload, like and follow.',w);location.replace('#u/'+ME.username);return}
+ if(raw==='me'){if(!ME)return signInView('',w,'login');location.replace('#u/'+ME.username);return}
  if(raw==='upload'){if(!ME)return signInView('Sign in to upload your ringtones and wallpapers.',w);return uploadView(w)}
  if(raw==='admin')return adminView(w);
  CK.kind=pathKey()==='wallpapers'?'wallpaper':'ringtone';return exploreView(w)}
@@ -1561,18 +1561,46 @@ function myTools(p){const d=h('details',{class:'mytools'},h('summary',{},'Edit p
   bio=h('textarea',{class:'tin',maxlength:160,rows:2,'aria-label':'Bio',placeholder:'A line about you'},p.bio||''),m=h('p',{class:'note',style:'text-align:left'});
  const save=h('button',{type:'button',class:'go'},'Save');save.onclick=async()=>{const u=un.value.trim().toLowerCase();if(!/^[a-z0-9_.]{3,20}$/.test(u)){m.textContent='Username: 3–20 letters, numbers, _ or .';return}
   save.disabled=true;try{const r=await capi('/api/c/profile',{json:{display_name:dn.value.trim(),username:u,bio:bio.value.trim()}});ME=r.user;toast('Saved.');location.hash='#u/'+r.user.username}catch(e){m.textContent=nice(e)}save.disabled=false};
+ const cur=h('input',{type:'password',class:'tin',autocomplete:'current-password',placeholder:'Current password','aria-label':'Current password'}),nw=h('input',{type:'password',class:'tin',autocomplete:'new-password',placeholder:'New password (8+ characters)','aria-label':'New password'}),pm=h('p',{class:'note',style:'text-align:left'});
+ const pwb=h('button',{type:'button',class:'btn sm mp3b'},'Change password');pwb.onclick=async()=>{if(nw.value.length<8){pm.textContent='New password must be at least 8 characters.';return}pwb.disabled=true;
+  try{await capi('/api/c/password',{json:{current:cur.value,new:nw.value}});cur.value=nw.value='';pm.textContent='Password changed.'}catch(e){pm.textContent=nice(e)}pwb.disabled=false};
  const out_=h('button',{type:'button',class:'btn sm mp3b'},'Sign out');out_.onclick=async()=>{await capi('/api/c/logout',{json:{}}).catch(()=>{});ME=null;IS_ADMIN=false;MEP=null;cgo('/ringtones')};
  const del=h('button',{type:'button',class:'btn sm danger'},'Delete my account');let arm=false;
  del.onclick=async()=>{if(!arm){arm=true;del.textContent='Tap again: this deletes your profile and all your uploads';setTimeout(()=>{arm=false;del.textContent='Delete my account'},6000);return}
   del.disabled=true;try{await capi('/api/c/account/delete',{json:{}});ME=null;IS_ADMIN=false;MEP=null;toast('Your account was deleted.');cgo('/ringtones')}catch(e){del.disabled=false;toast(nice(e))}};
  d.append(h('div',{class:'fgrid'},h('label',{class:'fld'},h('span',{},'Name'),dn),h('label',{class:'fld'},h('span',{},'Username'),un)),h('label',{class:'fld',style:'margin-top:10px'},h('span',{},'Bio'),bio),
-  h('div',{class:'row',style:'margin-top:12px'},save,out_),m,h('div',{class:'row',style:'margin-top:16px'},del));return d}
+  h('div',{class:'row',style:'margin-top:12px'},save,out_),m,h('div',{class:'fgrid',style:'margin-top:16px'},h('label',{class:'fld'},h('span',{},'Current password'),cur),h('label',{class:'fld'},h('span',{},'New password'),nw)),h('div',{class:'row',style:'margin-top:8px'},pwb),pm,h('div',{class:'row',style:'margin-top:16px'},del));return d}
 
-/* --- sign in (Google, handled by WaveRise's server) --- */
-function signInView(why,w){w=w||(()=>{showCommView();return cwrap()})();
- const g=h('a',{class:'btn gbtn',href:'/api/auth/google/start?next='+encodeURIComponent(location.pathname+(/^#(upload|me|u\/|item\/)/.test(location.hash)?location.hash:''))},h('span',{class:'g'},'G'),'Continue with Google');
- w.replaceChildren(chead('Sign in'),h('div',{class:'card signin'},h('p',{style:'margin:0 0 14px'},h('b',{},why||'Sign in to upload, like and follow.')),g,
-  h('p',{class:'note',style:'text-align:left;margin-top:14px'},'New here? Signing in creates your free account. Your email is never shown to anyone. You can delete your account at any time.')));return w}
+/* --- sign in: name + email + password, or Google --- */
+function signInView(why,w,mode){w=w||(()=>{showCommView();return cwrap()})();mode=mode||'signup';const up=mode==='signup';
+ const back=location.pathname+(/^#(upload|me|u\/|item\/)/.test(location.hash)?location.hash:'');
+ const name=h('input',{type:'text',class:'tin',maxlength:40,autocomplete:'name',placeholder:'Your name'}),
+  email=h('input',{type:'email',class:'tin',maxlength:120,autocomplete:'email',inputmode:'email',autocapitalize:'none',placeholder:'you@example.com'}),
+  pw=h('input',{type:'password',class:'tin',maxlength:128,autocomplete:up?'new-password':'current-password',placeholder:up?'At least 8 characters':'Your password'}),
+  eye=h('button',{type:'button',class:'btn sm mp3b pweye','aria-label':'Show password','aria-pressed':'false'},'Show'),
+  m=h('p',{class:'note',style:'text-align:left;margin:8px 0 0','aria-live':'polite'}),
+  go=h('button',{type:'submit',class:'go'},up?'Create account':'Sign in');
+ eye.onclick=()=>{const on=pw.type==='password';pw.type=on?'text':'password';eye.textContent=on?'Hide':'Show';eye.setAttribute('aria-pressed',String(on))};
+ const f=h('form',{class:'authf',novalidate:''},
+  up?h('label',{class:'fld'},h('span',{},'Name'),name):null,
+  h('label',{class:'fld'},h('span',{},'Email'),email),
+  h('label',{class:'fld'},h('span',{},'Password'),h('div',{class:'pwrow'},pw,eye)),
+  h('div',{class:'row',style:'margin-top:4px'},go),m);
+ f.onsubmit=async e=>{e.preventDefault();const em=email.value.trim(),p=pw.value;
+  if(up&&name.value.trim().length<2){m.textContent='Enter your name.';return name.focus()}
+  if(!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(em)){m.textContent='Enter a valid email address.';return email.focus()}
+  if(p.length<(up?8:1)){m.textContent=up?'Password must be at least 8 characters.':'Enter your password.';return pw.focus()}
+  go.disabled=true;m.replaceChildren(h('span',{class:'spin'}),up?'Creating your account…':'Signing in…');
+  try{const r=await capi(up?'/api/c/signup':'/api/c/login',{json:up?{name:name.value.trim(),email:em,password:p}:{email:em,password:p}});
+   ME=r.user;MEP=null;await who(true).catch(()=>{});toast(up?'Welcome to WaveRise, '+(ME&&ME.display_name||'')+'!':'Signed in.');
+   if(/^#(upload|u\/|item\/|me)/.test(location.hash))renderComm();else location.hash='#me'}
+  catch(x){m.textContent=nice(x);go.disabled=false}};
+ const sw=h('button',{type:'button',class:'linkbtn'},up?'Already have an account? Sign in':'New here? Create an account');sw.onclick=()=>signInView(why,w,up?'login':'signup');
+ const g=h('a',{class:'btn gbtn',href:'/api/auth/google/start?next='+encodeURIComponent(back)},h('span',{class:'g'},'G'),'Continue with Google');
+ w.replaceChildren(chead(up?'Create account':'Sign in'),h('div',{class:'card signin'},why?h('p',{style:'margin:0 0 14px'},h('b',{},why)):null,
+  f,h('p',{style:'margin:10px 0 0'},sw),h('div',{class:'orline'},h('span',{},'or')),g,
+  h('p',{class:'note',style:'text-align:left;margin-top:14px'},up?'Your email is never shown to anyone. You can delete your account at any time.':'Forgot your password? If it’s a Gmail address, tap Continue with Google with the same Gmail.')));
+ setTimeout(()=>(up?name:email).focus({preventScroll:true}),50);return w}
 
 /* --- upload --- */
 function uploadView(w){let kind=PENDING_UP?PENDING_UP.kind:'ringtone',meta={},full=null,thumb=null;

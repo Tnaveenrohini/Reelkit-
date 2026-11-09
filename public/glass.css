@@ -1290,3 +1290,11 @@ html[data-theme=light] .h2row{background:rgba(0,0,0,.025)}
 @media (min-width:1261px){.hsearch{flex:1 1 300px;min-width:220px}}
 @media (min-width:901px) and (max-width:990px){.hsign{display:none!important}}
 .hsearch{overflow:visible!important}
+/* v49: no empty gap or stray line under the header; no boxed glow */
+#home2,#community,#cpage{border-top:0!important}
+.comm{padding-top:0!important}
+#home2{padding-top:0!important}
+.h2glow{display:none!important}
+#chat[hidden]{display:none!important}
+.comm .cwrap{padding-top:16px!important}
+.bnav>button,.bnav>button:hover{color:var(--muted,#A9B4D8)!important}

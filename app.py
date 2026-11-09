@@ -1215,6 +1215,8 @@ SEO = wr_seo.SEO
 wr_admin.install(app)
 import wr_comm  # noqa: E402  Ringtones & Wallpapers (community uploads)
 app.include_router(wr_comm.R)
+import wr_bot  # noqa: E402  assistant + error notebook
+wr_bot.install(app)
 MG.install(app, wr_admin, sys.modules[__name__])
 wr_seo.install(app, {getattr(r, "path", "") for r in r_.routes})
 
@@ -1249,7 +1251,7 @@ WHAT WAVERISE DOES (free, no login, no account, never asks for an Instagram pass
 """
 HELP_LANG = {"en": "English", "hi": "Hindi", "ta": "Tamil", "te": "Telugu"}
 HELP_MODELS = [m for m in [os.getenv("GEMINI_MODEL", "").strip(), "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"] if m]
-HELP_PER_IP, HELP_WINDOW, HELP_PER_DAY = 12, 600, int(os.getenv("HELP_DAILY_LIMIT", "400"))
+HELP_PER_IP, HELP_WINDOW, HELP_PER_DAY = 20, 600, int(os.getenv("HELP_DAILY_LIMIT", "900"))
 _help_hits, _help_day = {}, {"d": "", "n": 0}
 
 
@@ -1260,8 +1262,7 @@ def help_status():
 
 @r_.post("/help")
 def help_ask(b: HelpReq, request: Request):
-    key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not key:
+    if not os.getenv("GEMINI_API_KEY", "").strip():
         return {"ai": False}
     q = re.sub(r"\s+", " ", str(b.q or "")).strip()[:500]
     if not q:
@@ -1277,32 +1278,12 @@ def help_ask(b: HelpReq, request: Request):
     hits.append(now); _help_hits[ip] = hits; _help_day["n"] += 1
     if len(_help_hits) > 2000:
         _help_hits.clear()
-    contents = []
-    for m in (b.hist or [])[-6:]:
-        if isinstance(m, dict) and m.get("t"):
-            contents.append({"role": "user" if m.get("me") else "model", "parts": [{"text": str(m["t"])[:600]}]})
-    contents.append({"role": "user", "parts": [{"text": q}]})
-    body = {"systemInstruction": {"parts": [{"text": HELP_FACTS + f"\nReply in {HELP_LANG.get(b.lang, 'English')} (keep tool names and site paths as they are)."}]},
-            "contents": contents, "generationConfig": {"temperature": 0.3, "maxOutputTokens": 450}}
-    for model in HELP_MODELS:
-        try:
-            r = httpx.post(f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
-                           headers={"x-goog-api-key": key, "Content-Type": "application/json"}, json=body, timeout=20)
-        except httpx.HTTPError as e:
-            print(f"[waverise] help: {model} unreachable ({type(e).__name__})")
-            continue
-        if r.status_code == 404:
-            continue                       # model name not available: try the next one
-        if r.status_code != 200:
-            print(f"[waverise] help: {model} answered {r.status_code}: {r.text[:200]}")
-            return {"ai": True, "answer": None, "busy": r.status_code == 429}
-        try:
-            parts = r.json()["candidates"][0]["content"]["parts"]
-            text = "".join(p.get("text", "") for p in parts).strip()
-        except (KeyError, IndexError, ValueError, TypeError):
-            text = ""
-        return {"ai": True, "answer": text[:1500] or None}
-    return {"ai": True, "answer": None}
+    try:
+        return {"ai": True, "answer": wr_bot.visitor_reply(q, b.hist, b.lang)}
+    except wr_bot.BotOff:
+        return {"ai": False}
+    except wr_bot.BotBusy:
+        return {"ai": True, "answer": None, "busy": True}
 
 
 @r_.get("/health")

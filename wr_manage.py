@@ -19,7 +19,7 @@ TOOLS = {}
 SECTIONS = {
     "owner": ["*"],
     "editor": ["overview", "gsc", "ga", "sitemap", "meta", "schema", "indexing", "health", "e404", "redirects", "guides", "announcements"],
-    "support": ["overview", "messages", "downloadstats", "alerts"],
+    "support": ["overview", "messages", "downloadstats", "alerts", "errors"],
 }
 DEFAULTS = {
     "tools": {},

@@ -188,6 +188,7 @@ def render(key, request: Request):
     soon = ",".join({"youtube": "yt"}.get(x, x) for x in (x.strip().lower() for x in os.getenv("SOON_SITES", "youtube").split(",")) if x)
     page = page.replace('<html lang="en"', f'<html lang="en" data-soon="{esc(soon)}"', 1)
     page = comm_flag(page)
+    page = first_paint(page, key)
     ld = schema_for(key, base, eff)
     ld_html = "" if ld is None else '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>"
     page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>', lambda _: ld_html, page, count=1, flags=re.S)
@@ -209,6 +210,68 @@ def render(key, request: Request):
     page = page.replace("</head>", "\n".join(head + ads_head(key in MG.config()["ads"]["pages"])) + "\n</head>", 1)
     page = ads_body(page, key in MG.config()["ads"]["pages"])
     return MG.inject(page), eff["noindex"]
+
+
+_MODES = None
+
+
+def _modes():
+    """Tool key -> screen mode and the English header subtitles, read from the page script."""
+    global _MODES
+    if _MODES is None:
+        src = TEMPLATE or ""
+        m = re.search(r"const M=\{([^}]*)\}", src)
+        modes = dict(re.findall(r"(\w+):'(\w+)'", m.group(1))) if m else {}
+        i18n = re.search(r"^const I18N=(\{.*?\});$", src, re.M)
+        try:
+            en = json.loads(i18n.group(1)).get("en", {}) if i18n else {}
+        except ValueError:
+            en = {}
+        _MODES = (modes, en)
+    return _MODES
+
+
+def first_paint(page, key):
+    """Send each page already in its final look, so a refresh never flashes the old header or menu."""
+    modes, en = _modes()
+    cls, title, sub, hide_chat = [], "", "", False
+    comm_on = 'data-comm="1"' in page
+    if key == "home":
+        cls = ["bnon", "hubpg"]
+        page = page.replace('<section id="home2" class="h2" hidden', '<section id="home2" class="h2"', 1)
+        page = page.replace('<div class="adanchor tool" data-ad="tool">', '<div class="adanchor tool" data-ad="tool" hidden>', 1)
+    elif key == "chat":
+        cls, title, hide_chat = ["bnon", "cpg", "tpg"], en.get("nav_chat", "Chat"), True
+        page = page.replace('aria-labelledby="cph1" hidden>', 'aria-labelledby="cph1">', 1)
+    elif key in ("ringtones", "wallpapers") and comm_on:
+        cls, title, hide_chat = ["bnon", "cmg", "tpg"], en.get("t_comm", "Ringtones & Wallpapers"), True
+        page = page.replace('id="community" class="comm" hidden', 'id="community" class="comm"', 1)
+    elif key == "guides":
+        cls, title, hide_chat = ["bnon", "tpg"], en.get("nav_guides", "Guides"), True
+    elif key in ("about", "contact", "faq", "privacy", "terms", "dmca"):
+        cls, hide_chat = ["bnon"], True
+    elif key in modes:
+        mode = modes[key]
+        if mode in ("download", "fb", "x"):
+            cls = ["dlpg"]
+        else:
+            cls, title = ["tpg"], SEO.get(key, {}).get("h") or ""
+            sub = en.get({"kb": "kb_sub"}.get(mode, "bsub"), "")
+    nav_a = page.find('<nav id="bnav"'); nav_b = page.find("</nav>", nav_a)
+    if nav_a > 0 and nav_b > 0:                    # the phone menu: the same five items the script would leave
+        bar = page[nav_a:nav_b]
+        bar = re.sub(r'<a\b[^>]*\bdata-nocomm\b[^>]*>.*?</a>', "", bar, flags=re.S) if comm_on else re.sub(r'<a\b[^>]*\bdata-comm\b[^>]*>.*?</a>', "", bar, flags=re.S)
+        page = page[:nav_a] + bar + page[nav_b:]
+    if cls:
+        page = page.replace('<html lang="en"', f'<html lang="en" class="{" ".join(cls)}"', 1)
+    if title:
+        page = page.replace('<b id="htt"></b><small id="hts"></small>', f'<b id="htt">{esc(title)}</b><small id="hts">{esc(sub)}</small>', 1)
+    if hide_chat:                                   # pages without the tool box: hide every tool block, show the right article
+        page = re.sub(r'<(div|section|aside)([^>]*\bclass="(?:[^"]*\s)?tool(?:\s[^"]*)?")((?:(?!\bhidden\b)[^>])*)>',
+                      lambda m: f"<{m.group(1)}{m.group(2)}{m.group(3)} hidden>", page)
+        if key in ("about", "contact", "faq", "privacy", "terms", "dmca"):
+            page = page.replace(f'data-page="{key}" hidden', f'data-page="{key}"', 1)
+    return page
 
 
 def body_for(page, key):
@@ -277,6 +340,7 @@ def render_guide(slug, request: Request):
                   lambda _: '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>", page, count=1, flags=re.S)
     page = page.replace('<html lang="en"', '<html lang="en" data-view="guide"', 1)
     page = comm_flag(page)
+    page = first_paint(page, "guides")
     page = page.replace('<div id="pages">', '<div id="pages">' + (WG.article_html(g) if g else WG.index_html()), 1)
     page = page.replace('<section class="tool tguide" id="tguide">', '<section class="tool tguide" id="tguide" hidden>', 1)
     head = [f'<meta name="twitter:title" content="{t}">', f'<meta name="twitter:description" content="{d}">',
@@ -404,7 +468,7 @@ def not_found(request: Request):
             except StoreError:
                 pass
     body = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=49"></head>'
+            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=50"></head>'
             '<body style="background:#07122B;color:#F4F1EA;font-family:Sora,system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;padding:0 20px;text-align:center">'
             '<main><h1 style="font-size:28px;margin:0 0 8px">Page not found</h1><p style="color:#AEB8D0;margin:0 0 20px">This page doesn’t exist or has moved.</p>'
             '<a href="/" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#F2C14E;color:#1A1405;font-weight:800;text-decoration:none">Open WaveRise</a></main></body></html>')

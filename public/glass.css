@@ -1298,3 +1298,6 @@ html[data-theme=light] .h2row{background:rgba(0,0,0,.025)}
 #chat[hidden]{display:none!important}
 .comm .cwrap{padding-top:16px!important}
 .bnav>button,.bnav>button:hover{color:var(--muted,#A9B4D8)!important}
+/* until the page script has set up a tool, don't show the generic link box on tool pages */
+html.tpg:not(.wrjs) #chat #f,html.tpg:not(.wrjs) #chat #opts{visibility:hidden}
+.comm:empty{min-height:80vh}

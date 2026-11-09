@@ -717,6 +717,9 @@ def install(app):
     @app.get("/admin/oauth/callback", include_in_schema=False)
     def oauth_callback(request: Request, code: str = "", state: str = "", error: str = ""):
         rate_limit("cb:" + client_ip(request), 30, 600)
+        if request.cookies.get("wr_uoauth") and not request.cookies.get(OAUTH_COOKIE):
+            import wr_comm   # a visitor signing in for Ringtones & Wallpapers: same Google return address as admin
+            return wr_comm.g_callback(request, code=code, state=state, error=error)
         raw = unsign(request.cookies.get(OAUTH_COOKIE, ""), "oauth")
         try:
             st = json.loads(unb64u(raw)) if raw else {}

@@ -18,7 +18,7 @@ Until all of it is set up, the pages at **waverise.in/ringtones** and **/wallpap
 
 ## 2. Let Google send people back to WaveRise
 In Google Cloud → **Google Auth Platform** → **Clients** → your **Web client**:
-1. Under **Authorized redirect URIs**, add `https://waverise.in/api/auth/google/callback`. Keep the admin one too.
+1. Nothing to add: visitors use the same Google return address as admin sign-in (`/admin/oauth/callback`).
 2. Save.
 3. **Audience** → **Publish app**, so everyone can sign in (in Testing mode only listed test users can).
 

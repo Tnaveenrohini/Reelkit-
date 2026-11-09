@@ -282,12 +282,12 @@ def g_start(request: Request, next: str = "/ringtones"):
     c = A.cfg()
     nxt = next if next.startswith("/") and not next.startswith("//") else "/ringtones"
     verifier, state = secrets.token_urlsafe(48), secrets.token_urlsafe(24)
-    q = {"client_id": c["client_id"], "redirect_uri": wr_seo.site_base(request) + "/api/auth/google/callback", "response_type": "code",
+    q = {"client_id": c["client_id"], "redirect_uri": A._redirect_uri(request), "response_type": "code",
          "scope": "openid email profile", "state": state, "prompt": "select_account",
          "code_challenge": A.b64u(hashlib.sha256(verifier.encode()).digest()), "code_challenge_method": "S256"}
     resp = RedirectResponse(A.G_AUTH + "?" + urlencode(q), status_code=302)
     payload = A.b64u(json.dumps({"s": state, "v": verifier, "n": nxt[:300], "exp": int(time.time()) + 600}).encode())
-    A._set_cookie(resp, request, UOAUTH, A.sign(payload, "uoauth"), 600, path="/api/auth")
+    A._set_cookie(resp, request, UOAUTH, A.sign(payload, "uoauth"), 600, path="/")
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -305,7 +305,7 @@ def g_callback(request: Request, code: str = "", state: str = "", error: str = "
         return RedirectResponse(nxt.split("#")[0] + "#signin-failed", status_code=302)
     c = A.cfg()
     r = HTTP.post(A.G_TOKEN, data={"code": code, "client_id": c["client_id"], "client_secret": c["client_secret"],
-                                   "redirect_uri": wr_seo.site_base(request) + "/api/auth/google/callback",
+                                   "redirect_uri": A._redirect_uri(request),
                                    "grant_type": "authorization_code", "code_verifier": st["v"]})
     j = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
     claims = A._claims(j.get("id_token", "")) if r.status_code == 200 else {}
@@ -325,7 +325,7 @@ def g_callback(request: Request, code: str = "", state: str = "", error: str = "
     STORE.cmd("SET", k(f"email:{uid}"), claims["email"].lower())
     resp = RedirectResponse(nxt, status_code=302)
     A._set_cookie(resp, request, UCOOKIE, A.sign(f"{uid}|{int(time.time()) + UTTL}", "user"), UTTL)
-    resp.delete_cookie(UOAUTH, path="/api/auth")
+    resp.delete_cookie(UOAUTH, path="/")
     resp.headers["Cache-Control"] = "no-store"
     return resp
 

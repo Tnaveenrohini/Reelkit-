@@ -1151,3 +1151,12 @@ html[data-theme=light] .comm .tin{background:#fff;border-color:rgba(0,0,0,.16);c
 .play{background:var(--gold)!important;box-shadow:none!important}.play .tri{border-left-color:var(--ink)!important}.play.on .tri{background:linear-gradient(90deg,var(--ink) 0 35%,transparent 35% 65%,var(--ink) 65%)!important}
 html.cmg #chat,html.cmg #hub{display:none!important}
 .comm details.report,.comm details.mytools{border:0;padding:0;background:none}
+/* sign in with email + password */
+.authf{display:flex;flex-direction:column;gap:12px}
+.pwrow{display:flex;gap:8px;align-items:center}.pwrow .tin{flex:1;min-width:0}
+.pweye{min-height:44px;flex:none}
+.linkbtn{background:none!important;border:0!important;box-shadow:none!important;padding:8px 0!important;color:var(--gold)!important;font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+html[data-theme=light] .linkbtn{color:#7A5200!important}
+.orline{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--mute);font-size:14px}
+.orline::before,.orline::after{content:"";flex:1;height:1px;background:var(--line)}
+.authf{border:0!important;background:none!important;padding:0!important;box-shadow:none!important;margin:0!important;max-width:none!important}.authf::after{display:none!important}

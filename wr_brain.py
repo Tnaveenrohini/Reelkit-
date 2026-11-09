@@ -125,7 +125,7 @@ TOOL_EXTRA = [("సైజ్", "reduce"), ("సైజు", "reduce"), ("सा�
               ("రీల్", "video"), ("रील", "video"), ("ரீல்", "video"), ("పాస్‌పోర్ట్", "passport"), ("पासपोर्ट", "passport"), ("రింగ్‌టోన్", "ringtone"), ("रिंगटोन", "ringtone"),
               ("photo size", "reduce"), ("size taggali", "reduce"), ("kb", "reduce"), ("resize", "reduce"), ("exam photo", "reduce"),
               ("passport", "passport"), ("visa", "passport"), ("sign", "signature"), ("signature", "signature"),
-              ("pdf", "topdf"), ("bg", "bgremove"), ("background", "bgremove"), ("edit", "editor"), ("editor", "editor"),
+              ("compress pdf", "pdfkb"), ("pdf size", "pdfkb"), ("pdf kb", "pdfkb"), ("reduce pdf", "pdfkb"), ("merge pdf", "mergepdf"), ("combine pdf", "mergepdf"), ("join pdf", "mergepdf"), ("pdf", "topdf"), ("bg", "bgremove"), ("background", "bgremove"), ("edit", "editor"), ("editor", "editor"),
               ("filter", "editor"), ("crop", "editor"), ("brightness", "editor"), ("song", "mp3"), ("audio", "mp3"),
               ("mp3", "mp3"), ("paata", "mp3"), ("ringtone", "ringtone"), ("trim", "clip"), ("cut", "clip"), ("gif", "gif"),
               ("sticker", "sticker"), ("status", "status"), ("whatsapp status", "status"), ("compress", "shrink"),

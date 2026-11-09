@@ -578,7 +578,7 @@ const HELP_KB=[{"id":"notwork","k":["not working","doesnt work","does not work",
    const li=line.match(/^(?:[-•*]|\d+[.)])\s+(.*)$/);
    if(li){if(!ul){ul=h(/^\d/.test(line)?'ol':'ul',{});box.append(ul)}ul.append(h('li',{},...inline(li[1])))}else{ul=null;box.append(h('p',{},...inline(line)))}}
   return box};
- const toolBtns=keys=>keys.length?h('div',{class:'hgo'},...keys.slice(0,3).map(k=>h('a',{class:'hchip',href:keyHref(k)},L(T[M[k]][0])))):null;
+ const toolBtns=keys=>(keys=(keys||[]).filter(k=>M[k]&&T[M[k]])).length?h('div',{class:'hgo'},...keys.slice(0,3).map(k=>h('a',{class:'hchip',href:keyHref(k)},L(T[M[k]][0])))):null;
  const bot=(t,keys=[],rec=true)=>{const b=h('div',{class:'msg bot hm'},rich(t),toolBtns(keys));log.append(b);if(rec){hist.push({t,go:keys});save()}b.scrollIntoView({block:'nearest'});return b};
  const me=(t,rec=true)=>{const b=h('p',{class:'msg me'},t);log.append(b);if(rec){hist.push({t,me:1});save()}b.scrollIntoView({block:'nearest'})};
  const typing=()=>{const b=h('div',{class:'msg bot hm htyping','aria-label':L('hb_typing')},h('i'),h('i'),h('i'));log.append(b);b.scrollIntoView({block:'nearest'});return b};
@@ -593,7 +593,7 @@ const HELP_KB=[{"id":"notwork","k":["not working","doesnt work","does not work",
   const words=q.split(/\s+/).length;
   if(!AI){await new Promise(r=>setTimeout(r,380));ans=local()}
   else{try{const r=await fetch(API+'/api/help',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,lang,hist:hist.slice(-7,-1).map(x=>({t:x.t,me:x.me||0}))})});const j=await r.json();
-    if(j.answer)ans=[j.answer,m.go];else if(j.ai===false){AI=false;paintSub()}}catch{}
+    if(j.answer)ans=[j.answer,(j.go&&j.go.length?j.go:m.go)];else if(j.ai===false){AI=false;paintSub()}}catch{}
    ans=ans||local()}
   w.remove();if(ans)bot(ans[0],ans[1]);else{bot(L('hb_unsure'));log.append(sugg())}}
  const open=(q,ctx)=>{status();if(!log.children.length){let saved=[];try{saved=JSON.parse(sessionStorage.getItem('wr_help')||'[]')}catch{}
@@ -606,7 +606,7 @@ const HELP_KB=[{"id":"notwork","k":["not working","doesnt work","does not work",
   const local=()=>m.e&&m.score>=1.5?[A(m.e),[...new Set([...(m.e.go||[]),...m.go])]]:m.go.length?[L('hb_tool'),m.go]:null;
   if(!AI){await new Promise(r=>setTimeout(r,380));return local()}
   try{const r=await fetch(API+'/api/help',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({q,lang,hist:hh.slice(-6)})});const j=await r.json();
-   if(j.answer)return[j.answer,m.go];if(j.ai===false){AI=false;paintSub()}}catch{}
+   if(j.answer)return[j.answer,(j.go&&j.go.length?j.go:m.go)];if(j.ai===false){AI=false;paintSub()}}catch{}
   return local()}
  window.wrHelp={open,close,ask,reply,rich};
  $('#hf').onsubmit=e=>{e.preventDefault();const q=inp.value;inp.value='';ask(q)};

@@ -1301,3 +1301,14 @@ html[data-theme=light] .h2row{background:rgba(0,0,0,.025)}
 /* until the page script has set up a tool, don't show the generic link box on tool pages */
 html.tpg:not(.wrjs) #chat #f,html.tpg:not(.wrjs) #chat #opts{visibility:hidden}
 .comm:empty{min-height:80vh}
+/* Exam presets + PDF tools */
+.kbexbtn{border-color:rgba(242,193,78,.55)!important;color:#F2C14E!important;font-weight:800}
+.kbexam{width:100%;text-align:left;margin-top:10px}
+.kbexh{margin:0 0 8px;font-weight:800;font-size:15px}
+.kbexl{justify-content:flex-start!important}
+.kbexl button.on{background:#F2C14E!important;color:#1A1405!important;border-color:#F2C14E!important}
+.kbexn{margin:14px 0 6px}
+.kbexb{display:flex!important;flex-direction:column;align-items:flex-start;gap:2px;text-align:left}
+.kbexb small{font-size:12px;opacity:.75;font-weight:600}
+.kblive{text-align:left!important;background:rgba(242,193,78,.08);border:1px solid rgba(242,193,78,.3);border-radius:12px;padding:8px 12px}
+.pdff{display:flex;flex-direction:column;min-width:0;flex:1;gap:2px}.pdff b{font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pdff small{opacity:.7;font-size:12px}

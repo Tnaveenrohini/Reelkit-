@@ -103,7 +103,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 
 </style>
 <script>try{if(sessionStorage.getItem("wr_intro")&&!/[?&]intro/.test(location.search))document.documentElement.classList.add("wr-seen")}catch(e){}</script>
-<link rel="stylesheet" href="/glass.css?v=53">
+<link rel="stylesheet" href="/glass.css?v=54">
 <link rel="stylesheet" href="/creator.css?v=2">
 <script>(()=>{let n=0;const seen=new Set();const send=(msg,src,stack)=>{msg=String(msg||'').slice(0,300);if(!msg||n>=5||seen.has(msg))return;seen.add(msg);n++;
 try{const b=new Blob([JSON.stringify({msg,src:String(src||'').slice(0,200),stack:String(stack||'').slice(0,700),page:location.href})],{type:'application/json'});if(!(navigator.sendBeacon&&navigator.sendBeacon('/api/err',b)))fetch('/api/err',{method:'POST',body:b,keepalive:true}).catch(()=>{})}catch(e){}};

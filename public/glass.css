@@ -1335,3 +1335,9 @@ html[data-theme=light].beaton #beatbg .bbn{mix-blend-mode:normal}
  html.hfit4 .hsign{display:none!important}
  html.hfit4 .brand small,html.hfit4 .brand .bsub{display:none!important}
 }
+/* profile "Edit profile and account" and "Report": no square default box */
+.comm details.report{border:0!important;padding:0!important;background:none!important;box-shadow:none!important}
+.comm details.mytools{border:1px solid var(--line)!important;border-radius:16px!important;padding:2px 16px!important;margin-top:14px;background:rgba(255,255,255,.025)!important;box-shadow:none!important}
+.comm details.mytools[open]{padding-bottom:16px!important}
+.comm details.mytools>summary{color:var(--text);font-weight:700}
+html[data-theme=light] .comm details.mytools{background:#fff!important}

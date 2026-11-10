@@ -1,7 +1,7 @@
 """Public SEO for WaveRise: every page is rendered on the server with its own title, description, canonical URL,
 Open Graph / Twitter tags and structured data. Admin edits (saved in the store) are applied here.
 The site never depends on the store: if it is missing or down, the built-in SEO is used."""
-import datetime as _dt, html as _html, json, os, re, time
+import datetime as _dt, hashlib, html as _html, json, os, re, time
 from pathlib import Path
 
 from fastapi import Request
@@ -33,6 +33,25 @@ def _read_template():
 TEMPLATE = _read_template()
 if not os.getenv("VERCEL"):   # Vercel Web Analytics only exists on Vercel; elsewhere its script would just 404
     TEMPLATE = TEMPLATE.replace('<script>window.va=window.va||function(){(window.vaq=window.vaq||[]).push(arguments)}</script><script defer src="/_vercel/insights/script.js"></script>', '')
+# Big page scripts go out as separate files the browser keeps for a year (named by their content, so a change
+# gets a new name). Only the copy sent to browsers changes; TEMPLATE stays the full source others read from.
+ASSETS = {}
+
+
+def _split_scripts(page):
+    def cut(m):
+        code = m.group(1)
+        if len(code) < 20000:
+            return m.group(0)
+        name = "wr-" + hashlib.sha256(code.encode("utf-8")).hexdigest()[:12] + ".js"
+        ASSETS[name] = code.encode("utf-8")
+        return f'<script src="/assets/{name}"></script>'
+    page = re.sub(r"<script>(.*?)</script>", cut, page, flags=re.S)
+    pre = "".join(f'<link rel="preload" as="script" href="/assets/{n}">' for n in ASSETS)
+    return page.replace("</head>", pre + "</head>", 1) if pre else page
+
+
+PAGE = _split_scripts(TEMPLATE)
 try:
     SEO = json.loads(re.search(r'<script type="application/json" id="wr-seo">(.*?)</script>', TEMPLATE, re.S).group(1).replace("<\\/", "</"))
 except Exception:
@@ -167,7 +186,7 @@ def comm_flag(page):
 
 
 def render(key, request: Request):
-    page = TEMPLATE
+    page = PAGE
     if not page or key not in SEO:
         return None, False
     base, e, eff, st = site_base(request), SEO[key], effective(key), settings()
@@ -314,7 +333,7 @@ def ads_body(page, _on):
 
 def render_guide(slug, request: Request):
     """/guides and /guides/<slug>: the same page and header, with the article in place of the tool."""
-    page = TEMPLATE
+    page = PAGE
     g = WG.get_guide(slug) if slug else None
     if not page or (slug and not g):
         return None
@@ -532,6 +551,14 @@ def install(app, taken_paths):
     def sitemap_part(n: int, request: Request):
         body = sitemap_xml(site_base(request), n)
         return Response(body, media_type="application/xml", headers=CACHE) if body else not_found(request)
+
+    @app.get("/assets/{name}", include_in_schema=False)
+    def asset(name: str):
+        body = ASSETS.get(name)
+        if body is None:
+            return Response("Not found", status_code=404, media_type="text/plain", headers={"Cache-Control": "no-store"})
+        return Response(body, media_type="text/javascript; charset=utf-8",
+                        headers={"Cache-Control": "public, max-age=31536000, s-maxage=31536000, immutable"})
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon():

@@ -36,7 +36,7 @@ SECTIONS.bot=async()=>{
   const log=h('div',{class:'botlog'});
   const bubble=(t,me)=>{const b=h('div',{class:'botmsg'+(me?' me':'')},me?h('p',{},t):mdBox(t));log.append(b);b.scrollIntoView({block:'nearest'});return b};
   const paint=()=>{log.replaceChildren();if(!hist.length)log.append(h('p',{class:'muted small'},'Try: “ఈరోజు site ela undi?” or “What should I fix first?”'));hist.forEach(x=>bubble(x.t,x.me))};
-  const inp=h('textarea',{rows:2,placeholder:'Ask the assistant…','aria-label':'Ask the assistant',maxlength:2000});
+  const inp=h('textarea',{rows:2,placeholder:'Ask Wavi…','aria-label':'Ask Wavi',maxlength:2000});
   const send=async q=>{q=String(q||'').trim();if(!q)return;inp.value='';if(!hist.length)log.replaceChildren();bubble(q,true);
     const w=h('div',{class:'botmsg'},h('span',{class:'spin'}),' Thinking…');log.append(w);
     try{const r=await api('/api/admin/bot',{q,hist});w.remove();hist.push({me:1,t:q},{t:r.answer});botSave(hist);bubble(r.answer)}

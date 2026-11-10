@@ -1,4 +1,4 @@
-"""WaveRise's own assistant brain. No API key, no outside AI, no limits.
+"""Wavi: WaveRise's own assistant brain. No API key, no outside AI, no limits.
 
 It understands English, Telugu, Hindi and Tamil, in their own scripts or typed in English letters
 ("photo size ela taggali"), and answers in the same style. Knowledge comes from the site itself:
@@ -46,12 +46,12 @@ ROMAN = {
         undi undhi unnai unnay naku naaku nenu meeru mee ki lo ga gaa entha enduku endhuku ekkada taggali tagginchali tagginchu
         pettali raavatledu ravatledu raledu avvatledu avvadam pani chesi cheppu cheppandi bagundi baagundi sare andi anna akka
         ippudu inka kuda kooda adhi idhi adi idi vachindi vastundi vasthundi chala chaala konchem emaina evaru epudu eppudu
-        cheyyatledu cheyatledu ayyindi avutundi avuthundi kani kaani mari leda nijamga peru telugu baaga thanks kada cheyacha cheyocha avutunda vastunda pothunda unda kavala ledha unnaya unnayi vachaya ayyaya cheppu chudu""".split()),
+        cheyyatledu cheyatledu ayyindi avutundi avuthundi kani kaani mari leda nijamga peru telugu baaga thanks kada cheyacha cheyocha avutunda vastunda pothunda unda kavala ledha unnaya unnayi vachaya ayyaya cheppu chudu namaskaram namaskaaram""".split()),
     "hil": set("""kaise kese kya kyaa hai hain nahi nahin nhi karna karo kar chahiye chaiye mera meri mujhe aap kyu kyun kahan kaha
         kitna kitni hoga raha rahi bhai yaar theek thik accha acha kaam bata batao batayein dijiye kijiye hota hoti gaya
-        hindi shukriya dhanyavad wala wali""".split()),
+        hindi shukriya dhanyavad wala wali namaste namaskar""".split()),
     "tal": set("""eppadi epdi enna illa illai venum vendum panna pannunga pannanum seyya irukku iruku enakku ungal unga sollunga
-        aagala aagudhu romba nalla enga yen yenna sari aamaa tamil nandri varala aagum mudiyala""".split()),
+        aagala aagudhu romba nalla enga yen yenna sari aamaa tamil nandri varala aagum mudiyala vanakkam""".split()),
 }
 ROMAN_BODY = {"tel": "te", "hil": "hi", "tal": "ta"}
 
@@ -168,14 +168,14 @@ NEW = [
            "tel": "Tools ki account avasaram ledu andi. [Ringtones](/ringtones) lo upload, like, follow cheyadaniki matrame **Sign in** (email + password leda Google). Instagram password memu eppudu adagamu.",
            "hil": "Tools ke liye account nahi chahiye. Sirf [Ringtones](/ringtones) par upload, like, follow ke liye **Sign in** hai (email + password ya Google). Instagram password hum kabhi nahi maangte.",
            "tal": "Tools-ku account thevai illa. [Ringtones](/ringtones)-la upload, like, follow panna mattum **Sign in**. Instagram password naanga kekka maattom."}},
-    {"id": "whoami", "go": [], "gen": True, "k": ["who are you", "are you bot", "are you a bot", "bot aa", "bot ah", "robot", "human aa", "nuvvu evaru", "meeru evaru", "tum kaun", "aap kaun", "nee yaar", "neenga yaar", "your name", "nee peru", "mee peru", "naam kya", "ai aa"],
-     "a": {"en": "I'm WaveRise's own assistant: an automatic helper, not a person. I know every tool on the site and I'm here day and night. If you'd like a real person, write on the [Contact page](/contact) and the team will read it.",
-           "te": "నేను WaveRise సొంత assistant ని, ఒక automatic helper, మనిషిని కాదు. సైట్‌లోని ప్రతి టూల్ నాకు తెలుసు. మనిషితో మాట్లాడాలంటే [Contact page](/contact) లో రాయండి.",
-           "hi": "मैं WaveRise का अपना assistant हूँ, एक automatic helper, इंसान नहीं। साइट के हर टूल के बारे में जानता हूँ। किसी इंसान से बात करनी हो तो [Contact page](/contact) पर लिखिए।",
-           "ta": "நான் WaveRise-இன் சொந்த assistant, ஒரு automatic helper, மனிதர் அல்ல. மனிதரிடம் பேச [Contact page](/contact) இல் எழுதுங்கள்.",
-           "tel": "Nenu WaveRise own assistant ni andi, oka automatic helper, manishini kaadu 🙂 Site lo prathi tool naaku telusu, rathri pagalu ikkade untanu. Manishi tho matladali ante [Contact page](/contact) lo rayandi, team chustundi.",
-           "hil": "Main WaveRise ka apna assistant hoon, ek automatic helper, insaan nahi 🙂 Har tool ke baare mein jaanta hoon. Insaan se baat karni ho to [Contact page](/contact) par likhiye.",
-           "tal": "Naan WaveRise-oda own assistant, oru automatic helper, manushan illa 🙂 Ella tools-um theriyum. Manushan kitta pesanum na [Contact page](/contact)-la ezhudhunga."}},
+    {"id": "whoami", "go": [], "gen": True, "k": ["wavi", "who is wavi", "wavi evaru", "who are you", "are you bot", "are you a bot", "bot aa", "bot ah", "robot", "human aa", "nuvvu evaru", "meeru evaru", "tum kaun", "aap kaun", "nee yaar", "neenga yaar", "your name", "nee peru", "mee peru", "naam kya", "ai aa"],
+     "a": {"en": "I'm **Wavi**, WaveRise's own assistant: an automatic helper, not a person. I know every tool on the site and I'm here day and night. If you'd like a real person, write on the [Contact page](/contact) and the team will read it.",
+           "te": "నేను **Wavi**, WaveRise సొంత assistant ని, ఒక automatic helper, మనిషిని కాదు. సైట్‌లోని ప్రతి టూల్ నాకు తెలుసు. మనిషితో మాట్లాడాలంటే [Contact page](/contact) లో రాయండి.",
+           "hi": "मैं **Wavi** हूँ, WaveRise का अपना assistant, एक automatic helper, इंसान नहीं। साइट के हर टूल के बारे में जानता हूँ। किसी इंसान से बात करनी हो तो [Contact page](/contact) पर लिखिए।",
+           "ta": "நான் **Wavi**, WaveRise-இன் சொந்த assistant, ஒரு automatic helper, மனிதர் அல்ல. மனிதரிடம் பேச [Contact page](/contact) இல் எழுதுங்கள்.",
+           "tel": "Nenu **Wavi** andi, WaveRise own assistant ni, oka automatic helper, manishini kaadu 🙂 Site lo prathi tool naaku telusu, rathri pagalu ikkade untanu. Manishi tho matladali ante [Contact page](/contact) lo rayandi, team chustundi.",
+           "hil": "Main **Wavi** hoon, WaveRise ka apna assistant, ek automatic helper, insaan nahi 🙂 Har tool ke baare mein jaanta hoon. Insaan se baat karni ho to [Contact page](/contact) par likhiye.",
+           "tal": "Naan **Wavi**, WaveRise-oda own assistant, oru automatic helper, manushan illa 🙂 Ella tools-um theriyum. Manushan kitta pesanum na [Contact page](/contact)-la ezhudhunga."}},
     {"id": "howareyou", "go": [], "gen": True, "k": ["how are you", "how r u", "ela unnaru", "ela unnav", "ela unnavu", "bagunnara", "baagunnara", "kaise ho", "kaise hain", "kya haal", "eppadi irukeenga", "eppadi iruka", "sapteengala", "tinnara", "bhojanam ayyinda"],
      "a": {"en": "I'm doing great, thanks for asking! 😊 How can I help you today?",
            "te": "నేను బాగున్నాను, అడిగినందుకు థాంక్స్! 😊 ఈరోజు మీకు ఏం సహాయం చేయాలి?",
@@ -424,13 +424,13 @@ def kb_answer(e, st):
 def greet(st):
     h = datetime.now(IST).hour
     part = "Good morning" if 4 <= h < 12 else "Good afternoon" if h < 17 else "Good evening"
-    return {"en": f"{part}! 👋 I'm here to help with WaveRise. What would you like to do: save a Reel, make a photo smaller for a form, or something else?",
-            "tel": "Namaskaram andi! 👋 Nenu WaveRise assistant ni. Eeroju emi cheyali: reel save cheyala, form kosam photo size taggincha la, leka inkemaina?",
-            "hil": "Namaste ji! 👋 Main WaveRise assistant hoon. Aaj kya karna hai: reel save, form ke liye photo chhoti, ya kuch aur?",
-            "tal": "Vanakkam! 👋 Naan WaveRise assistant. Inniku enna pannanum: reel save, form-ku photo size kuraikanum, illa vera edhavadhu?",
-            "te": "నమస్కారం అండి! 👋 ఈరోజు ఏం చేయాలి: రీల్ సేవ్, ఫారమ్ కోసం ఫోటో సైజ్ తగ్గించడం, లేక ఇంకేమైనా?",
-            "hi": "नमस्ते! 👋 आज क्या करना है: रील सेव, फ़ॉर्म के लिए फ़ोटो छोटी, या कुछ और?",
-            "ta": "வணக்கம்! 👋 இன்று என்ன செய்ய வேண்டும்: ரீல் சேமிப்பு, படிவத்துக்கு புகைப்பட அளவு குறைப்பு, அல்லது வேறு?"}[st]
+    return {"en": f"{part}! 👋 I'm Wavi, here to help with WaveRise. What would you like to do: save a Reel, make a photo smaller for a form, or something else?",
+            "tel": "Namaskaram andi! 👋 Nenu Wavi, WaveRise assistant ni. Eeroju emi cheyali: reel save cheyala, form kosam photo size taggincha la, leka inkemaina?",
+            "hil": "Namaste ji! 👋 Main Wavi hoon, WaveRise assistant. Aaj kya karna hai: reel save, form ke liye photo chhoti, ya kuch aur?",
+            "tal": "Vanakkam! 👋 Naan Wavi, WaveRise assistant. Inniku enna pannanum: reel save, form-ku photo size kuraikanum, illa vera edhavadhu?",
+            "te": "నమస్కారం అండి! 👋 నేను Wavi. ఈరోజు ఏం చేయాలి: రీల్ సేవ్, ఫారమ్ కోసం ఫోటో సైజ్ తగ్గించడం, లేక ఇంకేమైనా?",
+            "hi": "नमस्ते! 👋 मैं Wavi हूँ। आज क्या करना है: रील सेव, फ़ॉर्म के लिए फ़ोटो छोटी, या कुछ और?",
+            "ta": "வணக்கம்! 👋 நான் Wavi. இன்று என்ன செய்ய வேண்டும்: ரீல் சேமிப்பு, படிவத்துக்கு புகைப்பட அளவு குறைப்பு, அல்லது வேறு?"}[st]
 
 
 def last_topic(hist):
@@ -665,7 +665,7 @@ def owner(q, snap, hist=None):
     elif re.search(r"\b(hi|hello|hey|namaskaram|namaste)\b", qn) and len(qn.split()) <= 3:
         h = datetime.now(IST).hour
         hi = T("Good morning" if h < 12 else "Good afternoon" if h < 17 else "Good evening", "Namaskaram")
-        return f"{hi} Naveen{T('!', ' garu!')} 👋 " + T("Here's the quick picture:", "Quick ga cheptanu:") + "\n\n" + "\n\n".join(p for p in [bugs_part(2), msgs_part(), first_fix()] if p)
+        return f"{hi} Naveen{T('!', ' garu!')} 👋 " + T("Wavi here. ", "Nenu Wavi. ") + "" + T("Here's the quick picture:", "Quick ga cheptanu:") + "\n\n" + "\n\n".join(p for p in [bugs_part(2), msgs_part(), first_fix()] if p)
     head = T(f"Here's the site report ({snap.get('time_now_india', '')}):", f"Site report andi ({snap.get('time_now_india', '')}):")
     parts = [head, bugs_part(), visitors_part(), msgs_part(), dl_part(), check_part()]
     if rep:

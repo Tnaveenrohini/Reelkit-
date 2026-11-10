@@ -1322,3 +1322,16 @@ html[data-theme=light] #beatbg .bbn{opacity:.05;mix-blend-mode:multiply}
 html[data-theme=light].beaton #beatbg .bbn{mix-blend-mode:normal}
 @media (max-width:900px){#beatbg .bbn{top:46%;width:min(56vmin,300px)}}
 .bg>#beatbg{display:block!important}
+/* header fit levels (desktop): set by the page script only when the header would overflow */
+@media (min-width:901px){
+ html.hfit1 .hsearch:not(.open){display:none!important}
+ html.hfit1 .hsearch.open{display:flex;position:absolute;left:24px;right:24px;top:13px;max-width:none;z-index:70}
+ html.hfit1 #hsbtn{display:grid!important}
+ html.hfit2 #nav .nv>svg.i:not(.chev){display:none!important}
+ html.hfit2 #nav .nv{padding:0 8px!important}
+ html.hfit2 .bar .nav-wrap{gap:10px!important}
+ html.hfit3 #nav>a.nv[href="/guides"]{display:none!important}
+ html.hfit3 .lpill{padding:0 8px!important}
+ html.hfit4 .hsign{display:none!important}
+ html.hfit4 .brand small,html.hfit4 .brand .bsub{display:none!important}
+}

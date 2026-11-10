@@ -127,3 +127,14 @@ html,body{overflow-x:clip}
 .botmsg.me{align-self:flex-end;border-radius:16px 16px 4px 16px;background:rgba(242,193,78,.14);border-color:rgba(242,193,78,.35)}
 .botmsg p,.botmd p{margin:0 0 6px}.botmd p:last-child{margin-bottom:0}.botmd ul,.botmd ol{margin:4px 0 6px;padding-left:20px}.botmd h3{font-size:15px;margin:8px 0 4px}
 .botin{display:flex;gap:8px;align-items:flex-end}.botin textarea{min-height:48px;font-family:inherit;font-size:14.5px;resize:vertical}
+/* spacing: cards, button rows and buttons never touch (phones wrap them onto new lines) */
+.sec>*:not(:first-child){margin-top:14px}
+.sec>.btn,.sec>a.btn{margin-right:8px}
+.row+.row,.row+.card,.card+.row,.card+.card,.grid+.row,.row+.grid,.grid+.card,.card+.grid{margin-top:12px}
+.row{row-gap:10px}
+.card>.btn+.btn{margin-left:8px}
+/* file pickers look like the other buttons */
+input[type=file]{max-width:100%;color:var(--mute);font:inherit;font-size:14px}
+input[type=file]::file-selector-button{min-height:42px;margin-right:12px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:transparent;color:var(--text);font:inherit;font-weight:800;cursor:pointer}
+input[type=file]::file-selector-button:hover{border-color:var(--gold)}
+.sec .row:not(:first-child){margin-top:12px}

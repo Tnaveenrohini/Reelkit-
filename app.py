@@ -8,7 +8,7 @@ from pathlib import Path
 import httpx
 import yt_dlp
 from fastapi import APIRouter, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from starlette.background import BackgroundTask
 from pydantic import BaseModel
 
@@ -996,32 +996,177 @@ def shrink(url: str, index: int = 0, target: float = 16, dur: float = 30, dl: in
 CONVERT_MAX, ENHANCE_MAX = 180, 60   # seconds of video the free server converts / enhances
 
 
-@r_.get("/convert")
-def convert(url: str, index: int = 0, h: int = 720, enhance: int = 0, dl: int = 1):
-    """Re-encode one video to a chosen size. Enhance = light noise clean-up, sharper resize (lanczos) and an unsharp mask.
-    It makes the picture cleaner and crisper; it cannot add detail the original never had."""
-    if h not in (360, 480, 720, 1080):
-        raise HTTPException(400, "Choose 360p, 480p, 720p or 1080p.")
-    u = clean(url)
-    d = fetch_info(u)
+LOOKS = ("auto", "lowlight", "sharp")
+
+
+def _enh_stats(src, start=0.0, frames=10, dur=0.0):
+    """Brightness, contrast and colour of a few frames (signalstats), on a small copy so it is quick."""
+    sel = f"fps={max(0.2, frames / max(dur, 1.0)):.3f}," if dur > 0 else ""
+    cmd = [ffmpeg_path(), "-hide_banner", "-nostats", "-ss", f"{start:.2f}", "-i", src, "-frames:v", str(frames), "-an",
+           "-vf", f"{sel}scale=320:-2,signalstats,metadata=print:file=-", "-f", "null", "-"]
+    try:
+        out = subprocess.run(cmd, capture_output=True, timeout=25).stdout.decode(errors="ignore")
+    except subprocess.TimeoutExpired:
+        out = ""
+    vals = {}
+    for k in ("YAVG", "YMIN", "YMAX", "YLOW", "YHIGH", "SATAVG"):
+        xs = [float(x) for x in re.findall(rf"lavfi\.signalstats\.{k}=([\d.]+)", out)]
+        if xs:
+            vals[k] = sum(xs) / len(xs)
+    return vals
+
+
+def _probe(src):
+    """Width, height, fps and bits per second of the video stream."""
+    r = subprocess.run([ffmpeg_path(), "-hide_banner", "-i", src], capture_output=True, timeout=20).stderr.decode(errors="ignore")
+    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", r)
+    w, hh = (int(m.group(1)), int(m.group(2))) if m else (720, 1280)
+    fps = float((re.search(r"([\d.]+) fps", r) or re.search(r"([\d.]+) tbr", r) or [0, "30"])[1] or 30)
+    kb = re.search(r"Video:.*?(\d+) kb/s", r) or re.search(r"bitrate: (\d+) kb/s", r)
+    rot = re.search(r"rotate\s*:\s*(-?\d+)|displaymatrix: rotation of (-?[\d.]+)", r)
+    if rot and abs(round(float(rot.group(1) or rot.group(2)))) in (90, 270):
+        w, hh = hh, w
+    return w, hh, fps or 30.0, int(kb.group(1)) * 1000 if kb else 0
+
+
+def _enh_plan(st, w, hh, fps, bps, target, look="auto", fast=False):
+    """Turn what the video looks like into a filter chain, plus plain-words steps for the visitor."""
+    look = look if look in LOOKS else "auto"
+    bpp = bps / max(1.0, w * hh * fps) if bps else 0.08           # bits per pixel: how hard it was compressed
+    yavg, ymin, ymax, sat = st.get("YAVG", 110), st.get("YLOW", st.get("YMIN", 16)), st.get("YHIGH", st.get("YMAX", 235)), st.get("SATAVG", 45)
+    vf, steps = [], []
+    if bpp < 0.05:
+        vf.append(f"deblock=filter={'strong' if bpp < 0.025 else 'weak'}:block=8")
+        steps.append("Removed blocky compression")
+    ls = 3.2 if bpp < 0.035 else 2.2 if bpp < 0.07 else 1.3
+    if look == "lowlight" or yavg < 70:
+        ls += 1.0
+    if look == "sharp":
+        ls *= 0.7
+    vf.append(f"hqdn3d={ls:.1f}:{ls * 0.8:.1f}:{ls * 2:.1f}:{ls * 1.6:.1f}")
+    steps.append("Cleaned noise and grain")
+    if bpp < 0.06 and not fast:
+        vf.append("deband=1thr=0.02:2thr=0.02:3thr=0.02:range=16:blur=1")
+        steps.append("Smoothed colour banding")
+    gamma, bright, contrast = 1.0, 0.0, 1.0
+    if yavg < 95 or look == "lowlight":
+        gamma = min(1.4, max(1.12 if look == "lowlight" else 1.0, 1 + (100 - yavg) / 160))
+        bright = 0.015 if yavg < 70 else 0.0
+        steps.append("Brightened dark parts")
+    elif yavg > 185:
+        gamma = 0.92
+        steps.append("Calmed over-bright parts")
+    span = max(1.0, ymax - ymin)
+    if span < 190:
+        contrast = min(1.2, 1 + (200 - span) / 380)
+        steps.append("More contrast")
+    satk = 1.22 if sat < 30 else 1.12 if sat < 50 else 1.05
+    if satk > 1.06:
+        steps.append("Richer, natural colours")
+    vf.append(f"eq=gamma={gamma:.3f}:brightness={bright:.3f}:contrast={contrast:.3f}:saturation={satk:.3f}")
+    short = min(w, hh)
+    if short < target:
+        k = target / short
+        W, H = (int(round(w * k / 2)) * 2, target) if w >= hh else (target, int(round(hh * k / 2)) * 2)
+        vf.append(f"scale={W}:{H}:flags=lanczos+accurate_rnd+full_chroma_int")
+        steps.append(f"Upscaled to {target}p")
+        up = k
+    else:
+        W, H, up = w - w % 2, hh - hh % 2, 1.0
+        vf.append(f"scale={W}:{H}:flags=lanczos")
+    cas = {"auto": 0.45, "lowlight": 0.35, "sharp": 0.75}[look] + (0.12 if up > 1.6 else 0.05 if up > 1.2 else 0)
+    vf.append(f"cas=strength={min(0.95, cas):.2f}")
+    steps.append("Smart sharpen for clear detail")
+    vf.append("format=yuv420p")
+    return ",".join(vf), steps, (W, H)
+
+
+def _enh_audio():
+    return "highpass=f=60,loudnorm=I=-14:TP=-1.5:LRA=11"
+
+
+def _fetch_local(inputs, d, out, limit=None):
+    """Copy the video (and its separate sound, if any) to a local file first, so it can be studied and read twice."""
+    cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
+    for f in inputs:
+        hd = _hd(f, d)
+        if hd:
+            cmd += ["-headers", "".join(f"{k}: {x}\r\n" for k, x in hd.items())]
+        cmd += ["-i", f["url"]]
+    cmd += ["-map", "0:v:0", "-map", "1:a:0"] if len(inputs) == 2 else ["-map", "0:v:0", "-map", "0:a:0?"]
+    if limit:
+        cmd += ["-t", f"{limit:.2f}"]
+    cmd += ["-c", "copy", out]
+    return subprocess.run(cmd, capture_output=True, timeout=60)
+
+
+def _conv_inputs(u, d, index):
     if site_of(u) in PLAN_SITES:
         plans, _ = _yt_plans(d)
         if not plans:
             raise HTTPException(422, "This post has no video to convert.")
         p = plans[max(plans)]
-        inputs, dur = list(p[1:]), d.get("duration") or 0
-    else:
-        its = items_of(d); e = its[min(max(index, 0), len(its) - 1)]
-        if not is_video(e):
-            raise HTTPException(400, "This item is a photo, so there is no video to convert.")
-        nat = _native(e)
-        f = nat[max(nat)] if nat else {"url": e.get("url") or e["formats"][-1]["url"]}
-        inputs = [dict(f, http_headers=f.get("http_headers") or e.get("http_headers") or {})]
-        dur = e.get("duration") or d.get("duration") or 0
+        return list(p[1:]), d.get("duration") or 0
+    its = items_of(d); e = its[min(max(index, 0), len(its) - 1)]
+    if not is_video(e):
+        raise HTTPException(400, "This item is a photo, so there is no video to convert.")
+    nat = _native(e)
+    f = nat[max(nat)] if nat else {"url": e.get("url") or e["formats"][-1]["url"]}
+    return [dict(f, http_headers=f.get("http_headers") or e.get("http_headers") or {})], e.get("duration") or d.get("duration") or 0
+
+
+def enhance_file(src, out, target=1080, look="auto", dur=0.0):
+    """Smart Enhance a local video file. Returns (ffmpeg result, steps, size)."""
+    w, hh, fps, bps = _probe(src)
+    if not bps and os.path.exists(src) and dur:
+        bps = int(os.path.getsize(src) * 8 / max(dur, 1) * 0.88)
+    st = _enh_stats(src, 0, 10, dur)
+    vf, steps, size = _enh_plan(st, w, hh, fps, bps, target, look, fast=dur > 40)
+    long_ = dur > 30 or size[0] * size[1] > 2_200_000
+    cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y", "-i", src, "-map", "0:v:0", "-map", "0:a:0?",
+           "-vf", vf, "-af", _enh_audio(), "-c:v", "libx264", "-preset", "veryfast" if long_ else "faster", "-crf", "20",
+           "-x264-params", "aq-mode=3:aq-strength=0.8", "-profile:v", "high", "-pix_fmt", "yuv420p",
+           "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart"] + CLEAN + [out]
+    r = subprocess.run(cmd, capture_output=True, timeout=150)
+    steps.append("Even, clearer sound")
+    return r, steps, size
+
+
+@r_.get("/convert")
+def convert(url: str, index: int = 0, h: int = 720, enhance: int = 0, dl: int = 1, look: str = "auto"):
+    """Re-encode one video to a chosen size. Enhance studies the video first (brightness, contrast, colour, compression)
+    and builds a chain for it: deblock, denoise, deband, auto tone, sharp upscale, contrast-adaptive sharpening and
+    even sound. It makes the picture cleaner and crisper; it cannot invent detail the original never had."""
+    if h not in (360, 480, 720, 1080):
+        raise HTTPException(400, "Choose 360p, 480p, 720p or 1080p.")
+    u = clean(url)
+    d = fetch_info(u)
+    inputs, dur = _conv_inputs(u, d, index)
     lim = ENHANCE_MAX if enhance else CONVERT_MAX
     if dur > lim:
         raise HTTPException(413, ("Enhance works for videos up to 1 minute" if enhance else "Converting works for videos up to 3 minutes")
                             + " on this free server. Use the normal download for longer videos.")
+    out = f"/tmp/c-{uuid.uuid4().hex}.mp4"
+    name = nice_name(d, "mp4", f"{h}p-enhanced" if enhance else f"{h}p", index if len(items_of(d)) > 1 else None)
+    if enhance:
+        src = f"/tmp/s-{uuid.uuid4().hex}.mp4"
+        try:
+            g = _fetch_local(inputs, d, src)
+            if g.returncode or not os.path.exists(src):
+                raise HTTPException(422, "Couldn't read that video. Try again in a minute.")
+            r, steps, size = enhance_file(src, out, h, look, float(dur or 0))
+        except subprocess.TimeoutExpired:
+            if os.path.exists(out):
+                os.remove(out)
+            raise HTTPException(504, "This took too long for the free server. Try 720p, or a shorter video.")
+        finally:
+            if os.path.exists(src):
+                os.remove(src)
+        resp = _send(r, out, "video/mp4", name, dl, "video")
+        resp.headers["X-WR-Steps"] = "|".join(steps)
+        resp.headers["X-WR-Size"] = f"{size[0]}x{size[1]}"
+        resp.headers["Access-Control-Expose-Headers"] = "X-WR-Steps, X-WR-Size, Content-Disposition"
+        return resp
     cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y"]
     for f in inputs:
         hd = _hd(f, d)
@@ -1030,22 +1175,59 @@ def convert(url: str, index: int = 0, h: int = 720, enhance: int = 0, dl: int = 
         cmd += ["-i", f["url"]]
     cmd += ["-map", "0:v:0", "-map", "1:a:0"] if len(inputs) == 2 else ["-map", "0:v:0", "-map", "0:a:0?"]
     size = f"scale='if(gte(iw,ih),-2,{h})':'if(gte(iw,ih),{h},-2)':flags=lanczos"
-    vf = f"hqdn3d=1.5:1.5:4:4,{size},unsharp=5:5:0.9:5:5:0.0,eq=contrast=1.04:saturation=1.08" if enhance else size
-    out = f"/tmp/c-{uuid.uuid4().hex}.mp4"
-    cmd += ["-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "19" if enhance else "23", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "160k" if enhance else "128k", "-movflags", "+faststart"] + CLEAN + [out]
+    cmd += ["-vf", size, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"] + CLEAN + [out]
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=170)
     except subprocess.TimeoutExpired:
         if os.path.exists(out):
             os.remove(out)
         raise HTTPException(504, "This took too long for the free server. Try a smaller size, or use the normal download.")
-    return _send(r, out, "video/mp4", nice_name(d, "mp4", f"{h}p-enhanced" if enhance else f"{h}p", index if len(items_of(d)) > 1 else None), dl, "video")
+    return _send(r, out, "video/mp4", name, dl, "video")
 
 
 def _video_only(vid):
     if not vid:
         raise HTTPException(400, "This item is a photo. Choose a video post.")
+
+
+@r_.get("/enhance-preview")
+def enhance_preview(url: str, index: int = 0, h: int = 1080, look: str = "auto"):
+    """One frame, before and after Smart Enhance, so the visitor sees the difference before waiting for the video."""
+    import base64
+    h = h if h in (720, 1080) else 1080
+    u = clean(url)
+    d = fetch_info(u)
+    inputs, dur = _conv_inputs(u, d, index)
+    at = max(0.0, float(dur or 0) * 0.35)
+    src = f"/tmp/p-{uuid.uuid4().hex}.mp4"
+    files = [src]
+    try:
+        g = _fetch_local(inputs[:1], d, src, limit=min(float(dur or 8), at + 3.0) or 8)
+        if g.returncode or not os.path.exists(src):
+            raise HTTPException(422, "Couldn't read that video. Try again in a minute.")
+        w, hh, fps, bps = _probe(src)
+        if not bps and dur:
+            bps = int(os.path.getsize(src) * 8 / max(min(float(dur), at + 3.0), 1) * 0.9)
+        st = _enh_stats(src, max(0.0, at - 1), 6, 2.5)
+        vf, steps, size = _enh_plan(st, w, hh, fps, bps, h, look)
+        b4, af = f"/tmp/p-{uuid.uuid4().hex}-b.jpg", f"/tmp/p-{uuid.uuid4().hex}-a.jpg"
+        files += [b4, af]
+        W, H = size
+        base = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y", "-ss", f"{at:.2f}", "-i", src, "-frames:v", "1", "-q:v", "3"]
+        r1 = subprocess.run(base + ["-vf", f"scale={W}:{H}:flags=bilinear", b4], capture_output=True, timeout=30)
+        r2 = subprocess.run(base + ["-vf", vf, af], capture_output=True, timeout=40)
+        if r1.returncode or r2.returncode or not (os.path.exists(b4) and os.path.exists(af)):
+            raise HTTPException(422, "Couldn't make a preview of this video.")
+        enc = lambda p: "data:image/jpeg;base64," + base64.b64encode(open(p, "rb").read()).decode()
+        return JSONResponse({"before": enc(b4), "after": enc(af), "steps": steps + ["Even, clearer sound"], "size": [W, H], "from": [w, hh]},
+                            headers={"Cache-Control": "no-store"})
+    except subprocess.TimeoutExpired:
+        raise HTTPException(504, "The preview took too long. You can still make the HD video.")
+    finally:
+        for f in files:
+            if os.path.exists(f):
+                os.remove(f)
 
 
 @r_.get("/frame")

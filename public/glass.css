@@ -1357,3 +1357,16 @@ html[data-theme=light] .comm details.mytools{background:#fff!important}
 .enhst{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
 .enhst li{padding:5px 10px;border-radius:999px;background:rgba(242,193,78,.1);border:1px solid rgba(242,193,78,.3);font-size:12.5px;font-weight:700;line-height:1.3}
 .enhp>.btn.big{width:100%;justify-content:center;margin:4px 0 10px}
+/* result card: long hashtags, captions or names can never stretch the card past the screen */
+#out .tags{min-width:0;max-width:100%}
+#out .tg{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#out .dlh,#out .stats,#out .dlb,#out .qbox,#out .tags{min-width:0;max-width:100%}
+#out .dlh *,#out .qbox p{overflow-wrap:anywhere}
+/* phone header: the brand shrinks (subtitle gets "…") so the buttons on the right always fit */
+@media (max-width:900px){
+ .bar .nav-wrap{min-width:0}
+ .bar .brand{min-width:0;flex:1 1 auto;overflow:hidden}
+ .bar .brand>span,.bar .brand>div{min-width:0}
+ .bar .brand small,.bar .brand .bsub,.bar .brand b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .bar .ctl{flex:none}
+}

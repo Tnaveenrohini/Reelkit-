@@ -23,7 +23,7 @@ const setupNote=()=>card(h('h2',{},'Switch on the assistant (free)'),
 
 SECTIONS.bot=async()=>{
   const st=await api('/api/admin/bot');
-  const out=sec('Assistant','Your helper while you are away. It reads the error log, messages, downloads and the daily site check, and tells you what matters. Ask in Telugu (English letters are fine) or English.');
+  const out=sec('Wavi','Your WaveRise assistant while you are away. It reads the error log, messages, downloads and the daily site check, and tells you what matters. Ask in Telugu (English letters are fine) or English.');
   if(st.engine==='own')out.append(h('p',{class:'note'},'Running on WaveRise’s own assistant: no key, no cost, no limits. It answers from your site’s real data.'));
   const daily=h('div',{});
   const paintDaily=d=>daily.replaceChildren(card(h('div',{class:'row',style:'justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px'},

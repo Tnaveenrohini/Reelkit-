@@ -103,7 +103,7 @@ footer{border-top:1px solid var(--line);padding:26px 0;color:var(--mute);font-si
 
 </style>
 <script>try{if(sessionStorage.getItem("wr_intro")&&!/[?&]intro/.test(location.search))document.documentElement.classList.add("wr-seen")}catch(e){}</script>
-<link rel="stylesheet" href="/glass.css?v=55">
+<link rel="stylesheet" href="/glass.css?v=56">
 <link rel="stylesheet" href="/creator.css?v=2">
 <script>(()=>{let n=0;const seen=new Set();const send=(msg,src,stack)=>{msg=String(msg||'').slice(0,300);if(!msg||n>=5||seen.has(msg))return;seen.add(msg);n++;
 try{const b=new Blob([JSON.stringify({msg,src:String(src||'').slice(0,200),stack:String(stack||'').slice(0,700),page:location.href})],{type:'application/json'});if(!(navigator.sendBeacon&&navigator.sendBeacon('/api/err',b)))fetch('/api/err',{method:'POST',body:b,keepalive:true}).catch(()=>{})}catch(e){}};
@@ -1976,7 +1976,7 @@ function showDl(d,url){const fb=d.site==='facebook',yt=d.site==='youtube'||fb,q=
  const l1=[ql,it.duration&&tt(Math.round(it.duration))].filter(Boolean).join(' · '),l2=[it.size&&fmtB(it.size),it.type==='video'&&L('w_sound')].filter(Boolean).join(' · ');
  const st=[[d.views,'eye','st_views'],[d.likes,'heart','st_likes'],[d.comments,'chat','st_comments'],[d.reposts,'rep','st_reposts']].filter(([v])=>v!=null&&v!==''&&+v>=0)
   .map(([v,i,k])=>h('span',{class:'stt',title:(+v).toLocaleString('en-IN')+' '+L(k)},svgI(IC[i]),h('b',{},nfmt(v)),' '+L(k)));
- const tags=(d.hashtags||[]).slice(0,30),tg=tags.length?h('div',{class:'tags'},...tags.slice(0,8).map(t=>h('button',{type:'button',class:'tg',title:L('tg_one'),onclick:e=>cp(t,e.currentTarget)},t)),
+ const tags=(d.hashtags||[]).slice(0,30),tg=tags.length?h('div',{class:'tags'},...tags.slice(0,8).map(t=>h('button',{type:'button',class:'tg',title:t.length>28?t:L('tg_one'),onclick:e=>cp(t,e.currentTarget)},t.length>28?t.slice(0,26)+'…':t)),
    tags.length>8?h('span',{class:'tgm'},'+'+(tags.length-8)):null,h('button',{type:'button',class:'tg all',onclick:e=>cp(tags.join(' '),e.currentTarget)},L('tg_copy'))):null;
  const qn=yt?(fb?'Higher qualities can take a few seconds to start. 1080p works for videos up to 20 minutes.':'HD versions take a few seconds to start. They work for videos up to 20 minutes.'):null;
  let btns,qb=null;

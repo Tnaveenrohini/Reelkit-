@@ -1029,13 +1029,13 @@ def _probe(src):
     return w, hh, fps or 30.0, int(kb.group(1)) * 1000 if kb else 0
 
 
-def _enh_plan(st, w, hh, fps, bps, target, look="auto", fast=False):
+def _enh_plan(st, w, hh, fps, bps, target, look="auto", fast=False, level=0):
     """Turn what the video looks like into a filter chain, plus plain-words steps for the visitor."""
     look = look if look in LOOKS else "auto"
     bpp = bps / max(1.0, w * hh * fps) if bps else 0.08           # bits per pixel: how hard it was compressed
     yavg, ymin, ymax, sat = st.get("YAVG", 110), st.get("YLOW", st.get("YMIN", 16)), st.get("YHIGH", st.get("YMAX", 235)), st.get("SATAVG", 45)
     vf, steps = [], []
-    if bpp < 0.05:
+    if bpp < (0.05 if level == 0 else 0.03 if level == 1 else -1):
         vf.append(f"deblock=filter={'strong' if bpp < 0.025 else 'weak'}:block=8")
         steps.append("Removed blocky compression")
     ls = 3.2 if bpp < 0.035 else 2.2 if bpp < 0.07 else 1.3
@@ -1043,9 +1043,11 @@ def _enh_plan(st, w, hh, fps, bps, target, look="auto", fast=False):
         ls += 1.0
     if look == "sharp":
         ls *= 0.7
+    if level >= 2:
+        ls = min(ls, 2.0)
     vf.append(f"hqdn3d={ls:.1f}:{ls * 0.8:.1f}:{ls * 2:.1f}:{ls * 1.6:.1f}")
     steps.append("Cleaned noise and grain")
-    if bpp < 0.06 and not fast:
+    if bpp < 0.06 and not fast and level == 0:
         vf.append("deband=1thr=0.02:2thr=0.02:3thr=0.02:range=16:blur=1")
         steps.append("Smoothed colour banding")
     gamma, bright, contrast = 1.0, 0.0, 1.0
@@ -1068,7 +1070,7 @@ def _enh_plan(st, w, hh, fps, bps, target, look="auto", fast=False):
     if short < target:
         k = target / short
         W, H = (int(round(w * k / 2)) * 2, target) if w >= hh else (target, int(round(hh * k / 2)) * 2)
-        vf.append(f"scale={W}:{H}:flags=lanczos+accurate_rnd+full_chroma_int")
+        vf.append(f"scale={W}:{H}:flags=" + ("lanczos+accurate_rnd+full_chroma_int" if level < 2 else "bicubic"))
         steps.append(f"Upscaled to {target}p")
         up = k
     else:
@@ -1115,19 +1117,44 @@ def _conv_inputs(u, d, index):
     return [dict(f, http_headers=f.get("http_headers") or e.get("http_headers") or {})], e.get("duration") or d.get("duration") or 0
 
 
-def enhance_file(src, out, target=1080, look="auto", dur=0.0):
-    """Smart Enhance a local video file. Returns (ffmpeg result, steps, size)."""
+LEVELS = [(0, "veryfast", 0), (1, "veryfast", 0), (2, "superfast", 0), (2, "ultrafast", 720)]
+
+
+def enhance_file(src, out, target=1080, look="auto", dur=0.0, deadline=None):
+    """Smart Enhance a local video file within the time left. It first times the chain on 3 seconds of the video and,
+    when the full chain would not finish in time, steps down: lighter clean-up, then faster encoding, then 720p.
+    Returns (ffmpeg result, steps, size)."""
+    deadline = deadline or time.time() + 240
     w, hh, fps, bps = _probe(src)
     if not bps and os.path.exists(src) and dur:
         bps = int(os.path.getsize(src) * 8 / max(dur, 1) * 0.88)
     st = _enh_stats(src, 0, 10, dur)
-    vf, steps, size = _enh_plan(st, w, hh, fps, bps, target, look, fast=dur > 40)
-    long_ = dur > 30 or size[0] * size[1] > 2_200_000
+    dur = float(dur or 0) or 60.0
+    tail = ["-c:v", "libx264", "-crf", "{crf}", "-x264-params", "aq-mode=3:aq-strength=0.8", "-profile:v", "high", "-pix_fmt", "yuv420p"]
+    pick = None
+    for i, (level, preset, cap) in enumerate(LEVELS):
+        tgt = min(target, cap) if cap else target
+        vf, steps, size = _enh_plan(st, w, hh, fps, bps, tgt, look, fast=dur > 40, level=level)
+        tl = [x.replace("{crf}", "20" if preset == "veryfast" else "22") for x in tail]
+        left = deadline - time.time()
+        if i == len(LEVELS) - 1 or dur <= 4:
+            pick = (vf, steps, size, preset, tl)
+            break
+        t = time.time()
+        try:
+            subprocess.run([ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y", "-t", "3", "-i", src, "-an", "-vf", vf,
+                            "-preset", preset] + tl + ["-f", "null", "-"], capture_output=True, timeout=max(5, min(40, left / 3)))
+            took = time.time() - t
+        except subprocess.TimeoutExpired:
+            continue
+        need = dur / 3.0 * took * 1.2 + 4               # whole video, plus a little for sound and the file
+        if need < (deadline - time.time()) * 0.85:
+            pick = (vf, steps, size, preset, tl)
+            break
+    vf, steps, size, preset, tl = pick
     cmd = [ffmpeg_path(), "-hide_banner", "-loglevel", "error", "-y", "-i", src, "-map", "0:v:0", "-map", "0:a:0?",
-           "-vf", vf, "-af", _enh_audio(), "-c:v", "libx264", "-preset", "veryfast" if long_ else "faster", "-crf", "20",
-           "-x264-params", "aq-mode=3:aq-strength=0.8", "-profile:v", "high", "-pix_fmt", "yuv420p",
-           "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart"] + CLEAN + [out]
-    r = subprocess.run(cmd, capture_output=True, timeout=150)
+           "-vf", vf, "-af", _enh_audio(), "-preset", preset] + tl + ["-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-movflags", "+faststart"] + CLEAN + [out]
+    r = subprocess.run(cmd, capture_output=True, timeout=max(20, deadline - time.time()))
     steps.append("Even, clearer sound")
     return r, steps, size
 
@@ -1150,15 +1177,16 @@ def convert(url: str, index: int = 0, h: int = 720, enhance: int = 0, dl: int = 
     name = nice_name(d, "mp4", f"{h}p-enhanced" if enhance else f"{h}p", index if len(items_of(d)) > 1 else None)
     if enhance:
         src = f"/tmp/s-{uuid.uuid4().hex}.mp4"
+        deadline = time.time() + 270                     # the server allows 300 s; keep time to send the file
         try:
             g = _fetch_local(inputs, d, src)
             if g.returncode or not os.path.exists(src):
                 raise HTTPException(422, "Couldn't read that video. Try again in a minute.")
-            r, steps, size = enhance_file(src, out, h, look, float(dur or 0))
+            r, steps, size = enhance_file(src, out, h, look, float(dur or 0), deadline)
         except subprocess.TimeoutExpired:
             if os.path.exists(out):
                 os.remove(out)
-            raise HTTPException(504, "This took too long for the free server. Try 720p, or a shorter video.")
+            raise HTTPException(504, "The server is very busy right now. Try again in a minute, or use a shorter video.")
         finally:
             if os.path.exists(src):
                 os.remove(src)

@@ -290,6 +290,20 @@ def first_paint(page, key):
                       lambda m: f"<{m.group(1)}{m.group(2)}{m.group(3)} hidden>", page)
         if key in ("about", "contact", "faq", "privacy", "terms", "dmca"):
             page = page.replace(f'data-page="{key}" hidden', f'data-page="{key}"', 1)
+    return _one_h1(page, None if hide_chat and key in ("ringtones", "wallpapers") else key)
+
+
+H1_IDS = ("h", "h2t", "cph1")
+
+
+def _one_h1(page, key):
+    """Google should see one main heading. Keep the one this page shows; the page's other built-in headings become plain headings."""
+    keep = {"home": "h2t", "chat": "cph1", None: None}.get(key, "h")   # None: the page's script draws its own heading
+    if re.search(r'<h1(?![^>]*\bid="(?:h|h2t|cph1)")[\s>]', page):
+        keep = None                                    # an article page brings its own main heading
+    for hid in H1_IDS:
+        if hid != keep:
+            page = re.sub(rf'<h1 id="{hid}"([^>]*)>(.*?)</h1>', rf'<div id="{hid}"\1 role="heading" aria-level="2">\2</div>', page, count=1, flags=re.S)
     return page
 
 
@@ -361,6 +375,7 @@ def render_guide(slug, request: Request):
     page = comm_flag(page)
     page = first_paint(page, "guides")
     page = page.replace('<div id="pages">', '<div id="pages">' + (WG.article_html(g) if g else WG.index_html()), 1)
+    page = _one_h1(page, "guides")
     page = page.replace('<section class="tool tguide" id="tguide">', '<section class="tool tguide" id="tguide" hidden>', 1)
     head = [f'<meta name="twitter:title" content="{t}">', f'<meta name="twitter:description" content="{d}">',
             '<meta name="robots" content="' + ("noindex, nofollow" if noindex else "index, follow, max-image-preview:large") + '">']
@@ -487,7 +502,7 @@ def not_found(request: Request):
             except StoreError:
                 pass
     body = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=59"></head>'
+            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=60"></head>'
             '<body style="background:#07122B;color:#F4F1EA;font-family:Sora,system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;padding:0 20px;text-align:center">'
             '<main><h1 style="font-size:28px;margin:0 0 8px">Page not found</h1><p style="color:#AEB8D0;margin:0 0 20px">This page doesn’t exist or has moved.</p>'
             '<a href="/" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#F2C14E;color:#1A1405;font-weight:800;text-decoration:none">Open WaveRise</a></main></body></html>')

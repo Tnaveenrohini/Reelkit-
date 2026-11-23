@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Resp
 from wr_store import STORE, StoreError
 import wr_guides as WG
 import wr_manage as MG
+import wr_local as LC
 
 ROOT = Path(__file__).parent
 TEMPLATE_PATH = ROOT / "templates" / "index.html"
@@ -126,8 +127,45 @@ def site_base(request: Request = None):
     return f"{proto}://{host}" if host else ""
 
 
-def path_of(key):
-    return "/" if key == "home" or not SEO.get(key, {}).get("s") else "/" + SEO[key]["s"]
+def path_of(key, lang=None):
+    p = "/" if key == "home" or not SEO.get(key, {}).get("s") else "/" + SEO[key]["s"]
+    return p if not lang else "/" + lang + ("" if p == "/" else p)
+
+
+def alternates(key, base):
+    """hreflang list for a page that has language versions: [(hreflang, url)], English first."""
+    langs = LC.langs_for(key) if not effective(key)["noindex"] else []
+    if not langs:
+        return []
+    return [("en", base + path_of(key))] + [(l, base + path_of(key, l)) for l in langs] + [("x-default", base + path_of(key))]
+
+
+def _i18n():
+    m = re.search(r"const I18N=(\{.*?\});?\n", TEMPLATE or "")
+    try:
+        return json.loads(m.group(1)) if m else {}
+    except ValueError:
+        return {}
+
+
+I18N = _i18n()
+
+
+def translate_static(page, lang):
+    """Language pages are sent already in that language (headings, buttons, menus), not translated later in the browser."""
+    tr = I18N.get(lang) or {}
+    return re.sub(r'(<[a-z0-9]+\b[^<>]*\bdata-i="([a-z0-9_]+)"[^<>]*>)([^<]*)(?=<)',
+                  lambda m: m.group(1) + (esc(tr[m.group(2)]) if m.group(2) in tr and m.group(3).strip() else m.group(3)), page)
+
+
+def strip_info_pages(page, key):
+    """Every page carried the full About, FAQ, Privacy, Terms and DMCA text, hidden. Search engines read hidden text,
+    so each tool looked like a copy of the same long page. Keep only the info page being shown; the browser loads
+    the others from the server when someone opens them."""
+    for k in INFO_PAGES:
+        if k != key:
+            page = re.sub(rf'<article class="page" data-page="{k}" hidden>.*?</article>', "", page, count=1, flags=re.S)
+    return page
 
 
 def effective(key):
@@ -138,31 +176,38 @@ def effective(key):
             "page_noindex": bool(ov.get("noindex"))}
 
 
-def auto_schema(key, base, eff):
-    url = base + path_of(key)
+def auto_schema(key, base, eff, lang=None):
+    url = base + path_of(key, lang)
     site = {"@type": "WebSite", "@id": base + "/#website", "name": "WaveRise", "url": base + "/", "inLanguage": ["en", "hi", "ta", "te"]}
     org = {"@type": "Organization", "@id": base + "/#org", "name": "WaveRise", "url": base + "/", "logo": base + "/icon-512.png"}
-    e = SEO.get(key, {})
+    e = dict(SEO.get(key, {}))
+    if lang:
+        e.update({k: v for k, v in (LC.get(lang, key) or {}).items() if v})
     if key == "faq":
         items = faq_items()
         if items:
             return {"@context": "https://schema.org", "@type": "FAQPage", "url": url, "mainEntity": [
                 {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in items]}
     if key == "home":
-        return {"@context": "https://schema.org", "@graph": [site, org, {"@type": "WebPage", "name": eff["t"], "url": url, "description": eff["d"], "isPartOf": {"@id": base + "/#website"}}]}
+        return {"@context": "https://schema.org", "@graph": [site, org, {"@type": "WebPage", "name": eff["t"], "url": url, "description": eff["d"], "inLanguage": lang or "en", "isPartOf": {"@id": base + "/#website"}}]}
     if e.get("h"):
         app = {"@type": "WebApplication", "name": e["h"], "url": url, "description": eff["d"], "applicationCategory": "MultimediaApplication",
                "operatingSystem": "Any", "isPartOf": {"@id": base + "/#website"}, "publisher": {"@id": base + "/#org"},
-               "offers": {"@type": "Offer", "price": "0", "priceCurrency": "INR"}}
-        graph = [app]
+               "offers": {"@type": "Offer", "price": "0", "priceCurrency": "INR"}, "inLanguage": lang or "en"}
+        crumbs = {"@type": "BreadcrumbList", "itemListElement": [
+            {"@type": "ListItem", "position": 1, "name": "WaveRise", "item": base + ("/" + lang if lang else "/")},
+            {"@type": "ListItem", "position": 2, "name": e["h"], "item": url}]}
+        graph = [app, crumbs]
         g = GUIDE.get(key) or {}
-        if g.get("q"):
+        if g.get("q") and not lang:
             graph.append({"@type": "FAQPage", "url": url, "mainEntity": [{"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}} for q, a in g["q"]]})
         return {"@context": "https://schema.org", "@graph": graph}
     return {"@context": "https://schema.org", "@type": "WebPage", "name": eff["t"], "url": url, "description": eff["d"], "isPartOf": {"@id": base + "/#website"}}
 
 
-def schema_for(key, base, eff):
+def schema_for(key, base, eff, lang=None):
+    if lang:
+        return auto_schema(key, base, eff, lang)
     sc = overrides("schema").get(key) or {}
     mode = sc.get("mode", "auto")
     if mode == "off":
@@ -185,12 +230,18 @@ def comm_flag(page):
     return page.replace('<html lang="en"', '<html lang="en" data-comm="1"', 1) if on else page
 
 
-def render(key, request: Request):
+def render(key, request: Request, lang=None):
     page = PAGE
     if not page or key not in SEO:
         return None, False
     base, e, eff, st = site_base(request), SEO[key], effective(key), settings()
-    url = base + path_of(key)
+    lc = LC.get(lang, key) if lang else None
+    if lang and not lc:
+        return None, False
+    if lc:
+        e = {**e, **lc}
+        eff = {**eff, "t": lc["t"], "d": lc["d"]}
+    url = base + path_of(key, lang)
     og = eff["og"] or base + "/og-image.jpg?v=12"
     t, d = esc(eff["t"]), esc(eff["d"])
     page = re.sub(r"<title>.*?</title>", lambda _: f"<title>{t}</title>", page, count=1, flags=re.S)
@@ -202,22 +253,38 @@ def render(key, request: Request):
     page = page.replace('content="/og-image.jpg?v=12"', f'content="{esc(og)}"')
     if e.get("h"):
         page = page.replace('<h1 id="h"></h1><p id="p"></p>', f'<h1 id="h">{esc(e["h"])}</h1><p id="p">{esc(e["p"])}</p>', 1)
-        page = page.replace('<h2 id="ah"></h2><p id="ap"></p>', f'<h2 id="ah">About {esc("WaveRise" if key == "home" else e["h"])}</h2><p id="ap">{esc(e["a"])}</p>', 1)
+        ah = e["h"] if lc else "About " + ("WaveRise" if key == "home" else e["h"])
+        page = page.replace('<h2 id="ah"></h2><p id="ap"></p>', f'<h2 id="ah">{esc(ah)}</h2><p id="ap">{esc(e["a"])}</p>', 1)
+    alts = alternates(key, base)
+    if alts:     # plain links to the other language versions, so search engines also find them by following links
+        links = " · ".join(f'<a href="{esc(u[len(base):] or "/")}" hreflang="{l}" lang="{l}">{LC.NAMES[l]}</a>'
+                           for l, u in alts if l not in ("x-default", lang or "en"))
+        page = re.sub(r'(<section[^>]*id="about-tool"[^>]*>.*?</p>)', lambda m: m.group(1) + f'<p class="langalt" id="langalt">{links}</p>',
+                      page, count=1, flags=re.S)
+    page = strip_info_pages(page, key)
+    if lc:
+        page = translate_static(page, lang)
     page = body_for(page, key)
     soon = ",".join({"youtube": "yt"}.get(x, x) for x in (x.strip().lower() for x in os.getenv("SOON_SITES", "youtube").split(",")) if x)
-    page = page.replace('<html lang="en"', f'<html lang="en" data-soon="{esc(soon)}"', 1)
+    page = page.replace('<html lang="en"', f'<html lang="{lang or "en"}" data-soon="{esc(soon)}"', 1)
+    if lc:
+        boot = json.dumps({"l": lang, "k": key, **lc}, ensure_ascii=False).replace("</", "<\\/")
+        page = page.replace("<head>", f"<head><script>window.WR_LANG={json.dumps(lang)};window.WR_LOC={boot}</script>", 1)
     page = comm_flag(page)
     page = first_paint(page, key)
-    ld = schema_for(key, base, eff)
+    ld = schema_for(key, base, eff, lang)
     ld_html = "" if ld is None else '<script type="application/ld+json" id="wr-ld">' + json.dumps(ld, ensure_ascii=False).replace("</", "<\\/") + "</script>"
     page = re.sub(r'<script type="application/ld\+json" id="wr-ld">.*?</script>', lambda _: ld_html, page, count=1, flags=re.S)
     # the page's own SEO table, so moving between tools in the browser shows the edited titles too
     meta_ov = overrides("meta")
-    if meta_ov:
+    if meta_ov and not lc:
         table = {k: {**v, **{f: meta_ov[k][f] for f in ("t", "d") if meta_ov.get(k, {}).get(f)}} for k, v in SEO.items()}
         js = json.dumps(table, ensure_ascii=False, separators=(",", ":")).replace("</", "<\\/")
         page = re.sub(r'(<script type="application/json" id="wr-seo">).*?(</script>)', lambda m: m.group(1) + js + m.group(2), page, count=1, flags=re.S)
-    head = [f'<meta name="twitter:title" content="{t}">', f'<meta name="twitter:description" content="{d}">',
+    head = [f'<link rel="alternate" hreflang="{l}" href="{esc(u)}">' for l, u in alts]
+    if lc:
+        head.append('<meta property="og:locale" content="' + {"te": "te_IN", "hi": "hi_IN", "ta": "ta_IN"}[lang] + '">')
+    head += [f'<meta name="twitter:title" content="{t}">', f'<meta name="twitter:description" content="{d}">',
             '<meta name="robots" content="' + ("noindex, nofollow" if eff["noindex"] else "index, follow, max-image-preview:large") + '">']
     v = (st.get("gsc_verification") or "").strip()
     if v and VERIFY_RX.match(v):
@@ -299,6 +366,9 @@ H1_IDS = ("h", "h2t", "cph1")
 def _one_h1(page, key):
     """Google should see one main heading. Keep the one this page shows; the page's other built-in headings become plain headings."""
     keep = {"home": "h2t", "chat": "cph1", None: None}.get(key, "h")   # None: the page's script draws its own heading
+    if key in INFO_PAGES:      # the page's own title is its main heading
+        keep = None
+        page = re.sub(rf'(<article class="page" data-page="{key}"[^>]*>.*?)<h2([ >])(.*?)</h2>', r'\1<h1 class="pgh"\2\3</h1>', page, count=1, flags=re.S)
     if re.search(r'<h1(?![^>]*\bid="(?:h|h2t|cph1)")[\s>]', page):
         keep = None                                    # an article page brings its own main heading
     for hid in H1_IDS:
@@ -390,9 +460,9 @@ def render_guide(slug, request: Request):
     return MG.inject(ads_body(page, "guides" in MG.config()["ads"]["pages"])), noindex
 
 
-def page_response(key, request: Request):
+def page_response(key, request: Request, lang=None):
     try:
-        body, noindex = render(key, request)
+        body, noindex = render(key, request, lang)
     except Exception as e:      # noqa: BLE001
         print("[waverise] page render failed:", key, e, flush=True)
         body, noindex = None, False
@@ -400,9 +470,50 @@ def page_response(key, request: Request):
         return HTMLResponse("<!doctype html><title>WaveRise</title><p>WaveRise is updating. Please reload in a minute.</p>", status_code=503,
                             headers={"Cache-Control": "no-store", "Retry-After": "60"})
     h = dict(CACHE)
+    if not noindex:
+        try:
+            indexnow_once(site_base(request))
+        except Exception:       # noqa: BLE001
+            pass
     if noindex:
         h["X-Robots-Tag"] = "noindex, nofollow"
     return HTMLResponse(body, headers=h)
+
+
+# ---------------- IndexNow: tell Bing, Yandex and others about new pages right after a deploy ----------------
+INDEXNOW_KEY = hashlib.sha256(("waverise-indexnow:" + (os.getenv("SESSION_SECRET") or "waverise")).encode()).hexdigest()[:32]
+
+
+def _deploy_id():
+    return os.getenv("VERCEL_DEPLOYMENT_ID") or os.getenv("VERCEL_GIT_COMMIT_SHA") or hashlib.sha1((PAGE or "").encode()).hexdigest()[:12]
+
+
+def indexnow_once(base):
+    """Once per deploy (across all server copies), send every sitemap address to IndexNow. Production only."""
+    live = os.getenv("VERCEL_ENV") == "production" or (os.getenv("SITE_URL") and not os.getenv("VERCEL_ENV"))
+    if not live or os.getenv("INDEXNOW", "1") == "0" or not base.startswith("https://"):
+        return None
+    try:
+        if not STORE.cmd("SET", STORE.k("indexnow:" + _deploy_id()), str(int(time.time())), "NX", "EX", 120 * 86400):
+            return None
+    except Exception:       # noqa: BLE001 - no store, no ping; never break the page
+        return None
+    import urllib.request
+    urls = [r[0] for r in sitemap_urls(base)][:10000]
+    host = base.split("://", 1)[1].split("/", 1)[0]
+    body = json.dumps({"host": host, "key": INDEXNOW_KEY, "keyLocation": f"{base}/{INDEXNOW_KEY}.txt", "urlList": urls}).encode()
+    try:
+        req = urllib.request.Request("https://api.indexnow.org/indexnow", data=body, headers={"Content-Type": "application/json; charset=utf-8"})
+        with urllib.request.urlopen(req, timeout=4) as r:
+            code = r.status
+    except Exception as e:      # noqa: BLE001
+        code = getattr(e, "code", None) or type(e).__name__
+    try:
+        STORE.cmd("SET", STORE.k("indexnow:last"), json.dumps({"at": int(time.time()), "urls": len(urls), "result": code}))
+    except Exception:       # noqa: BLE001
+        pass
+    print(f"[waverise] IndexNow: sent {len(urls)} addresses, answer {code}", flush=True)
+    return code
 
 
 # ---------------- sitemap and robots.txt ----------------
@@ -416,16 +527,22 @@ def sitemap_urls(base):
         if effective(k)["noindex"]:
             continue
         lm = lastmod.get(k) if isinstance(lastmod.get(k), str) else BUILT
-        out.append((base + path_of(k), lm, "1.0" if k == "home" else "0.3" if k in INFO_PAGES else "0.8"))
+        alts = alternates(k, base)
+        out.append((base + path_of(k), lm, "1.0" if k == "home" else "0.3" if k in INFO_PAGES else "0.8", alts))
+        if alts:
+            out += [(base + path_of(k, l), lm, "0.9" if k == "home" else "0.7", alts) for l in LC.langs_for(k)]
     if settings().get("visibility", True):
-        out.append((base + "/guides", WG.UPDATED, "0.7"))
-        out += [(f"{base}/guides/{g['slug']}", g.get("_updated", WG.UPDATED), "0.7") for g in WG.list_guides()]
+        out.append((base + "/guides", WG.UPDATED, "0.7", []))
+        out += [(f"{base}/guides/{g['slug']}", g.get("_updated", WG.UPDATED), "0.7", []) for g in WG.list_guides()]
     return out
 
 
 def _urlset(urls):
-    rows = "".join(f"  <url><loc>{esc(u)}</loc>" + (f"<lastmod>{lm}</lastmod>" if lm else "") + f"<priority>{p}</priority></url>\n" for u, lm, p in urls)
-    return '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + rows + "</urlset>\n"
+    def row(u, lm, p, alts=()):
+        x = "".join(f'<xhtml:link rel="alternate" hreflang="{l}" href="{esc(a)}"/>' for l, a in alts)
+        return f"  <url><loc>{esc(u)}</loc>" + (f"<lastmod>{lm}</lastmod>" if lm else "") + f"<priority>{p}</priority>{x}</url>\n"
+    return ('<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">\n'
+            + "".join(row(*r) for r in urls) + "</urlset>\n")
 
 
 def sitemap_xml(base, part=None):
@@ -502,7 +619,7 @@ def not_found(request: Request):
             except StoreError:
                 pass
     body = ('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=60"></head>'
+            '<meta name="robots" content="noindex"><title>Page not found – WaveRise</title><link rel="stylesheet" href="/glass.css?v=61"></head>'
             '<body style="background:#07122B;color:#F4F1EA;font-family:Sora,system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;padding:0 20px;text-align:center">'
             '<main><h1 style="font-size:28px;margin:0 0 8px">Page not found</h1><p style="color:#AEB8D0;margin:0 0 20px">This page doesn’t exist or has moved.</p>'
             '<a href="/" style="display:inline-block;padding:14px 22px;border-radius:14px;background:#F2C14E;color:#1A1405;font-weight:800;text-decoration:none">Open WaveRise</a></main></body></html>')
@@ -529,6 +646,19 @@ def install(app, taken_paths):
         app.add_api_route(p, page_route(k), methods=["GET", "HEAD"], include_in_schema=False)
         app.add_api_route(p + "/", (lambda s: (lambda: RedirectResponse("/" + s, status_code=301)))(e["s"]), methods=["GET", "HEAD"], include_in_schema=False)
 
+    def lang_route(key, lang):
+        def handler(request: Request):
+            return page_response(key, request, lang)
+        return handler
+
+    for lang in LC.LANGS:
+        for k in LC.LOC[lang]:
+            p = path_of(k, lang)
+            if k not in SEO or p in taken_paths:
+                continue
+            app.add_api_route(p, lang_route(k, lang), methods=["GET", "HEAD"], include_in_schema=False)
+            app.add_api_route(p + "/", (lambda q: (lambda: RedirectResponse(q, status_code=301)))(p), methods=["GET", "HEAD"], include_in_schema=False)
+
     def guide_page(slug, request):
         try:
             r = render_guide(slug, request)
@@ -550,6 +680,10 @@ def install(app, taken_paths):
     @app.api_route("/guides/{slug}", methods=["GET", "HEAD"], include_in_schema=False)
     def guides_article(slug: str, request: Request):
         return guide_page(slug, request)
+
+    @app.get(f"/{INDEXNOW_KEY}.txt", include_in_schema=False)
+    def indexnow_key():
+        return Response(INDEXNOW_KEY, media_type="text/plain", headers={"Cache-Control": "public, max-age=86400"})
 
     @app.get("/ads.txt", include_in_schema=False)
     def ads_txt(request: Request):
